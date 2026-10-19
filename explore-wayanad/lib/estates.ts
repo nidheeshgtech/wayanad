@@ -17,8 +17,9 @@ const MAX_TOWNS = 6;
 /** World z of the gateway and town circles [x, z, radius] (units), set once the road has loaded. */
 export const estateFrame = { gateZ: Infinity, towns: [] as [number, number, number][] };
 
-/** Uniforms for the ground shader (plain objects; three uploads Float32Array to vec4[]). */
-export const estateUniforms = { uTeaGateZ: { value: 1e9 }, uTowns: { value: new Float32Array(MAX_TOWNS * 4) } };
+/** Uniforms for the ground shader (plain objects; three uploads Float32Array to vec4[]). `uForestX`: world x east of
+ * which the ground is the Muthanga forest road's (moist deciduous: a floor of dry teak leaves, not green cover). */
+export const estateUniforms = { uTeaGateZ: { value: 1e9 }, uTowns: { value: new Float32Array(MAX_TOWNS * 4) }, uForestX: { value: 1e9 } };
 
 export function setEstateFrame(gateZ: number, towns: [number, number, number][]) {
   estateFrame.gateZ = gateZ;
@@ -51,7 +52,7 @@ export function onTeaRow(y: number, width = 0.3) {
 
 /** GLSL: `float teaMask(vec3 worldPos, float flatness)` and `float teaPhase(float worldY)`. Needs estateUniforms. */
 export const ESTATE_GLSL = /* glsl */ `
-  uniform float uTeaGateZ;
+  uniform float uTeaGateZ, uForestX;
   uniform vec4 uTowns[${MAX_TOWNS}];
   float teaPatch(vec2 p) {
     return smoothstep(-0.05, 0.3, sin(p.x * 0.021 + 1.3) * sin(p.y * 0.017 - 0.7) + 0.5 * sin(p.x * 0.05 + p.y * 0.043));

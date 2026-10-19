@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { BufferAttribute, Mesh, PlaneGeometry } from "three";
 import { SECTION, TERRAIN, height, roadDistance, terrainGrids } from "@/lib/terrain";
@@ -15,7 +16,7 @@ const SEAM = { overlap: 0.3, drop: 0.08 }; // units
  * Shaded by the shared physically based ground material (moss on gentle ground, rock on steep faces).
  */
 export default function Terrain({ segments = 160, tile }: { segments?: number; tile?: number }) {
-  const mesh = useMemo(() => {
+  const mesh = useMemo(() => timed("terrain", () => {
     const grid = tile === undefined ? null : terrainGrids()[tile] ?? null;
     const width = grid?.width ?? TERRAIN.width, length = grid?.length ?? TERRAIN.length;
     const x = grid ? grid.west + width / 2 : 0, z = grid ? grid.north + length / 2 : TERRAIN.offsetZ;
@@ -37,6 +38,6 @@ export default function Terrain({ segments = 160, tile }: { segments?: number; t
     m.receiveShadow = true;
     m.name = "terrain";
     return m;
-  }, [segments, tile]);
+  }), [segments, tile]);
   return <primitive object={mesh} />;
 }

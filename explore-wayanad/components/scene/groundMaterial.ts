@@ -36,7 +36,7 @@ export function groundMaterial() {
     uGroundScale: { value: GROUND_SCALE }, uRockScale: { value: ROCK_SCALE }, uWet: wetUniform,
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 });
-  m.customProgramCacheKey = () => "explore-wayanad-ground-6";
+  m.customProgramCacheKey = () => "explore-wayanad-ground-7";
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, estateUniforms, cloudShadowUniforms);
     shader.vertexShader = shader.vertexShader
@@ -84,6 +84,9 @@ export function groundMaterial() {
         float lum = dot(ground, vec3(0.299, 0.587, 0.114));
         vec3 lush = lum * vec3(0.48, 1.05, 0.36) * 1.5;
         ground = mix(ground * vec3(0.88, 0.86, 0.7), lush, 0.58 + 0.4 * smoothstep(0.2, 0.55, patches)); // mostly green, some bare litter
+        // the Muthanga forest: a deciduous floor of fallen teak leaves, browner, with green only in patches
+        float deciduous = smoothstep(uForestX - 20.0, uForestX, vWorldPos.x);
+        ground = mix(ground, mix(lum * vec3(1.15, 0.9, 0.55) * 1.25, lush, 0.2 * smoothstep(0.4, 0.75, patches)), deciduous * 0.9);
         rock *= mix(vec3(1.0), vec3(0.75, 0.95, 0.7), 0.5 * smoothstep(0.3, 0.7, patches)); // lichen and moss on the cuts
         vec3 albedo = mix(rock, ground, flatness) * (0.75 + 0.5 * macro);
         // packed earth and grit on the shoulders and drains, fading into the verge

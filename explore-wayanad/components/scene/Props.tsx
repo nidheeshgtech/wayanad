@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { use, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BufferGeometry, CatmullRomCurve3, Color, InstancedMesh, Material, Matrix4, Mesh, Quaternion, Vector3 } from "three";
@@ -32,7 +33,7 @@ function rng(seed: number) {
 
 export default function Props({ curve, density = 1, towns = true }: { curve: CatmullRomCurve3; density?: number; towns?: boolean }) {
   const models = use(useMemo(() => Promise.all(KINDS.map((k) => load(k.model))), []));
-  const chunks = useMemo(() => {
+  const chunks = useMemo(() => timed("props", () => {
     const L = curve.getLength(), townFrom = archT(), plan = townPlan(curve), out: { centre: Vector3; radius: number; view: number; meshes: InstancedMesh[] }[] = [];
     const m = new Matrix4(), q = new Quaternion(), side = new Vector3(), tint = new Color();
     KINDS.forEach((k, ki) => {
@@ -68,7 +69,7 @@ export default function Props({ curve, density = 1, towns = true }: { curve: Cat
       }
     });
     return out;
-  }, [curve, density, models, towns]);
+  }), [curve, density, models, towns]);
 
   useFrame(({ camera }) => {
     for (const c of chunks) {

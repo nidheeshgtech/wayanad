@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { CatmullRomCurve3, Color, IcosahedronGeometry, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3 } from "three";
@@ -17,7 +18,7 @@ function rng(seed: number) {
 }
 
 export default function TeaHedges({ curve, density = 1 }: { curve: CatmullRomCurve3; density?: number }) {
-  const chunks = useMemo(() => {
+  const chunks = useMemo(() => timed("tea hedges", () => {
     const L = curve.getLength(), r = rng(1840), plan = townPlan(curve), from = archT() * L;
     const geo = new IcosahedronGeometry(1, 1);
     geo.translate(0, 0.35, 0); // sits on the ground, a little sunk
@@ -52,7 +53,7 @@ export default function TeaHedges({ curve, density = 1 }: { curve: CatmullRomCur
       out.push({ centre: curve.getPointAt(Math.min(0.999, (c0 + CHUNK / 2) / L)), mesh });
     }
     return out;
-  }, [curve, density]);
+  }), [curve, density]);
 
   useFrame(({ camera }) => { for (const ch of chunks) ch.mesh.visible = camera.position.distanceTo(ch.centre) < VIEW + CHUNK / 2; });
   return <>{chunks.map((ch, i) => <primitive key={i} object={ch.mesh} />)}</>;

@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import {
   BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DoubleSide, InstancedMesh, Matrix4, Mesh,
@@ -43,7 +44,7 @@ function asphalt() {
   };
   const m = new MeshStandardMaterial({ color: 0x86867f, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
   const color = load("asphalt-color", true), normal = load("asphalt-normal", false);
-  m.customProgramCacheKey = () => "explore-wayanad-asphalt-3";
+  m.customProgramCacheKey = () => "explore-wayanad-asphalt-4";
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform, ...cloudShadowUniforms });
     shader.vertexShader = shader.vertexShader
@@ -61,11 +62,13 @@ function asphalt() {
         float track = exp(-pow((u - 0.13) / 0.045, 2.0)) + exp(-pow((u - 0.37) / 0.045, 2.0)) + exp(-pow((u - 0.63) / 0.045, 2.0)) + exp(-pow((u - 0.87) / 0.045, 2.0));
         float cell = floor(vRoad.y / 0.55), lane = step(0.5, u);
         float h1 = fract(sin(cell * 12.9898 + lane * 78.233) * 43758.5453), h2 = fract(sin(cell * 39.346 + lane * 11.135) * 24634.6345);
-        float along = fract(vRoad.y / 0.55), patchMask = step(0.86, h1) * step(0.1, along) * step(along, 0.25 + 0.6 * h2)
-                    * step(abs(u - (0.25 + 0.5 * lane)), 0.12 + 0.1 * h2);
+        // patch repairs: soft, ragged-edged (noise in the edge), dull and a little darker, never a crisp light rectangle
+        float along = fract(vRoad.y / 0.55), rag = 0.03 * (texture2D(tAsphalt, aUv * 3.1).g - 0.5);
+        float patchMask = step(0.86, h1) * smoothstep(0.08, 0.12, along + rag) * (1.0 - smoothstep(0.22 + 0.6 * h2, 0.27 + 0.6 * h2, along + rag))
+                    * (1.0 - smoothstep(0.1 + 0.1 * h2, 0.13 + 0.1 * h2, abs(u - (0.25 + 0.5 * lane)) + rag));
         float rim = 1.0 - smoothstep(0.0, 0.07, min(u, 1.0 - u));
         float crumble = rim * smoothstep(0.35, 0.65, texture2D(tAsphalt, aUv * 2.7 + 0.5).r + 0.3 * drift);
-        diffuseColor.rgb *= (0.86 + 0.28 * drift) * (1.0 - 0.1 * track) * mix(1.0, 0.72, patchMask);
+        diffuseColor.rgb *= (0.86 + 0.28 * drift) * (1.0 - 0.1 * track) * mix(1.0, 0.82, patchMask);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.34, 0.27, 0.2), crumble * 0.75 + rim * 0.12); // soil and grit at the edge
         diffuseColor.rgb *= 1.0 - 0.45 * cloudShadow(vRoadXZ);
         // markings, widths in road-fractions: edge lines 15 cm, centre dashes 10 cm, 4.5 m on / 4.5 m off
@@ -73,7 +76,7 @@ function asphalt() {
         float centre = (1.0 - smoothstep(0.004, 0.008, abs(vRoad.x - 0.5))) * step(0.5, fract(vRoad.y / 0.9));
         float paint = max(edge * step(0.02, min(vRoad.x, 1.0 - vRoad.x)), centre);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.82, 0.78), paint * 0.9);`)
-      .replace("#include <roughnessmap_fragment>", "diffuseColor.rgb *= mix(1.0, 0.68, uWet);\nfloat roughnessFactor = mix(mix(0.9 - 0.12 * track - 0.12 * patchMask, 0.42, uWet), 0.62, paint);") // wet (lib/weather): darker, with a sheen
+      .replace("#include <roughnessmap_fragment>", "diffuseColor.rgb *= mix(1.0, 0.68, uWet);\nfloat roughnessFactor = mix(mix(0.9 - 0.05 * track + 0.05 * patchMask, 0.42, uWet), 0.62, paint);") // wet (lib/weather): darker, with a sheen
       .replace("#include <normal_fragment_maps>", `
         vec3 an = texture2D(tAsphaltN, aUv).xyz * 2.0 - 1.0;
         normal = normalize(normal + (viewMatrix * vec4(an.x, 0.0, an.y, 0.0)).xyz * 0.5);`);
@@ -124,11 +127,11 @@ function stripes() {
  * "forest" (the Muthanga road: plain two-lane asphalt). */
 export default function Road({ curve, detail = 900, kind = "ghat" }: { curve: CatmullRomCurve3; detail?: number; kind?: "ghat" | "forest" }) {
   const ghat = kind === "ghat";
-  const surface = useMemo(() => {
+  const surface = useMemo(() => timed("road", () => {
     const m = new Mesh(ribbon(curve, detail, ghat ? (t) => roadShapeAt(t).widen : () => 0), asphalt());
     m.receiveShadow = true;
     return m;
-  }, [curve, detail, ghat]);
+  }), [curve, detail, ghat]);
 
   /* striped barrier posts on the valley-side shoulder — the churam's signature detail — carrying a galvanised W-beam rail */
   const [posts, rail] = useMemo(() => {

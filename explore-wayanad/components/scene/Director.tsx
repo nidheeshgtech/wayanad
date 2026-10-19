@@ -38,7 +38,7 @@ const WHITE = new Color(0xffffff);
 /* Act 2's end: over the last part of the act the camera rises `rise` units over Kalpetta, aim pushed `ahead` and down. */
 const HUB = { from: 0.84, rise: 9, ahead: 10 };
 /* Act 8: once the drive has stopped at the barrier (FOREST.arrive), the camera turns 180° over this act progress. */
-const TURN_BACK = [0.58, 0.92] as const;
+const TURN_BACK = [0.58, 0.92, 25] as const; // act progress from, to; and units back along the road to look at
 /* Churam sky and haze colours for clear and full cloud (lib/weather blends between them), and for thick mist. */
 const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2);
 const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST = new Color(0xd9dee0);
@@ -93,8 +93,16 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       // look where the road goes: the point BUS.ahead along it (round a hairpin that's the exit, never the bank beside you);
       // the easing and turn limit below filter out the small wobbles in the mapped centre line
       let target = Math.atan2(ahead.x - pt.x, ahead.z - pt.z);
-      // at the border gate the camera turns round to face back west, down the whole road you came (storyboard, Act 8)
-      if (act === "border") target += Math.PI * MathUtils.smoothstep(p, TURN_BACK[0], TURN_BACK[1]);
+      // at the border gate the camera turns round to face back west, down the road you came (storyboard, Act 8): toward
+      // a point well back along it (the road behind curves, so "ahead + 180°" would face the bank), turning the short way
+      if (act === "border") {
+        const k = MathUtils.smoothstep(p, TURN_BACK[0], TURN_BACK[1]);
+        if (k > 0) {
+          const back = road.getPointAt(Math.max(0, t - TURN_BACK[2] / roadLength));
+          const behind = Math.atan2(back.x - pt.x, back.z - pt.z), d = Math.atan2(Math.sin(behind - target), Math.cos(behind - target));
+          target += d * k;
+        }
+      }
       // a different road (the forest acts are on another stretch of NH766): face along it at once, no swing
       if (yaw.current === null || lastRoad.current !== road) { yaw.current = target; lastRoad.current = road; }
       const cap = MathUtils.degToRad(BUS.maxTurn) * delta;

@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { CatmullRomCurve3, Color, DoubleSide, InstancedMesh, Matrix4, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, TextureLoader, Vector3 } from "three";
 import CARDS from "@/data/vegetation.json";
@@ -14,7 +15,7 @@ function rng(seed: number) {
 }
 
 export default function Creepers({ curve, density = 1 }: { curve: CatmullRomCurve3; density?: number }) {
-  const mesh = useMemo(() => {
+  const mesh = useMemo(() => timed("creepers", () => {
     const L = curve.getLength(), end = archT() * L, r = rng(4242), aspect = CARDS.creeper.aspect;
     const map = new TextureLoader().load("/vegetation/creeper.webp");
     map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
@@ -55,6 +56,6 @@ export default function Creepers({ curve, density = 1 }: { curve: CatmullRomCurv
     mesh.frustumCulled = false;
     mesh.name = "veg-creepers";
     return mesh;
-  }, [curve, density]);
+  }), [curve, density]);
   return <primitive object={mesh} />;
 }

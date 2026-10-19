@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { BufferAttribute, BufferGeometry, CatmullRomCurve3, Mesh } from "three";
 import { SECTION, height, roadDistance } from "@/lib/terrain";
@@ -10,19 +11,24 @@ import { groundMaterial } from "./groundMaterial";
  * keeping only cells within SECTION.reach of the road; the coarse terrain sinks out of the way underneath.
  */
 export default function RoadBand({ curve, spacing = 0.3 }: { curve: CatmullRomCurve3; spacing?: number }) {
-  const mesh = useMemo(() => {
-    const h = spacing, reach = SECTION.reach, r = Math.ceil(reach / h), key = (i: number, j: number) => (i + 65536) * 131072 + (j + 65536);
-    // cells near the road: sweep a square around each road sample, then keep those whose centre is within reach
-    const candidates = new Set<number>();
-    const n = Math.ceil(curve.getLength());
-    for (let s = 0; s <= n; s++) {
-      const p = curve.getPointAt(s / n), ci = Math.floor(p.x / h), cj = Math.floor(p.z / h);
-      for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) candidates.add(key(ci + di, cj + dj));
-    }
-    const cells: [number, number][] = [];
-    for (const k of candidates) {
-      const i = Math.floor(k / 131072) - 65536, j = (k % 131072) - 65536;
-      if (roadDistance((i + 0.5) * h, (j + 0.5) * h) < reach) cells.push([i, j]);
+  const mesh = useMemo(() => timed("road band", () => {
+    const h = spacing, reach = SECTION.reach, key = (i: number, j: number) => (i + 65536) * 131072 + (j + 65536);
+    // cells near the road: a flood fill from the cells under the centre line, growing to neighbours while their centre
+    // is within reach. Each band cell is tested once (a square sweep around every road sample tested each ~60 times),
+    // and the band can't have holes, even round the outside of a hairpin.
+    const seen = new Set<number>(), cells: [number, number][] = [], queue: number[] = [];
+    const within = (i: number, j: number) => roadDistance((i + 0.5) * h, (j + 0.5) * h) < reach;
+    const visit = (i: number, j: number) => {
+      const k = key(i, j);
+      if (seen.has(k)) return;
+      seen.add(k);
+      if (within(i, j)) { cells.push([i, j]); queue.push(i, j); }
+    };
+    const n = Math.ceil(curve.getLength() / h);
+    for (let s = 0; s <= n; s++) { const p = curve.getPointAt(s / n); visit(Math.floor(p.x / h), Math.floor(p.z / h)); }
+    for (let q = 0; q < queue.length; q += 2) {
+      const i = queue[q], j = queue[q + 1];
+      visit(i + 1, j); visit(i - 1, j); visit(i, j + 1); visit(i, j - 1);
     }
     // shared vertices on the grid
     const index = new Map<number, number>(), pos: number[] = [], tris: number[] = [];
@@ -45,6 +51,6 @@ export default function RoadBand({ curve, spacing = 0.3 }: { curve: CatmullRomCu
     m.receiveShadow = true;
     m.name = "road-band";
     return m;
-  }, [curve, spacing]);
+  }), [curve, spacing]);
   return <primitive object={mesh} />;
 }

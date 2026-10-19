@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { BufferAttribute, BufferGeometry, CatmullRomCurve3, DoubleSide, Mesh, MeshStandardMaterial, Vector3 } from "three";
 import { SECTION, archT, height, roadShapeAt } from "@/lib/terrain";
@@ -10,7 +11,7 @@ import { rubble } from "./stone";
 const WALL = { at: SECTION.half + 0.24, top: 0.004, footing: 0.2, batter: 0.08, max: 4, step: 0.2, tile: 0.15 }; // units (tile: one texture repeat per 1.5 m, stones ~25 cm)
 
 export default function RetainingWalls({ curve }: { curve: CatmullRomCurve3 }) {
-  const mesh = useMemo(() => {
+  const mesh = useMemo(() => timed("walls", () => {
     const L = curve.getLength(), end = archT(), pos: number[] = [], uv: number[] = [], idx: number[] = [];
     const side = new Vector3();
     let prev = -1, prevSide = 0, along = 0;
@@ -43,6 +44,6 @@ export default function RetainingWalls({ curve }: { curve: CatmullRomCurve3 }) {
     m.castShadow = m.receiveShadow = true;
     m.name = "retaining-walls";
     return m;
-  }, [curve]);
+  }), [curve]);
   return <primitive object={mesh} />;
 }

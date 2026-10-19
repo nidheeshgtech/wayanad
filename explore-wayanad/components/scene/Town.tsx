@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import {
   BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
@@ -166,9 +167,28 @@ export function townCircles(curve: CatmullRomCurve3): [number, number, number][]
   })];
 }
 
+/* Buildings bucketed on a grid (per plan, built on first use): placement asks inTown for every plant and rock, and a
+ * scan of all ~300 buildings each time was most of the vegetation's build time. */
+const TOWN_CELL = 3; // units; at least the largest footprint radius (the temple, ~2.7)
+const townGrids = new WeakMap<ReturnType<typeof townPlan>, Map<number, Placed[]>>();
+const cellKey = (cx: number, cz: number) => (cx + 32768) * 65536 + (cz + 32768);
+
 /** True where a tree or rock would stand on or against a building. */
 export function inTown(x: number, z: number, plan: ReturnType<typeof townPlan>) {
-  return plan.some((b) => (b.at.x - x) ** 2 + (b.at.z - z) ** 2 < b.radius ** 2);
+  let grid = townGrids.get(plan);
+  if (!grid) {
+    grid = new Map();
+    for (const b of plan) {
+      const k = cellKey(Math.floor(b.at.x / TOWN_CELL), Math.floor(b.at.z / TOWN_CELL));
+      (grid.get(k) ?? grid.set(k, []).get(k)!).push(b);
+    }
+    townGrids.set(plan, grid);
+  }
+  const cx = Math.floor(x / TOWN_CELL), cz = Math.floor(z / TOWN_CELL);
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    for (const b of grid.get(cellKey(cx + dx, cz + dz)) ?? []) if ((b.at.x - x) ** 2 + (b.at.z - z) ** 2 < b.radius ** 2) return true;
+  }
+  return false;
 }
 
 /* Lakkidi's small roadside temple: low white compound wall on red pillars along the road, an entrance with a tiled
@@ -215,7 +235,7 @@ function teal(w: number) {
 }
 
 export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
-  const group = useMemo(() => {
+  const group = useMemo(() => timed("town", () => {
     const g = new Group(), L = curve.getLength(), r = rng(1966), gate = archT() * L, up = new Vector3(0, 1, 0);
     const frame = (s: number) => {
       const t = Math.min(0.999, s / L), p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize();
@@ -247,6 +267,6 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
     g.add(new LineSegments(wg, new LineBasicMaterial({ color: 0x2a2a2a })));
     g.name = "town";
     return g;
-  }, [curve]);
+  }), [curve]);
   return <primitive object={group} />;
 }

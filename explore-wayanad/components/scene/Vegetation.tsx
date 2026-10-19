@@ -1,4 +1,5 @@
 "use client";
+import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
@@ -99,7 +100,7 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
 };
 
 export default function Vegetation({ curve, density = 1, alphaToCoverage = true, kind = "ghat" }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean; kind?: "ghat" | "forest" }) {
-  const meshes = useMemo(() => {
+  const meshes = useMemo(() => timed("vegetation", () => {
     const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve), plateauFrom = churamEndT();
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
     const ghat = kind === "ghat"; // the churam + plateau road: towns, tea and the plateau's thinning apply
@@ -151,7 +152,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
       mesh.name = `veg-${s.name}`;
       return mesh;
     });
-  }, [curve, density, alphaToCoverage, kind]);
+  }), [curve, density, alphaToCoverage, kind]);
 
   useFrame((_, dt) => { wind.value += dt; });
   return <>{meshes.map((mesh) => <primitive key={mesh.name} object={mesh} />)}</>;

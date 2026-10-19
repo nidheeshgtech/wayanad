@@ -6,7 +6,7 @@ import { archT, bendTs, buildRoadCurve, churamEndT, forestRoad, placesT, setHeig
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
 import { DRIVER_LINE, ROUTE, setForestPace, setPace } from "@/lib/drive";
-import { setEstateFrame } from "@/lib/estates";
+import { estateUniforms, setEstateFrame } from "@/lib/estates";
 import { patchAtmosphere } from "@/lib/atmosphere";
 import Terrain from "./Terrain";
 import RoadBand from "./RoadBand";
@@ -87,6 +87,7 @@ function World({ small }: { small: boolean }) {
   const forest = useMemo(() => {
     const f = forestRoad();
     if (f) {
+      estateUniforms.uForestX.value = Math.min(f.curve.getPointAt(0).x, f.curve.getPointAt(1).x) - 40;
       const screens = setForestPace(turnProfile(f.curve, 2000, 1), f.curve.getLength(), f.muthanga);
       if (process.env.NODE_ENV !== "production") console.info("[drive] forest screens", screens);
     }
@@ -105,7 +106,7 @@ function World({ small }: { small: boolean }) {
       <Sky />
       <ShowIn acts={FOREST_ACTS} not>
       {grids.length ? grids.filter((g) => g.region !== "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
-      <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
+      <RoadBand curve={curve} spacing={small ? 0.6 : 0.4} />
       <Road curve={curve} detail={detail} />
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
@@ -118,9 +119,9 @@ function World({ small }: { small: boolean }) {
       <Shafts curve={curve} count={small ? 20 : 40} />
       </ShowIn>
       {forest && (
-        <ShowIn acts={FOREST_ACTS}>
+        <ShowIn acts={FOREST_ACTS} defer>
           {grids.filter((g) => g.region === "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />)}
-          <RoadBand curve={forest.curve} spacing={small ? 0.45 : 0.3} />
+          <RoadBand curve={forest.curve} spacing={small ? 0.6 : 0.4} />
           <Road curve={forest.curve} detail={Math.round(forest.curve.getLength() * (small ? 2 : 4))} kind="forest" />
           <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" />
           <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
