@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshLambertMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
 import { PALETTE } from "@/data/acts";
-import { archT, height } from "@/lib/terrain";
+import { height } from "@/lib/terrain";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -18,20 +18,20 @@ const PROTO_END_Z = -204;
  * first mist by 6, nearly white from 7 to 9, then the mist breaks before Lakkidi. */
 function churamMood(t: number, bends: number[]) {
   const keys: [number, number, number][] = [ // [t, fog density, mist opacity]
-    [0, 0.02, 0.12], [bends[2], 0.022, 0.18], [bends[5], 0.06, 0.35], [bends[6], 0.11, 0.55], [bends[8], 0.11, 0.55], [0.98, 0.012, 0],
+    // densities for the drone camera ~30 units from its subject: 0.04 leaves the road just visible (≈20 % through the fog)
+    [0, 0.008, 0.12], [bends[2], 0.009, 0.18], [bends[5], 0.022, 0.35], [bends[6], 0.04, 0.55], [bends[8], 0.04, 0.55], [0.98, 0.006, 0],
   ];
   const i = Math.max(0, keys.findIndex(([k]) => k > t) - 1);
   const [t0, f0, m0] = keys[i], [t1, f1, m1] = keys[Math.min(i + 1, keys.length - 1)];
   const k = t1 > t0 ? MathUtils.smoothstep(t, t0, t1) : 1;
   return { fog: f0 + (f1 - f0) * k, mist: m0 + (m1 - m0) * k };
 }
-/* Act 1 follow camera, like a drone behind the car: `back` along the smoothed direction of travel and `height` up,
- * aimed down at a point just ahead of the car. The direction eases round each hairpin instead of snapping (the road
- * behind you on a stacked bend is the leg below, so following the road itself looks through the bank), and from this
- * height the line of sight to the car clears the bank. Units: 1 = 10 m. */
-const CHASE = { back: 5.5, height: 7, lead: 4, aim: 0.5, clearance: 3, turn: 0.06 };
-/* Through the Lakkidi arch the camera drops to `height` (under the beam, through the centre opening) over ± `span` of t. */
-const ARCH_DIP = { height: 2.6, back: 3, span: 0.03, hold: 0.004 };
+/* Act 1 drone camera, units of 10 m: `up` above and `back` behind the car's point, aimed `lead` ahead of it.
+ * Tuned for comfort with a simulation of an ordinary scroll (800 px/s): the view turns at most `maxTurn` °/s however sharp the
+ * hairpin (it was ~2,000 °/s at worst), the ground slides past at ~130 °/s on average (was ~2,600), and the road stays
+ * within ~11° of the frame centre. Position follows tightly (scroll is already smoothed by the act's scrub);
+ * only the heading is eased and rate-limited, so the view direction never whips round. */
+const CHASE = { up: 24, back: 18, lead: 6, aim: 0.5, follow: 0.5, ease: 0.04, maxTurn: 30, clearance: 4, lift: 10 };
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
   soochipara: [[45, 6, -95], [20, 12, -150]],
@@ -51,8 +51,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
   fliesRef: React.MutableRefObject<Points | null>;
 }) {
   const { scene, camera } = useThree();
-  const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3());
-  const arch = useMemo(() => archT(), []);
+  const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3()), aim = useRef(new Vector3()), yaw = useRef<number | null>(null);
   const { spots, plateau, end } = useMemo(() => {
     const end = curve.getPointAt(1), dir = curve.getTangentAt(1).setY(0).normalize();
     const onGround = ([x, y, z]: number[]) => { const wx = x + end.x, wz = z - PROTO_END_Z + end.z; return [wx, height(wx, wz) + y, wz]; };
@@ -65,7 +64,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
   }, [curve]);
   if (!scene.fog) { scene.fog = new FogExp2(PALETTE.churam.fog, 0.02); scene.background = new Color(PALETTE.churam.sky); }
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const { act, progress: p, hold } = scrollState;
     const P = PALETTE[act];
     const fog = scene.fog as FogExp2;
@@ -73,17 +72,22 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     /* ---- camera ---- */
     if (act === "churam") {
       const t = Math.min(0.995, Math.max(0, p * 0.98));
-      const pt = curve.getPointAt(t), tangent = curve.getTangentAt(t).setY(0).normalize();
-      if (heading.current.lengthSq() === 0) heading.current.copy(tangent);
-      heading.current.lerp(tangent, CHASE.turn).normalize();
-      const dip = 1 - MathUtils.smoothstep(Math.abs(t - arch), ARCH_DIP.hold, ARCH_DIP.span);
-      const back = CHASE.back + (ARCH_DIP.back - CHASE.back) * dip, rise = CHASE.height + (ARCH_DIP.height - CHASE.height) * dip;
-      tmp.current.copy(pt).addScaledVector(heading.current, -back).addScaledVector(up.current, rise);
+      const pt = curve.getPointAt(t), tangent = curve.getTangentAt(t);
+      const target = Math.atan2(tangent.x, tangent.z);
+      if (yaw.current === null) yaw.current = target;
+      const turn = Math.atan2(Math.sin(target - yaw.current), Math.cos(target - yaw.current)), step = MathUtils.degToRad(CHASE.maxTurn) * delta;
+      yaw.current += MathUtils.clamp(turn * CHASE.ease, -step, step);
+      heading.current.set(Math.sin(yaw.current), 0, Math.cos(yaw.current));
+      tmp.current.copy(pt).addScaledVector(heading.current, -CHASE.back).addScaledVector(up.current, CHASE.up);
       tmp.current.y = Math.max(tmp.current.y, height(tmp.current.x, tmp.current.z) + CHASE.clearance);
-      look.current.copy(pt).addScaledVector(heading.current, CHASE.lead).addScaledVector(up.current, CHASE.aim);
-      // through the arch, then lift for the plateau (added to the target, so it eases in instead of compounding each frame)
-      if (p > 0.95) { const k = (p - 0.95) / 0.05; tmp.current.y += k * 14; look.current.copy(plateau); }
-      camera.position.lerp(tmp.current, 0.12);
+      // past the arch, rise a little more for the plateau (added to the target, so it eases in instead of compounding)
+      const lift = p > 0.95 ? ((p - 0.95) / 0.05) * CHASE.lift : 0;
+      tmp.current.y += lift;
+      camera.position.lerp(tmp.current, CHASE.follow);
+      // aim rigidly from the camera along the heading: the view direction turns only as fast as the heading does
+      look.current.copy(camera.position).addScaledVector(heading.current, CHASE.back + CHASE.lead).addScaledVector(up.current, CHASE.aim - CHASE.up - lift);
+      if (p > 0.95) look.current.lerp(plateau, (p - 0.95) / 0.05);
+      aim.current.copy(look.current);
     } else {
       const [a, b] = spots[act];
       const e = p * (1 - hold * 0.6);
@@ -96,7 +100,10 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
         look.current.set(end.x, height(end.x, back) + 10 - k * 4, z);
       }
     }
-    camera.lookAt(look.current);
+    // ease the aim too, so the view never snaps to a new target (hairpins, act changes)
+    if (aim.current.lengthSq() === 0) aim.current.copy(look.current);
+    if (act !== "churam") aim.current.lerp(look.current, 0.06);
+    camera.lookAt(aim.current);
 
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;

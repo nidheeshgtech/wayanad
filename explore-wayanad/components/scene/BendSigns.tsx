@@ -19,7 +19,7 @@ function plate(n: number) {
 /** A sign at each of the nine hairpins, on the valley side of the apex, always turned to face the camera. */
 export default function BendSigns({ curve }: { curve: CatmullRomCurve3 }) {
   const group = useMemo(() => {
-    const g = new Group(), side = new Vector3(), post = new BoxGeometry(0.1, 2.2, 0.1), postMat = new MeshLambertMaterial({ color: 0x3a3a36 });
+    const g = new Group(), side = new Vector3(), post = new BoxGeometry(0.16, 4.4, 0.16), postMat = new MeshLambertMaterial({ color: 0x3a3a36 });
     bendTs().forEach((t, i) => {
       const p = curve.getPointAt(t), tan = curve.getTangentAt(t);
       side.set(tan.z, 0, -tan.x).normalize();
@@ -27,9 +27,10 @@ export default function BendSigns({ curve }: { curve: CatmullRomCurve3 }) {
       const out = height(p.x + side.x * 5, p.z + side.z * 5) < height(p.x - side.x * 5, p.z - side.z * 5) ? 1 : -1;
       const at = p.clone().addScaledVector(side, out * 1.8);
       const ground = height(at.x, at.z);
-      const pole = new Mesh(post, postMat); pole.position.set(at.x, ground + 1.1, at.z); g.add(pole);
+      const pole = new Mesh(post, postMat); pole.position.set(at.x, ground + 2.2, at.z); g.add(pole);
       const sign = new Sprite(new SpriteMaterial({ map: plate(i + 1) }));
-      sign.scale.set(1.3, 1.625, 1); sign.position.set(at.x, ground + 2.9, at.z);
+      // sized to read from the drone camera ~25 units up (a real sign would be ~1 m; this one is legibility, not scale)
+      sign.scale.set(2.6, 3.25, 1); sign.position.set(at.x, ground + 5.8, at.z);
       g.add(sign);
     });
     return g;

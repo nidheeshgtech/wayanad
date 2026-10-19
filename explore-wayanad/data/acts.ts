@@ -10,12 +10,14 @@ export interface ActContent {
   body?: string;
   /** scroll length in viewport heights while pinned */
   length: number;
+  /** seconds the visuals take to catch up with the scroll (ScrollTrigger scrub); default 0.6 */
+  scrub?: number;
   status?: string;
 }
 
 /** Geographic order: Adivaram → churam → Kalpetta hub → south → north → east → forest → border. */
 export const ACTS: ActContent[] = [
-  { id: "churam", eyebrow: "Act 1 · Thamarassery Churam", scene: "Thamarassery Churam", title: "Nine bends to the top.", body: "Fourteen kilometres from Adivaram to Lakkidi. The British needed a Paniya guide to find this road. His name was Karinthandan.", length: 4, status: "Ghat open today" },
+  { id: "churam", eyebrow: "Act 1 · Thamarassery Churam", scene: "Thamarassery Churam", title: "Nine bends to the top.", body: "Fourteen kilometres from Adivaram to Lakkidi. The British needed a Paniya guide to find this road. His name was Karinthandan.", length: 12, scrub: 1.2, status: "Ghat open today" },
   { id: "kalpetta", eyebrow: "Act 2 · Lakkidi to Kalpetta", scene: "Lakkidi → Kalpetta", title: "Everything is under an hour from here.", body: "The Chain Tree, Vythiri's tree houses, Pookode, then the hub.", length: 1.5 },
   { id: "soochipara", eyebrow: "Act 3 · Soochipara Falls", scene: "Soochipara Falls", title: "You hear it long before you see it.", body: "Thirteen km from Meppadi, then 1.2 km on foot. Two hundred metres of water in three tiers. Swim when the flow is low.", length: 2 },
   { id: "kuruva", eyebrow: "Act 4 · Kuruva Island", scene: "Kuruva Island", title: "The Kabini splits into a hundred and fifty islands.", body: "Nobody lives on them. The only way in is a bamboo raft, and fewer than five hundred people a day are allowed.", length: 2, status: "Kuruva open · Oct–May" },

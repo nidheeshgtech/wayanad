@@ -32,7 +32,7 @@ export default function Act({ content, children, onProgress }: {
       start: "top top",
       end: isPlan ? "bottom bottom" : `+=${Math.round(window.innerHeight * content.length)}`,
       pin: !isPlan && !reduce,
-      scrub: 0.6,
+      scrub: content.scrub ?? 0.6,
       onToggle: (self) => { if (self.isActive) { scrollState.act = content.id; hud.setGrade(PALETTE[content.id].grade); } },
       onUpdate: (self) => {
         const p = self.progress;
