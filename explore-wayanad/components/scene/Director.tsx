@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshLambertMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
 import { PALETTE } from "@/data/acts";
-import { height } from "@/lib/terrain";
+import { archT, height } from "@/lib/terrain";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -25,7 +25,13 @@ function churamMood(t: number, bends: number[]) {
   const k = t1 > t0 ? MathUtils.smoothstep(t, t0, t1) : 1;
   return { fog: f0 + (f1 - f0) * k, mist: m0 + (m1 - m0) * k };
 }
-const LOOK_AHEAD = 7.2; // units ahead of the camera's road point: 0.012 of the prototype's ~600-unit road
+/* Act 1 follow camera, like a drone behind the car: `back` along the smoothed direction of travel and `height` up,
+ * aimed down at a point just ahead of the car. The direction eases round each hairpin instead of snapping (the road
+ * behind you on a stacked bend is the leg below, so following the road itself looks through the bank), and from this
+ * height the line of sight to the car clears the bank. Units: 1 = 10 m. */
+const CHASE = { back: 5.5, height: 7, lead: 4, aim: 0.5, clearance: 3, turn: 0.06 };
+/* Through the Lakkidi arch the camera drops to `height` (under the beam, through the centre opening) over ± `span` of t. */
+const ARCH_DIP = { height: 2.6, back: 3, span: 0.03, hold: 0.004 };
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
   soochipara: [[45, 6, -95], [20, 12, -150]],
@@ -45,14 +51,14 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
   fliesRef: React.MutableRefObject<Points | null>;
 }) {
   const { scene, camera } = useThree();
-  const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0));
-  const { spots, length, plateau, end } = useMemo(() => {
+  const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3());
+  const arch = useMemo(() => archT(), []);
+  const { spots, plateau, end } = useMemo(() => {
     const end = curve.getPointAt(1), dir = curve.getTangentAt(1).setY(0).normalize();
     const onGround = ([x, y, z]: number[]) => { const wx = x + end.x, wz = z - PROTO_END_Z + end.z; return [wx, height(wx, wz) + y, wz]; };
     const ahead = end.clone().addScaledVector(dir, 40);
     return {
       spots: Object.fromEntries(Object.entries(SPOTS).map(([k, [a, b]]) => [k, [onGround(a), onGround(b)]])),
-      length: curve.getLength(),
       plateau: ahead.setY(height(ahead.x, ahead.z) + 2), // where the camera looks as it lifts off the road at Lakkidi
       end,
     };
@@ -67,9 +73,14 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     /* ---- camera ---- */
     if (act === "churam") {
       const t = Math.min(0.995, Math.max(0, p * 0.98));
-      const pt = curve.getPointAt(t), ahead = curve.getPointAt(Math.min(0.999, t + LOOK_AHEAD / length));
-      tmp.current.copy(pt).add(up.current.clone().multiplyScalar(1.9)).add(pt.clone().sub(ahead).setY(0).normalize().multiplyScalar(2.5));
-      look.current.copy(ahead).add(new Vector3(0, 1.4, 0));
+      const pt = curve.getPointAt(t), tangent = curve.getTangentAt(t).setY(0).normalize();
+      if (heading.current.lengthSq() === 0) heading.current.copy(tangent);
+      heading.current.lerp(tangent, CHASE.turn).normalize();
+      const dip = 1 - MathUtils.smoothstep(Math.abs(t - arch), ARCH_DIP.hold, ARCH_DIP.span);
+      const back = CHASE.back + (ARCH_DIP.back - CHASE.back) * dip, rise = CHASE.height + (ARCH_DIP.height - CHASE.height) * dip;
+      tmp.current.copy(pt).addScaledVector(heading.current, -back).addScaledVector(up.current, rise);
+      tmp.current.y = Math.max(tmp.current.y, height(tmp.current.x, tmp.current.z) + CHASE.clearance);
+      look.current.copy(pt).addScaledVector(heading.current, CHASE.lead).addScaledVector(up.current, CHASE.aim);
       // through the arch, then lift for the plateau (added to the target, so it eases in instead of compounding each frame)
       if (p > 0.95) { const k = (p - 0.95) / 0.05; tmp.current.y += k * 14; look.current.copy(plateau); }
       camera.position.lerp(tmp.current, 0.12);

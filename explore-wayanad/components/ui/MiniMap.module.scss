@@ -1,0 +1,13 @@
+.map {
+  position: fixed; z-index: 4; right: 20px; top: calc(110px + env(safe-area-inset-top, 0px)); pointer-events: none;
+  padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: rgba(8, 24, 20, .55); backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity .5s;
+  @media (max-width: 719px) { transform: scale(.75); transform-origin: top right; }
+}
+.road { fill: none; stroke: var(--mute); stroke-width: 1.5; stroke-linejoin: round; }
+.bend { fill: var(--bg); stroke: var(--dim); stroke-width: 1; }
+.num { fill: var(--ink); font: 500 7px var(--font-sans), sans-serif; text-anchor: middle; dominant-baseline: middle; }
+.arch { fill: var(--ink); }
+.dot { fill: var(--amber); stroke: var(--bg); stroke-width: 1.5; }
+.labels { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--dim); margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .map { transition: none; } }

@@ -5,6 +5,7 @@ import { ACTS } from "@/data/acts";
 import Hud from "./ui/Hud";
 import Preroll from "./ui/Preroll";
 import SmoothScroll from "./ui/SmoothScroll";
+import MiniMap from "./ui/MiniMap";
 import Churam from "./acts/Churam";
 import Simple from "./acts/Simple";
 import ForestRoad from "./acts/ForestRoad";
@@ -23,6 +24,7 @@ export default function Experience() {
     <Hud>
       <Preroll />
       <SmoothScroll />
+      <MiniMap />
       {tier && tier !== "video" && <Scene tier={tier} />}
       {tier === "video" && <div style={{ position: "fixed", inset: 0, background: "linear-gradient(#9fb3aa, #1f3a31)" }} aria-hidden />}
       <main>

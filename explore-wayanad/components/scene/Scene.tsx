@@ -12,6 +12,7 @@ import Gateway from "./Gateway";
 import Particles from "./Particles";
 import Sky from "./Sky";
 import Shafts from "./Shafts";
+import BendSigns from "./BendSigns";
 import Director from "./Director";
 import type { Tier } from "@/hooks/useCapability";
 
@@ -68,6 +69,7 @@ function World({ small }: { small: boolean }) {
       <Road curve={curve} detail={detail} />
       <Forest curve={curve} count={trees} />
       <Gateway curve={curve} />
+      <BendSigns curve={curve} />
       <Shafts curve={curve} sunRef={sunRef} count={small ? 20 : 40} />
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <Director curve={curve} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />

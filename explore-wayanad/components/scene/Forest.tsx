@@ -5,7 +5,7 @@ import {
   InstancedMesh, Matrix4, MeshLambertMaterial, Quaternion, Vector3,
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { height } from "@/lib/terrain";
+import { bendTs, height } from "@/lib/terrain";
 
 /* Rainforest silhouettes, not conifers: flat-shaded crowns of a few blobs on a thin trunk.
  * Trunks carry a darker vertex tint; each instance gets its own green so the layers read through the fog. */
@@ -47,6 +47,8 @@ const SHAPES = [
   ]) },
 ];
 const DARK = new Color(0x123020), LIGHT = new Color(0x3c6a3e);
+const BEND_CLEAR = 9; // units round each hairpin apex kept free of trees
+const ROAD_CLEAR = 7; // units from the centre line: crowns stay out of the follow camera's path above the road
 
 /** The green wall: trees scattered either side of the road, kept off it and off the cut rock faces. */
 export default function Forest({ curve, count = 1800 }: { curve: CatmullRomCurve3; count?: number }) {
@@ -54,6 +56,7 @@ export default function Forest({ curve, count = 1800 }: { curve: CatmullRomCurve
     const samples: Vector3[] = [];
     const n = Math.max(400, Math.ceil(curve.getLength()));
     for (let i = 0; i <= n; i++) samples.push(curve.getPointAt(i / n));
+    const apexes = bendTs().map((t) => curve.getPointAt(t));
     const material = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
     const out = SHAPES.map((s) => new InstancedMesh(s.geo(), material, Math.ceil(count * s.share)));
     const placed = out.map(() => 0);
@@ -63,17 +66,20 @@ export default function Forest({ curve, count = 1800 }: { curve: CatmullRomCurve
       tries++;
       // a band either side of the road, out to where the fog has swallowed it
       // denser near the road, thinning outward: the wall you drive past matters most
-      const s = samples[Math.floor(Math.random() * samples.length)], a = Math.random() * Math.PI * 2, r = 4.5 + Math.random() ** 1.6 * 34;
+      const s = samples[Math.floor(Math.random() * samples.length)], a = Math.random() * Math.PI * 2, r = ROAD_CLEAR + Math.random() ** 1.6 * 32;
       const x = s.x + Math.cos(a) * r, z = s.z + Math.sin(a) * r;
-      // clear of the road plus the camera's 2.5-unit trailing offset, which swings off the asphalt on hairpins
-      if (samples.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < 20)) continue;
+      // clear of the road, and of a wide circle round each hairpin so the turn's shape reads from the chase camera
+      let near = Infinity;
+      for (const p of samples) near = Math.min(near, (p.x - x) ** 2 + (p.z - z) ** 2);
+      if (near < ROAD_CLEAR ** 2 || apexes.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < BEND_CLEAR ** 2)) continue;
       // nothing grows on the cut faces; matches where Terrain shades to rock
       const slope = Math.hypot(height(x + 1, z) - height(x - 1, z), height(x, z + 1) - height(x, z - 1)) / 2;
       if (slope > 0.9) continue;
       let kind = 0;
       for (let roll = Math.random(), acc = 0; kind < SHAPES.length - 1; kind++) { acc += SHAPES[kind].share; if (roll < acc) break; }
       if (placed[kind] >= out[kind].count) continue;
-      const sc = 0.8 + Math.random() * 0.7;
+      // shorter close to the road (full height from ~12 units out), so the verge doesn't wall off the view
+      const sc = (0.8 + Math.random() * 0.7) * (0.55 + 0.45 * Math.min(1, Math.sqrt(near) / 12));
       m.compose(new Vector3(x, height(x, z) - 0.15, z), q.setFromAxisAngle(up, Math.random() * Math.PI * 2), new Vector3(sc, sc * (0.85 + Math.random() * 0.3), sc));
       out[kind].setMatrixAt(placed[kind], m);
       out[kind].setColorAt(placed[kind], c.lerpColors(DARK, LIGHT, Math.random() ** 1.5));
