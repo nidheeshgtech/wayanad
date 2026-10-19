@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
+import { driveT } from "@/lib/drive";
 import styles from "./MiniMap.module.scss";
 
 const W = 120, PAD = 10;
@@ -35,8 +36,9 @@ export default function MiniMap() {
     const tick = () => {
       const { act, progress } = scrollState;
       if (root.current) root.current.style.opacity = act === "churam" && progress < 0.97 ? "1" : "0";
-      // t on the road ≈ distance fraction: the points are evenly spaced, the same t the counter and camera use
-      const [x, y] = map.pts[Math.min(map.pts.length - 1, Math.round(progress * 0.98 * (map.pts.length - 1)))];
+      // t on the road ≈ distance fraction (the points are evenly spaced), at the same pace as the camera and counter
+      const t = driveT(progress);
+      const [x, y] = map.pts[Math.min(map.pts.length - 1, Math.round(t * (map.pts.length - 1)))];
       dot.current?.setAttribute("cx", x.toFixed(1));
       dot.current?.setAttribute("cy", y.toFixed(1));
     };

@@ -9,8 +9,10 @@ export const scrollState = {
   act: "churam" as ActId,
   progress: 0,
   hold: 0,            // 1 while the elephant crossing holds the camera
-  /** churam progress (p * 0.98, the camera's t on the road) at each hairpin apex; the scene replaces these with the real bends */
+  /** t on the road (0–1) at each hairpin apex and at the Lakkidi gateway; the scene replaces these with the real road's.
+   * Scroll → t goes through lib/drive.ts (the drive slows for bends and the gate). */
   bends: Array.from({ length: 9 }, (_, i) => (0.88 * (i + 1)) / 9.99),
+  arch: 0.905,
   fogOverride: null as number | null,
   mistOverride: null as number | null,
 };

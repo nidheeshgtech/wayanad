@@ -1,10 +1,11 @@
 "use client";
 import { Suspense, use, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { DirectionalLight, Points } from "three";
-import { bendTs, buildRoadCurve, setHeightmap, terrainGrid } from "@/lib/terrain";
+import { CatmullRomCurve3, DirectionalLight, Points } from "three";
+import { archT, bendTs, buildRoadCurve, setHeightmap, terrainGrid } from "@/lib/terrain";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
+import { END, setPace } from "@/lib/drive";
 import Terrain from "./Terrain";
 import Road from "./Road";
 import Forest from "./Forest";
@@ -27,6 +28,7 @@ const loadTerrain = () =>
     .then(([hm, road]) => {
       setHeightmap(hm, road ?? null);
       scrollState.bends = bendTs();
+      scrollState.arch = archT();
     })
     .catch((err) => console.warn("Heightmap unavailable, using procedural terrain:", err)));
 
@@ -50,6 +52,7 @@ export default function Scene({ tier }: { tier: Tier }) {
 function World({ small }: { small: boolean }) {
   use(loadTerrain());
   const curve = useMemo(() => buildRoadCurve(), []);
+  useMemo(() => setPace(turnProfile(curve), curve.getLength(), scrollState.bends, scrollState.arch), [curve]);
   const sunRef = useRef<DirectionalLight | null>(null);
   const mistRef = useRef<Points | null>(null);
   const fliesRef = useRef<Points | null>(null);
@@ -75,4 +78,22 @@ function World({ small }: { small: boolean }) {
       <Director curve={curve} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
     </>
   );
+}
+
+/** Degrees the road's heading turns over each of 2,000 steps from t = 0 to END, from tangents averaged over ±3 units
+ * (a driver's line, not every wobble in the mapped centre line). Feeds the climb's pace in lib/drive.ts. */
+function turnProfile(curve: CatmullRomCurve3, steps = 2000) {
+  const L = curve.getLength(), yaw = (t: number) => {
+    let x = 0, z = 0;
+    for (let k = -4; k <= 4; k++) { const g = curve.getTangentAt(Math.min(0.999, Math.max(0, t + (k / 4) * (3 / L)))); x += g.x; z += g.z; }
+    return Math.atan2(x, z);
+  };
+  const out = new Float32Array(steps);
+  let prev = yaw(0);
+  for (let i = 0; i < steps; i++) {
+    const y = yaw(((i + 1) / steps) * END);
+    out[i] = (Math.abs(Math.atan2(Math.sin(y - prev), Math.cos(y - prev))) * 180) / Math.PI;
+    prev = y;
+  }
+  return out;
 }
