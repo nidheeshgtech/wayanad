@@ -1,0 +1,6 @@
+.DS_Store
+# Phase 1 backup archive
+*.zip
+# AI look-dev frames (12 MB, mood reference only; README stays tracked)
+docs/lookdev/*.png
+explore-wayanad/tsconfig.tsbuildinfo

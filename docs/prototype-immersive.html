@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Explore Wayanad — nine bends to the top</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E1F1A; --ink:#EEF2EE; --mute:#B8C7C0; --dim:#8FA89E; --line:#5E7A70; --amber:#D9A441;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark; } }
+:root[data-theme="dark"]{ color-scheme:dark; }
+html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+*{ box-sizing:inherit; margin:0; }
+html,body{ background:var(--bg); color:var(--ink); }
+body{ font:16px/1.45 "Instrument Sans", system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+.serif{ font-family:"Fraunces", Georgia, serif; font-weight:300; letter-spacing:-0.025em; }
+
+#gl{ position:fixed; inset:0; z-index:0; }
+#grade{ position:fixed; inset:0; z-index:1; pointer-events:none; background:transparent; mix-blend-mode:multiply; opacity:0; transition:background .6s; }
+#grain{ position:fixed; inset:0; z-index:2; pointer-events:none; opacity:.12; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+#vig{ position:fixed; inset:0; z-index:2; pointer-events:none; background:radial-gradient(ellipse at center, transparent 55%, rgba(5,14,12,.65) 100%); }
+
+#hud{ position:fixed; z-index:4; left:0; right:0; top:0; display:flex; justify-content:space-between; align-items:flex-start; padding:calc(16px + env(safe-area-inset-top,0px)) 20px 0; pointer-events:none; }
+#hud .brand{ font-family:"Fraunces", Georgia, serif; font-size:18px; color:var(--ink); }
+#hud .status{ font-size:12px; color:var(--mute); margin-top:4px; }
+#counter{ font-family:"Fraunces", Georgia, serif; font-weight:300; font-size:44px; line-height:1; letter-spacing:-0.03em; text-align:right; }
+#counter b{ color:var(--amber); font-weight:300; }
+#counter span{ color:var(--dim); }
+#counter small{ display:block; font:12px/1 "Instrument Sans", sans-serif; color:var(--mute); margin-top:6px; }
+#scene{ position:fixed; z-index:4; left:20px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); font-size:12px; color:var(--dim); pointer-events:none; }
+#mute{ position:fixed; z-index:5; right:20px; bottom:calc(14px + env(safe-area-inset-bottom,0px)); font:12px "Instrument Sans",sans-serif; color:var(--mute); background:transparent; border:1px solid var(--line); border-radius:999px; padding:8px 12px; min-height:36px; }
+#mute:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+main{ position:relative; z-index:3; }
+.act{ min-height:100svh; display:flex; flex-direction:column; justify-content:flex-end; padding:24px 20px calc(72px + env(safe-area-inset-bottom,0px)); }
+.act .copy{ max-width:36ch; display:flex; flex-direction:column; gap:12px; }
+.act .eyebrow{ font-size:12px; color:var(--mute); letter-spacing:.02em; }
+.act h2{ font-family:"Fraunces", Georgia, serif; font-weight:300; font-size:clamp(34px, 9vw, 72px); line-height:.98; letter-spacing:-0.025em; }
+.act p{ font-size:17px; color:#D6E0DB; max-width:34ch; }
+.act .line{ opacity:0; transform:translateY(14px); }
+.cta{ display:inline-flex; align-items:center; min-height:48px; padding:0 24px; border-radius:999px; background:var(--amber); color:#0E1F1A; text-decoration:none; font-weight:500; width:max-content; }
+.cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:560px; }
+.cards div{ border:1px solid var(--line); border-radius:8px; padding:10px; font-size:13px; background:rgba(8,24,20,.45); backdrop-filter:blur(6px); }
+.cards b{ display:block; font-weight:500; margin-bottom:2px; }
+.hold{ font-size:12px; color:var(--amber); border:1px solid var(--amber); padding:4px 10px; border-radius:999px; width:max-content; opacity:0; }
+#route{ width:min(100%,520px); height:64px; }
+#route path{ fill:none; stroke:var(--ink); stroke-width:1.5; stroke-dasharray:1200; stroke-dashoffset:1200; }
+#route circle{ fill:var(--amber); }
+.plan{ justify-content:flex-start; padding-top:96px; gap:12px; background:linear-gradient(to bottom, transparent, var(--bg) 25%); }
+.plan .row{ border-top:1px solid var(--line); padding:12px 0; display:flex; justify-content:space-between; gap:12px; max-width:560px; }
+.plan .row span:last-child{ color:var(--mute); }
+.stays{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; max-width:560px; }
+.stays div{ aspect-ratio:4/3; border-radius:10px; background:rgba(8,24,20,.5); border:1px solid var(--line); padding:10px; display:flex; align-items:flex-end; font-size:13px; backdrop-filter:blur(6px); }
+@media (min-width:720px){ .act{ padding-left:calc(50% - 320px); padding-right:calc(50% - 320px); } .act h2{ font-size:72px } }
+
+#preroll{ position:fixed; inset:0; z-index:10; background:var(--bg); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:28px; padding:24px; text-align:center; }
+#preroll .stamps{ display:grid; gap:12px; font-family:"Fraunces", Georgia, serif; font-size:clamp(22px,6vw,34px); font-weight:300; letter-spacing:-0.01em; }
+#preroll .stamps span{ opacity:0; }
+#preroll.go .stamps span{ animation:in .8s forwards; }
+#preroll.go .stamps span:nth-child(2){ animation-delay:1s } #preroll.go .stamps span:nth-child(3){ animation-delay:2s }
+#preroll .hint{ font-size:12px; color:var(--mute); }
+#preroll button{ font:inherit; min-height:48px; padding:0 26px; border-radius:999px; border:0; background:var(--amber); color:#0E1F1A; font-weight:500; }
+#preroll button:focus-visible{ outline:2px solid var(--ink); outline-offset:3px; }
+@keyframes in{ to{ opacity:1 } }
+#preroll.done{ opacity:0; pointer-events:none; transition:opacity .9s; }
+@media (prefers-reduced-motion: reduce){ #preroll .stamps span{ opacity:1; animation:none } .act .line{ opacity:1; transform:none } }
+</style>
+</head>
+<body>
+
+<div id="preroll">
+  <div class="hint">Explore Wayanad · an immersive prototype</div>
+  <div class="stamps"><span>Adivaram</span><span>14 kilometres</span><span>Nine bends</span></div>
+  <button id="start" type="button">Start the climb</button>
+  <div class="hint">Scroll to drive. Sound is off until you turn it on.</div>
+</div>
+
+<canvas id="gl" aria-hidden="true"></canvas>
+<div id="grade" aria-hidden="true"></div>
+<div id="grain" aria-hidden="true"></div>
+<div id="vig" aria-hidden="true"></div>
+
+<div id="hud" aria-hidden="true">
+  <div><div class="brand">Explore Wayanad</div><div class="status" id="status">Ghat open today</div></div>
+  <div id="counter"><b>0</b><span> / 9</span><small>hairpin</small></div>
+</div>
+<div id="scene" aria-hidden="true">Adivaram</div>
+<button id="mute" type="button" aria-pressed="false">Sound off</button>
+
+<main>
+  <section class="act" data-act="churam" data-len="4" data-scene="Thamarassery Churam">
+    <div class="copy">
+      <div class="eyebrow line">Act 1 · Thamarassery Churam</div>
+      <h2 class="line">Nine bends to the top.</h2>
+      <p class="line">Fourteen kilometres from Adivaram to Lakkidi. The British needed a Paniya guide to find this road. His name was Karinthandan.</p>
+      <p class="line" id="lakkidi" style="font-family:'Fraunces',serif;font-size:28px;color:var(--ink)">Through the arch. You are in Wayanad.</p>
+    </div>
+  </section>
+
+  <section class="act" data-act="kalpetta" data-len="1.5" data-scene="Lakkidi → Kalpetta">
+    <div class="copy">
+      <div class="eyebrow line">Act 2 · Lakkidi to Kalpetta</div>
+      <h2 class="line">Everything is under an hour from here.</h2>
+      <p class="line">The Chain Tree, Vythiri's tree houses, Pookode, then the hub.</p>
+      <div class="cards line">
+        <div><b>South</b>tea, peaks, falls</div>
+        <div><b>East</b>caves, Bathery, forest</div>
+        <div><b>North</b>dam, island, temples</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" data-act="soochipara" data-len="2" data-scene="Soochipara Falls">
+    <div class="copy">
+      <div class="eyebrow line">Act 3 · Soochipara Falls</div>
+      <h2 class="line">You hear it long before you see it.</h2>
+      <p class="line">Thirteen km from Meppadi, then 1.2 km on foot. Two hundred metres of water in three tiers. Swim when the flow is low.</p>
+    </div>
+  </section>
+
+  <section class="act" data-act="kuruva" data-len="2" data-scene="Kuruva Island">
+    <div class="copy">
+      <div class="eyebrow line">Act 4 · Kuruva Island</div>
+      <h2 class="line">The Kabini splits into a hundred and fifty islands.</h2>
+      <p class="line">Nobody lives on them. The only way in is a bamboo raft, and fewer than five hundred people a day are allowed.</p>
+    </div>
+  </section>
+
+  <section class="act" data-act="edakkal" data-len="1.6" data-scene="Edakkal Caves">
+    <div class="copy">
+      <div class="eyebrow line">Act 5 · Edakkal Caves</div>
+      <h2 class="line">Someone carved these six thousand years ago.</h2>
+      <p class="line">A kilometre of steps, a stone wedged between two stones, and a wall nobody can fully read. Closed Mondays.</p>
+    </div>
+  </section>
+
+  <section class="act" data-act="forest" data-len="2.2" data-scene="Forest road · NH766">
+    <div class="copy">
+      <div class="eyebrow line">Act 7 · The forest road</div>
+      <h2 class="line">From here the road belongs to the forest.</h2>
+      <p class="line">Twenty km of protected teak and bamboo. Night traffic banned since 2009. Ninety-three animals died here in the five years before.</p>
+      <div class="hold" id="hold">An elephant is crossing. Stay in the car.</div>
+    </div>
+  </section>
+
+  <section class="act" data-act="border" data-len="2.4" data-scene="Muthanga · the border">
+    <div class="copy">
+      <div class="eyebrow line">Act 8 · Muthanga and the border</div>
+      <h2 class="line">Kerala ends here.</h2>
+      <p class="line">The road goes on to Bandipur and Mysore, but Wayanad stops at this barrier. Ninety kilometres from Adivaram.</p>
+      <svg id="route" viewBox="0 0 520 64" aria-hidden="true"><path d="M8 54 C70 50, 80 14, 140 22 S230 52, 280 36 S380 8, 440 18 S500 34, 512 30"/><circle id="dot" cx="8" cy="54" r="4"/></svg>
+    </div>
+  </section>
+
+  <section class="act" data-act="stay" data-len="1.4" data-scene="Stay">
+    <div class="copy">
+      <div class="eyebrow line">Act 9 · Stay</div>
+      <h2 class="line">Sleep in the trees.</h2>
+      <div class="stays line"><div>Treehouse · Vythiri</div><div>Planter's bungalow · Meppadi</div><div>Homestay · Pulpally</div><div>Resort · Sulthan Bathery</div></div>
+    </div>
+  </section>
+
+  <section class="act" data-act="night" data-len="2" data-scene="Night">
+    <div class="copy">
+      <div class="eyebrow line">Act 10 · Night</div>
+      <h2 class="line">Nothing to do after nine.</h2>
+      <p class="line">That is the point.</p>
+    </div>
+  </section>
+
+  <section class="act plan" data-act="plan" data-scene="Plan your trip">
+    <div class="eyebrow">Act 11 · Plan your trip</div>
+    <h2 class="serif" style="font-size:clamp(34px,8vw,56px);line-height:1">Now come.</h2>
+    <div class="row"><span>Nearest airport</span><span>Kozhikode (CCJ) · about 3 h to Kalpetta via the churam</span></div>
+    <div class="row"><span>Best months</span><span>October to February</span></div>
+    <div class="row"><span>Monsoon</span><span>June to September · mist, full falls, Kuruva closed</span></div>
+    <div class="row"><span>Itineraries</span><span>3 · 5 · 7 days</span></div>
+    <a class="cta" href="#top" style="margin-top:12px">Ask on WhatsApp</a>
+    <div class="eyebrow" style="margin-top:24px">Prototype · facts to verify at build time</div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+(function(){
+  if(!window.THREE || !window.gsap || !window.ScrollTrigger){ return; }
+  gsap.registerPlugin(ScrollTrigger);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const small = Math.min(innerWidth, innerHeight) < 600;
+
+  /* ---------- pre-roll ---------- */
+  const pre = document.getElementById('preroll');
+  document.getElementById('start').addEventListener('click', () => {
+    pre.classList.add('go');
+    setTimeout(() => pre.classList.add('done'), reduce ? 100 : 3200);
+  });
+
+  /* ---------- three scene ---------- */
+  const canvas = document.getElementById('gl');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !small, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, small ? 1.5 : 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 400);
+
+  const palette = {
+    churam:   { sky:0xc9d5cf, fog:0xc9d5cf, ground:0x1f4a2c, light:0xfff4dc, grade:'transparent' },
+    kalpetta: { sky:0xd9c9a8, fog:0xd9c9a8, ground:0x2e4a3a, light:0xffe6b8, grade:'transparent' },
+    soochipara:{sky:0x8ea1a8, fog:0xb9c7cc, ground:0x24413a, light:0xe8f0ff, grade:'#c9d5dc' },
+    kuruva:   { sky:0xa9bdb6, fog:0xa9bdb6, ground:0x1b332c, light:0xfff8e6, grade:'transparent' },
+    edakkal:  { sky:0x5b4a3a, fog:0x3f3127, ground:0x2b241c, light:0xffc98a, grade:'#b89a78' },
+    forest:   { sky:0x24402f, fog:0x1d3326, ground:0x17291f, light:0xdcffd0, grade:'#9fbf98' },
+    border:   { sky:0xd48a4a, fog:0x9c5a30, ground:0x2a2318, light:0xffb070, grade:'#e0a070' },
+    stay:     { sky:0x8a4a3a, fog:0x4a2a26, ground:0x1b1a18, light:0xffb08a, grade:'#d08a70' },
+    night:    { sky:0x0a1420, fog:0x0a1420, ground:0x0b1410, light:0x6e86b8, grade:'#4a5c80' },
+    plan:     { sky:0x0e1f1a, fog:0x0e1f1a, ground:0x0e1f1a, light:0x6e86b8, grade:'transparent' }
+  };
+
+  scene.fog = new THREE.FogExp2(palette.churam.fog, 0.02);
+  scene.background = new THREE.Color(palette.churam.sky);
+
+  const hemi = new THREE.HemisphereLight(0xdfe8e4, 0x1a2a24, 0.9); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(palette.churam.light, 1.0); sun.position.set(40, 60, -20); scene.add(sun);
+
+  // terrain: a long ramp rising toward -z with rolling noise
+  const W = 220, L = 420, seg = small ? 96 : 160;
+  function ramp(z){ return THREE.MathUtils.smoothstep(-z, 0, 200) * 95; }
+  function noise(x, z){
+    return 3.2*Math.sin(x*0.09)*Math.cos(z*0.07) + 1.6*Math.sin(x*0.31 + z*0.17) + 0.9*Math.cos(x*0.53 - z*0.41) + 0.4*Math.sin(x*1.3)*Math.cos(z*1.1);
+  }
+  function height(x, z){
+    const valley = Math.max(0, 1 - Math.abs(x)/90);
+    return ramp(z) + noise(x, z) * (0.6 + valley*0.8) - valley*2;
+  }
+  const geo = new THREE.PlaneGeometry(W, L, seg, Math.round(seg*L/W));
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++){ const x = pos.getX(i), z = pos.getZ(i); pos.setY(i, height(x, z - 60)); }
+  geo.computeVertexNormals();
+  const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: palette.churam.ground, flatShading: true }));
+  terrain.position.z = 60;
+  scene.add(terrain);
+
+  // the road: nine hairpins climbing the ramp, laid on the terrain
+  const pts = [];
+  const bends = 9, spanX = 20, dz = 13;
+  for(let b=0;b<=bends;b++){
+    const z = 10 - b*dz;
+    const xa = (b%2===0) ? -spanX : spanX, xb = -xa;
+    const steps = 14;
+    for(let s=0;s<steps;s++){
+      const t = s/steps;
+      const x = xa + (xb - xa)*t;
+      const zz = z - dz*0.35*Math.sin(t*Math.PI);
+      pts.push(new THREE.Vector3(x, height(x, zz) + 0.6, zz));
+    }
+  }
+  const last = pts[pts.length-1];
+  for(let k=1;k<=12;k++){ const zz = last.z - k*8; pts.push(new THREE.Vector3(last.x*(1-k/12), height(last.x*(1-k/12), zz) + 0.6, zz)); }
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
+  const road = new THREE.Mesh(new THREE.TubeGeometry(curve, small ? 500 : 900, 0.62, 6, false), new THREE.MeshLambertMaterial({ color: 0x2a2c2a }));
+  scene.add(road);
+  // centre line
+  const centre = new THREE.Mesh(new THREE.TubeGeometry(curve, small ? 500 : 900, 0.07, 4, false), new THREE.MeshBasicMaterial({ color: 0xe8e6dc }));
+  centre.position.y = 0.58; scene.add(centre);
+  // striped barrier posts along the outer edge
+  const postN = small ? 360 : 720, postGeo = new THREE.BoxGeometry(0.22, 0.9, 0.22);
+  const yellow = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: 0xe0b531 }), postN);
+  const black = new THREE.InstancedMesh(postGeo, new THREE.MeshLambertMaterial({ color: 0x1a1a1a }), postN);
+  const m4 = new THREE.Matrix4(), side = new THREE.Vector3();
+  for(let i=0;i<postN;i++){
+    const t = i/postN, pt = curve.getPointAt(t), tan = curve.getTangentAt(t);
+    side.set(tan.z, 0, -tan.x).normalize();
+    const outer = Math.sin(t*Math.PI*bends*1.05) > 0 ? 1 : -1; // outer edge flips each traverse
+    const p = pt.clone().add(side.multiplyScalar(outer*1.05)).add(new THREE.Vector3(0, 0.2, 0));
+    m4.makeTranslation(p.x, p.y, p.z);
+    (i%2 ? yellow : black).setMatrixAt(i, m4);
+  }
+  yellow.instanceMatrix.needsUpdate = true; black.instanceMatrix.needsUpdate = true;
+  scene.add(yellow, black);
+  // the green wall: trees scattered on the slope, kept off the road
+  const treeN = small ? 700 : 1800;
+  const trees = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 4.2, 6), new THREE.MeshLambertMaterial({ color: 0x1b5a2e, flatShading: true }), treeN);
+  const samples = []; for(let i=0;i<=200;i++) samples.push(curve.getPointAt(i/200));
+  let placed = 0, tries = 0;
+  while(placed < treeN && tries < treeN*6){
+    tries++;
+    const x = (Math.random()-.5)*110, z = 30 - Math.random()*260;
+    let near = false; for(const s of samples){ const dx = s.x-x, dz2 = s.z-z; if(dx*dx+dz2*dz2 < 10){ near = true; break; } }
+    if(near) continue;
+    const y = height(x, z), sc = 0.7 + Math.random()*1.1;
+    m4.compose(new THREE.Vector3(x, y + 2.1*sc, z), new THREE.Quaternion(), new THREE.Vector3(sc, sc, sc));
+    trees.setMatrixAt(placed++, m4);
+  }
+  trees.count = placed; trees.instanceMatrix.needsUpdate = true;
+  scene.add(trees);
+  // hairpin markers
+  const markers = new THREE.Group();
+  for(let b=1;b<=bends;b++){
+    const p = curve.getPointAt(Math.min(0.995, b/(bends+1.3)));
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), new THREE.MeshBasicMaterial({ color: 0xD9A441 }));
+    m.position.copy(p).add(new THREE.Vector3(0, 1.2, 0)); markers.add(m);
+  }
+  scene.add(markers);
+
+  // the Lakkidi gateway: stone pillars, green beam, three scalloped arches, lettering
+  const archT = 0.905;
+  const archPt = curve.getPointAt(archT), archTan = curve.getTangentAt(archT);
+  const arch = new THREE.Group();
+  const stone = new THREE.MeshLambertMaterial({ color: 0x4a4b46 }), green = new THREE.MeshLambertMaterial({ color: 0x2f6b3a }), trim = new THREE.MeshLambertMaterial({ color: 0x3a3a36 });
+  const span = 11, pierH = 4.2, pierW = 1.3;
+  [-1, 1].forEach(s => { const p = new THREE.Mesh(new THREE.BoxGeometry(pierW, pierH, pierW), stone); p.position.set(s*(span/2 + pierW/2), pierH/2, 0); arch.add(p); });
+  const beamShape = new THREE.Shape();
+  beamShape.moveTo(-span/2 - pierW, 0); beamShape.lineTo(span/2 + pierW, 0); beamShape.lineTo(span/2 + pierW, 2.3); beamShape.lineTo(0, 3.1); beamShape.lineTo(-span/2 - pierW, 2.3); beamShape.lineTo(-span/2 - pierW, 0);
+  [-span/3, 0, span/3].forEach(cx => { const h = new THREE.Path(); h.absarc(cx, 0, span/6 - 0.25, 0, Math.PI, false); h.lineTo(cx + span/6 - 0.25, 0); beamShape.holes.push(h); });
+  const beam = new THREE.Mesh(new THREE.ExtrudeGeometry(beamShape, { depth: 0.9, bevelEnabled: false }), green);
+  beam.position.set(0, pierH - 0.3, -0.45); arch.add(beam);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(span + 2*pierW + 0.6, 0.22, 1.2), trim); cap.position.set(0, pierH + 2.9, 0); arch.add(cap);
+  const cvs = document.createElement('canvas'); cvs.width = 1024; cvs.height = 128; const cx2 = cvs.getContext('2d');
+  cx2.fillStyle = '#2f6b3a'; cx2.fillRect(0, 0, 1024, 128); cx2.fillStyle = '#f4f1e6'; cx2.font = '600 64px "Instrument Sans", Arial, sans-serif'; cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
+  cx2.fillText('WELCOME TO WAYANAD', 512, 64);
+  const tex = new THREE.CanvasTexture(cvs); tex.encoding = THREE.sRGBEncoding;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(span * 0.78, span * 0.78 / 8), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  sign.position.set(0, pierH + 2.15, 0.47); arch.add(sign);
+  const signBack = sign.clone(); signBack.rotation.y = Math.PI; signBack.position.z = -0.92; arch.add(signBack);
+  arch.position.copy(archPt).setY(archPt.y - 0.6);
+  arch.rotation.y = Math.atan2(archTan.x, archTan.z);
+  scene.add(arch);
+
+  // mist particles and fireflies
+  function makePoints(n, size, color, spread){
+    const g = new THREE.BufferGeometry(); const a = new Float32Array(n*3);
+    for(let i=0;i<n;i++){ a[i*3]=(Math.random()-.5)*spread; a[i*3+1]=Math.random()*20+2; a[i*3+2]=(Math.random()-.5)*spread; }
+    g.setAttribute('position', new THREE.BufferAttribute(a, 3));
+    const m = new THREE.PointsMaterial({ size, color, transparent:true, opacity:0, depthWrite:false, sizeAttenuation:true });
+    return new THREE.Points(g, m);
+  }
+  const mist = makePoints(small?300:700, 1.6, 0xffffff, 120);
+  const flies = makePoints(small?160:320, 0.35, 0xf2d27a, 60);
+  scene.add(mist, flies);
+
+  /* ---------- state ---------- */
+  const S = { act:'churam', p:0, fog:0.02, mistOp:0.12, flyOp:0, hold:0 };
+  const tmp = new THREE.Vector3(), look = new THREE.Vector3();
+  const camUp = new THREE.Vector3(0, 1, 0);
+  const lerpColor = (c, hex, k) => c.lerp(new THREE.Color(hex), k);
+
+  function placeCamera(){
+    const a = S.act, p = S.p;
+    if(a==='churam'){
+      const t = THREE.MathUtils.clamp(p*0.98, 0, 0.995);
+      const pt = curve.getPointAt(t), ahead = curve.getPointAt(Math.min(0.999, t+0.012));
+      tmp.copy(pt).add(camUp.clone().multiplyScalar(1.9)).add(pt.clone().sub(ahead).setY(0).normalize().multiplyScalar(2.5));
+      camera.position.lerp(tmp, 0.12);
+      look.copy(ahead).add(new THREE.Vector3(0, 1.4, 0));
+      // through the arch, then lift for the plateau
+      if(p>0.95){ const k = (p-0.95)/0.05; camera.position.y += k*14; look.set(0, ramp(-160)+2, -200); }
+    } else {
+      const spots = {
+        kalpetta: [[-10, ramp(-175)+24, -150], [0, ramp(-200)+4, -230]],
+        soochipara:[[45, ramp(-120)+6, -95], [20, ramp(-150)+12, -150]],
+        kuruva:   [[-60, ramp(-170)+8, -150], [-30, ramp(-190)+6, -200]],
+        edakkal:  [[70, ramp(-180)+5, -175], [85, ramp(-200)+10, -215]],
+        forest:   [[0, ramp(-205)+3, -185], [0, ramp(-235)+3, -260]],
+        border:   [[0, ramp(-235)+4, -230], [0, ramp(-260)+6, -300]],
+        stay:     [[-20, ramp(-210)+12, -190], [-40, ramp(-230)+6, -240]],
+        night:    [[-25, ramp(-215)+5, -200], [-45, ramp(-240)+8, -250]],
+        plan:     [[-25, ramp(-215)+5, -200], [-45, ramp(-240)+8, -250]]
+      }[a];
+      const e = p*(1 - S.hold*0.6);
+      tmp.set(spots[0][0] + (spots[1][0]-spots[0][0])*e*0.5, spots[0][1] + 0, spots[0][2] + (spots[1][2]-spots[0][2])*e*0.25);
+      camera.position.lerp(tmp, 0.06);
+      look.set(spots[1][0], spots[1][1], spots[1][2]);
+      if(a==='border' && p>0.55){ const k = (p-0.55)/0.45; look.set(0, ramp(-120)+10 - k*4, -300 + k*460); } // turn to face back west
+    }
+    camera.lookAt(look);
+  }
+
+  const grade = document.getElementById('grade');
+  function applyPalette(){
+    const P = palette[S.act];
+    lerpColor(scene.fog.color, P.fog, 0.05); lerpColor(scene.background, P.sky, 0.05);
+    lerpColor(terrain.material.color, P.ground, 0.05); lerpColor(sun.color, P.light, 0.05);
+    scene.fog.density += (S.fog - scene.fog.density)*0.08;
+    mist.material.opacity += (S.mistOp - mist.material.opacity)*0.06;
+    flies.material.opacity += (S.flyOp - flies.material.opacity)*0.04;
+    grade.style.background = P.grade; grade.style.opacity = P.grade==='transparent' ? 0 : 0.35;
+  }
+
+  let t0 = performance.now();
+  function frame(now){
+    const dt = Math.min(0.05, (now - t0)/1000); t0 = now;
+    placeCamera(); applyPalette();
+    mist.rotation.y += dt*0.02; mist.position.copy(camera.position).setY(camera.position.y - 6);
+    flies.position.copy(camera.position).setY(camera.position.y - 4);
+    const fp = flies.geometry.attributes.position; for(let i=0;i<fp.count;i+=3){ fp.setY(i, fp.getY(i) + Math.sin(now*0.001 + i)*0.01); } fp.needsUpdate = true;
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+  /* ---------- scroll ---------- */
+  const counter = document.querySelector('#counter b'), sceneLbl = document.getElementById('scene'), status = document.getElementById('status');
+  const holdEl = document.getElementById('hold'), lakkidi = document.getElementById('lakkidi'), routePath = document.querySelector('#route path'), dot = document.getElementById('dot');
+  const scenes = { churam:'Thamarassery Churam', kalpetta:'Lakkidi → Kalpetta', soochipara:'Soochipara Falls', kuruva:'Kuruva Island', edakkal:'Edakkal Caves', forest:'Forest road · NH766', border:'Muthanga · the border', stay:'Stay', night:'Night', plan:'Plan your trip' };
+  const routeLen = routePath.getTotalLength(); routePath.style.strokeDasharray = routeLen; routePath.style.strokeDashoffset = routeLen;
+
+  document.querySelectorAll('.act').forEach(sec => {
+    const act = sec.dataset.act, len = parseFloat(sec.dataset.len || '1');
+    const lines = sec.querySelectorAll('.line');
+    const isPlan = act==='plan';
+    ScrollTrigger.create({
+      trigger: sec, start: 'top top', end: isPlan ? 'bottom bottom' : '+=' + Math.round(innerHeight*len),
+      pin: !isPlan && !reduce, scrub: 0.6,
+      onToggle: self => { if(self.isActive){ S.act = act; sceneLbl.textContent = scenes[act]; } },
+      onUpdate: self => {
+        const p = self.progress; S.act = act; S.p = p;
+        if(!reduce){ lines.forEach((el, i) => { const k = THREE.MathUtils.clamp((p - i*0.08)*6, 0, 1); el.style.opacity = k; el.style.transform = `translateY(${(1-k)*14}px)`; }); }
+        switch(act){
+          case 'churam':
+            counter.textContent = Math.min(9, Math.floor(p*0.98/0.88*9.99));
+            S.fog = p < 0.84 ? THREE.MathUtils.mapRange(0, 0.84, 0.02, 0.11, p) : THREE.MathUtils.mapRange(0.84, 1, 0.11, 0.012, p);
+            S.mistOp = p < 0.84 ? 0.12 + p*0.5 : 0.55*(1-(p-0.84)/0.16);
+            lakkidi.style.opacity = p > 0.92 ? (p-0.92)*12 : 0;
+            sceneLbl.textContent = p > 0.9 ? 'Lakkidi · the gateway' : scenes.churam;
+            break;
+          case 'kalpetta': S.fog = 0.012; S.mistOp = 0.08; status.textContent = 'Ghat open today'; break;
+          case 'soochipara': S.fog = 0.02; S.mistOp = 0.35; break;
+          case 'kuruva': S.fog = 0.015; S.mistOp = 0.12; status.textContent = 'Kuruva open · Oct–May'; break;
+          case 'edakkal': S.fog = 0.03; S.mistOp = 0.05; break;
+          case 'forest': {
+            S.fog = 0.028; S.mistOp = 0.1;
+            const inHold = p > 0.45 && p < 0.62; S.hold = inHold ? 1 : 0; holdEl.style.opacity = inHold ? 1 : 0;
+            status.textContent = 'Night ban 9 pm – 6 am'; break;
+          }
+          case 'border': {
+            S.fog = 0.018; S.mistOp = 0.08; counter.textContent = '9';
+            const k = THREE.MathUtils.clamp((p-0.5)*2, 0, 1); routePath.style.strokeDashoffset = routeLen*(1-k);
+            const pt = routePath.getPointAtLength(routeLen*k); dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y);
+            status.textContent = 'Moolehole checkpost'; break;
+          }
+          case 'stay': S.fog = 0.02; S.mistOp = 0.06; S.flyOp = p*0.3; break;
+          case 'night': S.fog = 0.03; S.mistOp = 0.02; S.flyOp = 0.9; status.textContent = 'Fireflies · Apr–May'; break;
+          case 'plan': S.fog = 0.06; S.flyOp = 0.9*(1-p); break;
+        }
+      }
+    });
+  });
+
+  /* ---------- sound (synthesised ambience, opt-in) ---------- */
+  const muteBtn = document.getElementById('mute'); let ctx, gain;
+  muteBtn.addEventListener('click', () => {
+    if(!ctx){
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const buf = ctx.createBuffer(1, ctx.sampleRate*2, ctx.sampleRate); const d = buf.getChannelData(0);
+      let last = 0; for(let i=0;i<d.length;i++){ const w = Math.random()*2-1; d[i] = (last + 0.02*w)/1.02; last = d[i]; d[i] *= 3.5; }
+      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 600;
+      gain = ctx.createGain(); gain.gain.value = 0; src.connect(filt).connect(gain).connect(ctx.destination); src.start();
+    }
+    const on = muteBtn.getAttribute('aria-pressed') !== 'true';
+    muteBtn.setAttribute('aria-pressed', on); muteBtn.textContent = on ? 'Sound on' : 'Sound off';
+    gain.gain.linearRampToValueAtTime(on ? 0.25 : 0, ctx.currentTime + 0.8);
+    if(on && ctx.state === 'suspended') ctx.resume();
+  });
+})();
+</script>
+</body>
+</html>

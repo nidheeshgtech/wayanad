@@ -1,0 +1,14 @@
+:root {
+  --bg: #0e1f1a; --ink: #eef2ee; --mute: #b8c7c0; --dim: #8fa89e; --line: #5e7a70; --amber: #d9a441;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: inherit; margin: 0; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font: 16px/1.45 var(--font-sans), system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+a { color: inherit; }
+button { font: inherit; }
+.serif { font-family: var(--font-serif), Georgia, serif; font-weight: 300; letter-spacing: -0.025em; }

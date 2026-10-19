@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Explore Wayanad — scroll wireframe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f2ee; --ink:#1c1c1a; --mute:#6f6e68; --line:#b9b7ae; --box:#e6e4dd; --fog:#f3f2ee; --mark:#1c1c1a;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#161614; --ink:#ecebe6; --mute:#9a988f; --line:#4a4944; --box:#232320; --fog:#161614; --mark:#ecebe6; color-scheme:dark; } }
+:root[data-theme="dark"]{ --bg:#161614; --ink:#ecebe6; --mute:#9a988f; --line:#4a4944; --box:#232320; --fog:#161614; --mark:#ecebe6; color-scheme:dark; }
+html{ scroll-padding-top:env(safe-area-inset-top,0px); }
+*{ box-sizing:inherit; margin:0; }
+body{ background:var(--bg); color:var(--ink); font:16px/1.45 "IBM Plex Sans", system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+.mono{ font-family:"IBM Plex Mono", ui-monospace, Menlo, monospace; font-size:12px; color:var(--mute); }
+
+/* fixed "canvas" layer: stands in for the R3F scene */
+#stage{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+#road{ position:absolute; inset:0; width:100%; height:100%; }
+#road path{ fill:none; stroke:var(--mark); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+#fog{ position:absolute; inset:0; background:var(--fog); opacity:0; }
+#hud{ position:absolute; left:16px; right:16px; top:calc(16px + env(safe-area-inset-top,0px)); display:flex; justify-content:space-between; align-items:flex-start; }
+#hud b{ font-weight:600; font-size:14px; }
+#counter{ font-family:"IBM Plex Mono", monospace; font-size:28px; line-height:1; }
+#scene{ position:absolute; left:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); }
+
+/* DOM acts */
+main{ position:relative; z-index:1; }
+.act{ min-height:100vh; min-height:100svh; padding:24px 16px; display:flex; flex-direction:column; justify-content:flex-end; gap:12px; }
+.act.pin{ min-height:100vh; }
+.frame{ border:1px dashed var(--line); background:var(--box); aspect-ratio:3/4; max-height:44vh; position:relative; display:flex; align-items:center; justify-content:center; }
+.frame::before,.frame::after{ content:""; position:absolute; inset:0; background:linear-gradient(to top right, transparent calc(50% - .5px), var(--line), transparent calc(50% + .5px)); }
+.frame::after{ transform:scaleX(-1); }
+.frame span{ position:relative; z-index:1; background:var(--bg); padding:4px 8px; font-size:12px; color:var(--mute); border:1px solid var(--line); }
+.act h2{ font-size:22px; font-weight:600; letter-spacing:-.01em; }
+.act p{ max-width:34ch; color:var(--ink); }
+.note{ color:var(--mute); font-size:13px; max-width:40ch; }
+.bar{ height:2px; background:var(--line); position:relative; }
+.bar i{ position:absolute; left:0; top:0; bottom:0; width:0; background:var(--ink); }
+.cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.cards div{ border:1px dashed var(--line); padding:8px; font-size:12px; min-height:64px; }
+.hold{ display:inline-block; border:1px solid var(--ink); padding:2px 8px; font-size:12px; opacity:0; }
+#route{ width:100%; height:56px; }
+#route path{ fill:none; stroke:var(--ink); stroke-width:2; stroke-dasharray:1000; stroke-dashoffset:1000; }
+.plan{ justify-content:flex-start; gap:16px; }
+.plan .row{ border-top:1px solid var(--line); padding:12px 0; display:flex; justify-content:space-between; gap:12px; }
+button{ font:inherit; background:var(--ink); color:var(--bg); border:0; padding:12px 18px; border-radius:999px; }
+button:focus-visible{ outline:2px solid var(--ink); outline-offset:3px; }
+
+/* pre-roll */
+#preroll{ position:fixed; inset:0; z-index:5; background:var(--bg); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:28px; padding:24px; text-align:center; }
+#preroll .stamps{ display:grid; gap:10px; font-family:"IBM Plex Mono", monospace; font-size:15px; }
+#preroll .stamps span{ opacity:0; }
+#preroll.go .stamps span{ animation:in .6s forwards; }
+#preroll.go .stamps span:nth-child(2){ animation-delay:.9s } #preroll.go .stamps span:nth-child(3){ animation-delay:1.8s }
+@keyframes in{ to{ opacity:1 } }
+#preroll.done{ opacity:0; pointer-events:none; transition:opacity .6s; }
+.legend{ position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:2; }
+@media (prefers-reduced-motion: reduce){ #preroll .stamps span{ opacity:1; animation:none } }
+@media (min-width:720px){ .act{ padding:48px calc(50% - 320px); } .frame{ aspect-ratio:16/9; max-height:50vh; } }
+</style>
+</head>
+<body>
+
+<div id="preroll">
+  <div class="mono">wireframe · tap to start the drive</div>
+  <div class="stamps"><span>Dubai 06:40</span><span>Kozhikode 12:05</span><span>Adivaram 13:30</span></div>
+  <button id="start">Start the climb</button>
+</div>
+
+<div id="stage" aria-hidden="true">
+  <svg id="road" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice">
+    <path id="hairpins" d="M60 780 L330 720 L60 660 L330 600 L60 540 L330 480 L60 420 L330 360 L60 300 L330 240 L195 170"/>
+  </svg>
+  <div id="fog"></div>
+  <div id="hud"><div><b>Explore Wayanad</b><div class="mono">3D canvas stand-in</div></div><div id="counter">0/9</div></div>
+  <div id="scene" class="mono">scene: Adivaram</div>
+</div>
+
+<main>
+  <section class="act pin" data-scene="Thamarassery Churam" data-act="1" data-len="3">
+    <div class="frame"><span>drone · hairpins in mist</span></div>
+    <h2>Act 1 · Thamarassery Churam</h2>
+    <p>Scroll climbs the 14 km ghat. Fog thickens to hairpin 8, breaks at Lakkidi.</p>
+    <div class="bar"><i></i></div>
+    <div class="note">Counter ticks 1→9 · fog 0→0.9→0.1 · title “Welcome to Wayanad” at the end</div>
+  </section>
+
+  <section class="act pin" data-scene="Lakkidi → Kalpetta" data-act="2" data-len="1.2">
+    <div class="frame"><span>Chain Tree · Vythiri canopy · Kalpetta aerial</span></div>
+    <h2>Act 2 · Lakkidi to Kalpetta</h2>
+    <p>The breath after the climb. Three roads fan out from the hub.</p>
+    <div class="cards"><div>South<br>tea, peaks, falls</div><div>East<br>caves, Bathery, forest</div><div>North<br>dam, island, temples</div></div>
+    <div class="bar"><i></i></div>
+  </section>
+
+  <section class="act pin" data-scene="Soochipara Falls" data-act="3" data-len="1.5">
+    <div class="frame" style="aspect-ratio:9/16;max-height:52vh"><span>vertical · 200 m fall</span></div>
+    <h2>Act 3 · Soochipara Falls</h2>
+    <p>South detour. You hear it before you see it. Audio ramps with scroll.</p>
+    <div class="bar"><i></i></div>
+  </section>
+
+  <section class="act pin" data-scene="Kuruva Island" data-act="4" data-len="1.5">
+    <div class="frame"><span>river from above · raft crossing</span></div>
+    <h2>Act 4 · Kuruva Island</h2>
+    <p>North detour. The page goes quiet. Still water, bamboo raft, canopy.</p>
+    <div class="bar"><i></i></div>
+  </section>
+
+  <section class="act pin" data-scene="Edakkal Caves" data-act="5" data-len="1.2">
+    <div class="frame"><span>steps · slot of light · carvings</span></div>
+    <h2>Act 5 · Edakkal Caves</h2>
+    <p>A kilometre of steps, then 6,000-year-old carvings resolve on the wall.</p>
+    <div class="bar"><i></i></div>
+  </section>
+
+  <section class="act" data-scene="Sulthan Bathery" data-act="6">
+    <div class="frame" style="max-height:28vh"><span>town · forest checkpost</span></div>
+    <h2>Act 6 · Sulthan Bathery</h2>
+    <p>The last town. After this, the forest.</p>
+  </section>
+
+  <section class="act pin" data-scene="Forest road (NH766)" data-act="7" data-len="1.6">
+    <div class="frame"><span>dashcam · teak and bamboo</span></div>
+    <h2>Act 7 · The forest road</h2>
+    <p>Twenty km of protected forest. Night traffic banned since 2009.</p>
+    <span class="hold" id="hold">scroll held · elephant crossing</span>
+    <div class="bar"><i></i></div>
+  </section>
+
+  <section class="act pin" data-scene="Muthanga · the border" data-act="8" data-len="2">
+    <div class="frame"><span>safari strip → checkpost barrier</span></div>
+    <h2>Act 8 · Muthanga and the border</h2>
+    <p>Kerala ends here. The camera turns to face the road you came up.</p>
+    <svg id="route" viewBox="0 0 360 56" aria-hidden="true"><path d="M8 48 C60 40, 70 10, 120 20 S190 44, 230 30 S300 8, 352 10"/></svg>
+    <div class="mono">route line draws: Adivaram → Muthanga · counter reads 9/9</div>
+    <div class="bar"><i></i></div>
+  </section>
+
+  <section class="act" data-scene="Stay" data-act="9">
+    <div class="cards"><div>Treehouse</div><div>Plantation</div><div>Homestay</div><div>Resort</div><div>Treehouse</div><div>Homestay</div></div>
+    <h2>Act 9 · Stay</h2>
+    <p>Dusk over the estates. Cards from Supabase.</p>
+  </section>
+
+  <section class="act" data-scene="Night" data-act="10">
+    <div class="frame" style="max-height:34vh"><span>campfire · fireflies · stars</span></div>
+    <h2>Act 10 · Night</h2>
+    <p>Nothing to do after nine. That is the point.</p>
+  </section>
+
+  <section class="act plan" data-scene="Plan your trip" data-act="11">
+    <h2>Act 11 · Plan your trip</h2>
+    <div class="row"><span>Flight</span><span class="mono">DXB → CCJ · 3 h 55</span></div>
+    <div class="row"><span>Drive</span><span class="mono">CCJ → Kalpetta · ~3 h</span></div>
+    <div class="row"><span>Best months</span><span class="mono">Oct–Feb</span></div>
+    <div class="row"><span>Itineraries</span><span class="mono">3 · 5 · 7 days</span></div>
+    <button type="button">Ask on WhatsApp</button>
+    <div class="note">Static, server-rendered. No canvas behind this act.</div>
+  </section>
+</main>
+
+<div class="legend mono">wireframe v0.1</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+(function(){
+  if(!window.gsap || !window.ScrollTrigger){ return; }
+  gsap.registerPlugin(ScrollTrigger);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // pre-roll
+  const pre = document.getElementById('preroll');
+  document.getElementById('start').addEventListener('click', () => {
+    pre.classList.add('go');
+    setTimeout(() => pre.classList.add('done'), reduce ? 100 : 2600);
+  });
+
+  // stage state
+  const fog = document.getElementById('fog'), counter = document.getElementById('counter'), scene = document.getElementById('scene');
+  const road = document.getElementById('hairpins'), len = road.getTotalLength();
+  road.style.strokeDasharray = len; road.style.strokeDashoffset = len;
+
+  document.querySelectorAll('.act').forEach(sec => {
+    const bar = sec.querySelector('.bar i');
+    const pin = sec.classList.contains('pin');
+    const mult = parseFloat(sec.dataset.len || '1');
+    ScrollTrigger.create({
+      trigger: sec, start: 'top top', end: pin ? '+=' + Math.round(innerHeight * mult) : 'bottom top',
+      pin: pin && !reduce, scrub: true,
+      onEnter: () => scene.textContent = 'scene: ' + sec.dataset.scene,
+      onEnterBack: () => scene.textContent = 'scene: ' + sec.dataset.scene,
+      onUpdate: self => {
+        const p = self.progress;
+        if(bar) bar.style.width = (p*100).toFixed(1) + '%';
+        switch(sec.dataset.act){
+          case '1': {
+            road.style.strokeDashoffset = len * (1 - p);
+            counter.textContent = Math.min(9, Math.floor(p * 9.999)) + '/9';
+            const f = p < 0.85 ? gsap.utils.mapRange(0, 0.85, 0, 0.9, p) : gsap.utils.mapRange(0.85, 1, 0.9, 0.1, p);
+            fog.style.opacity = f.toFixed(3);
+            break;
+          }
+          case '2': fog.style.opacity = (0.1 * (1 - p)).toFixed(3); break;
+          case '7': {
+            const hold = document.getElementById('hold');
+            hold.style.opacity = (p > 0.45 && p < 0.65) ? 1 : 0; // stands in for the scrub-ease pause
+            break;
+          }
+          case '8': {
+            const path = document.querySelector('#route path');
+            path.style.strokeDashoffset = 1000 * (1 - Math.max(0, (p - 0.5) * 2));
+            counter.textContent = '9/9';
+            fog.style.opacity = (p > 0.9 ? (p - 0.9) * 3 : 0).toFixed(3);
+            break;
+          }
+        }
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
