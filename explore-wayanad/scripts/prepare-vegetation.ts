@@ -34,7 +34,15 @@ for (const [name, [file, px]] of Object.entries(SOURCES)) {
   const res = await fetch(`${BASE}/${file}`);
   if (!res.ok) throw new Error(`${name}: ${res.status}`);
   await writeFile(src, Buffer.from(await res.arrayBuffer()));
-  execFileSync("magick", [src, "-trim", "+repage", "-resize", `x${px}`, "-quality", "82", "-define", "webp:alpha-quality=90", dst]);
+  // the generator leaves a faint, whitish semi-transparent glow round each plant, and its transparent pixels are white;
+  // in the GPU's smaller mip levels both bleed into the leaves as a pale halo. So: make alpha hard (leaf or nothing),
+  // trim the 1 px fringe, and give every transparent pixel a dark leaf colour.
+  execFileSync("magick", [
+    src, "-channel", "A", "-threshold", "55%", "+channel", "-trim", "+repage",
+    "-channel", "A", "-morphology", "Erode", "Disk:1", "+channel",
+    "-background", "#24301c", "-alpha", "background",
+    "-resize", `x${px}`, "-quality", "82", "-define", "webp:alpha-quality=90", "-define", "webp:exact=true", dst,
+  ]);
   await rm(src);
   const [w, h] = execFileSync("magick", ["identify", "-format", "%w %h", dst]).toString().split(" ").map(Number);
   meta[name] = { aspect: +(w / h).toFixed(3) };

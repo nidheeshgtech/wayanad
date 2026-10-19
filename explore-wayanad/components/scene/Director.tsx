@@ -19,8 +19,8 @@ const PROTO_END_Z = -204;
  * first mist by 6, nearly white from 7 to 9, then the mist breaks before Lakkidi. */
 function churamMood(t: number, bends: number[]) {
   const keys: [number, number, number][] = [ // [t, fog density, mist opacity]
-    // densities for a road-level camera: at 0.07 the road ~15 units ahead is still there, beyond that it goes white
-    [0, 0.014, 0.12], [bends[2], 0.016, 0.18], [bends[5], 0.04, 0.35], [bends[6], 0.07, 0.55], [bends[8], 0.07, 0.55], [0.98, 0.01, 0],
+    // clear sunny morning low down (aerial haze and valley mist come from lib/atmosphere), mist from 6, white at 7–8
+    [0, 0.003, 0.08], [bends[2], 0.004, 0.12], [bends[5], 0.03, 0.35], [bends[6], 0.07, 0.55], [bends[8], 0.07, 0.55], [0.98, 0.003, 0],
   ];
   const i = Math.max(0, keys.findIndex(([k]) => k > t) - 1);
   const [t0, f0, m0] = keys[i], [t1, f1, m1] = keys[Math.min(i + 1, keys.length - 1)];

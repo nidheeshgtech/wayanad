@@ -54,8 +54,9 @@ const wind = { value: 0 };
 /** Sway: the card's top moves, its foot doesn't; each plant has its own phase from where it stands. */
 const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms) => {
   shader.uniforms.uWind = wind;
-  // both faces of a card are the same foliage: light them with the card's sky-leaning normal, never the flipped one
-  shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\nnormal = normalize(vNormal);");
+  // both faces of a card are the same foliage: light them with the card's sky-leaning normal (never the flipped one),
+  // tilted toward the viewer — seen edge-on from afar, a sky-facing card would otherwise reflect the sky like glass
+  shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\nnormal = normalize(vNormal + vec3(0.0, 0.0, 0.8));");
   shader.vertexShader = shader.vertexShader
     .replace("#include <common>", "#include <common>\nuniform float uWind;")
     .replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -73,7 +74,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true 
     return SPECIES.map((s) => {
       const map = loader.load(`/vegetation/${s.name}.webp`);
       map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
-      const material = new MeshStandardMaterial({ map, alphaTest: 0.45, side: DoubleSide, roughness: 0.85, alphaToCoverage });
+      const material = new MeshStandardMaterial({ map, alphaTest: 0.45, side: DoubleSide, roughness: 1, alphaToCoverage });
       material.onBeforeCompile = swayShader(s.sway);
       material.customProgramCacheKey = () => `veg-${s.sway}`;
       const count = Math.round(s.perUnit * L * density), mesh = new InstancedMesh(geo, material, count);

@@ -6,11 +6,13 @@ import { archT, bendTs, buildRoadCurve, setHeightmap, terrainGrid } from "@/lib/
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
 import { DRIVER_LINE, END, setPace } from "@/lib/drive";
+import { patchAtmosphere } from "@/lib/atmosphere";
 import Terrain from "./Terrain";
 import RoadBand from "./RoadBand";
 import Lighting from "./Lighting";
 import Road from "./Road";
 import Vegetation from "./Vegetation";
+import Props from "./Props";
 import Gateway from "./Gateway";
 import Particles from "./Particles";
 import Sky from "./Sky";
@@ -18,6 +20,8 @@ import Shafts from "./Shafts";
 import BendSigns from "./BendSigns";
 import Director from "./Director";
 import type { Tier } from "@/hooks/useCapability";
+
+patchAtmosphere(); // before any material compiles
 
 /* Fetched once, on first import of the scene chunk. Without the heightmap everything stays procedural;
  * without the road the real terrain gets the procedural road. */
@@ -42,7 +46,7 @@ export default function Scene({ tier }: { tier: Tier }) {
       camera={{ fov: 60, near: 0.02, far: 400 }}
       gl={{ antialias: !small, powerPreference: "high-performance" }}
       shadows={small ? false : "soft"}
-      onCreated={({ gl }) => { gl.toneMappingExposure = 1.05; }}
+      onCreated={({ gl }) => { gl.toneMappingExposure = 1.12; }}
       style={{ position: "fixed", inset: 0, zIndex: 0 }}
     >
       <Suspense fallback={null}>
@@ -73,6 +77,7 @@ function World({ small }: { small: boolean }) {
       <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
       <Road curve={curve} detail={detail} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
+      <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />
       <BendSigns curve={curve} />
       <Shafts curve={curve} count={small ? 20 : 40} />

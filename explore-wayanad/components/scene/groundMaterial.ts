@@ -66,7 +66,7 @@ export function groundMaterial() {
         // packed earth and grit on the shoulders and drains, fading into the verge
         albedo = mix(albedo, albedo * vec3(0.78, 0.66, 0.54) + vec3(0.05, 0.04, 0.03), (1.0 - smoothstep(0.7, 1.15, vRoadDist)) * 0.8);
         diffuseColor.rgb *= albedo;`)
-      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(0.8, 0.95, flatness);")
+      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(0.48, 0.95, flatness); // wet rock catches the light; earth and moss stay matte")
       .replace("#include <normal_fragment_maps>", `
         // whiteout-blended triplanar normal mapping (rock), planar for the ground; built in world space, then to view
         vec3 tnx = texture2D(tRockN, vWorldPos.zy * uRockScale).xyz * 2.0 - 1.0;
