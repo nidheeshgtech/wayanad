@@ -27,10 +27,10 @@ function churamMood(t: number, bends: number[]) {
   const k = t1 > t0 ? MathUtils.smoothstep(t, t0, t1) : 1;
   return { fog: f0 + (f1 - f0) * k, mist: m0 + (m1 - m0) * k };
 }
-/* Act 1 camera: a seat in the bus, units of 10 m. Eye `eye` above the road, looking
-^ * `ahead` down the road (centre line: the barrier posts stand at the edges). The pace comes from lib/drive.ts, which slows for every hairpin and for the gateway, so turns are
- * taken slowly; on top of that the heading eases and is capped at `maxTurn` °/s, and the cabin leans gently into bends.
- * `bob` is a barely-there vertical drift from the road surface — enough to feel moving, not enough to sway. */
+/* Act 1 camera: a seat in the bus, units of 10 m. Eye `eye` above the road centre (the barrier posts stand at the edges),
+ * looking `ahead` down the road. The pace comes from lib/drive.ts (slow seat-level moments joined by mist); the heading
+ * eases and is capped at `maxTurn` °/s while in view, and the cabin leans gently into bends.
+ * `bob` is a barely-there vertical drift from the road surface: enough to feel moving, not enough to sway. */
 const BUS = { eye: 0.9, lane: 0, ahead: 7, ease: 0.12, maxTurn: 90, lean: 0.35, maxLean: 1.5, bob: 0.012, lift: 6 };
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
