@@ -19,7 +19,9 @@ components/
   acts/           Act (generic pinned section writing scrollState) · Churam · Simple
   ui/             Hud · Preroll · SmoothScroll (Lenis ↔ GSAP ticker)
 data/acts.ts      copy, scroll lengths, per-act palette
-lib/scrollState   mutable state shared by DOM (writes) and canvas (reads)
+lib/scrollState   mutable state shared by DOM (writes) and the visual layer (reads)
+lib/mood.ts       storyboard fog curve keyed to the hairpins (photo and 3D views)
+components/photo/ PhotoStage: real photos, scroll-driven; data/story.ts + data/photos.json
 lib/terrain.ts    world frame (x east, -z north, origin Adivaram, 1 unit = 10 m), height() from the heightmap with the road cut in,
                   NH766 road curve, bendTs() / archT()
 lib/heightmap.ts  16-bit PNG decoder + loaders for public/terrain/
@@ -32,6 +34,14 @@ hooks/useCapability  full | lite | video tier from a frame probe, not screen wid
 Lenis smooths scroll → each `Act` pins with ScrollTrigger and writes `{act, progress}` into `scrollState` →
 `Director` reads it in `useFrame` and moves the camera along the road spline (Act 1) or between keyed spots (later acts),
 and lerps fog, sky, ground and light toward the act's palette. DOM copy is server-rendered and identical on every tier.
+
+## Visual layer: real photos (default)
+Until drone footage exists, each act shows real photographs of the place, from Wikimedia Commons under free licences,
+cross-faded at the storyboard beats and slowly pushed/panned by scroll, with fog over the churam keyed to the hairpins.
+`components/photo/PhotoStage.tsx` reads `data/story.ts` (which photo, when, how it drifts) and `data/photos.json`
+(credits, written by `npm run fetch:photos`, which only accepts CC BY / BY-SA / CC0 / public domain).
+The visible photo's credit is always on screen; the full list is under "Photo and map credits" in the Plan act.
+The 3D scene is still there for comparison: `/?view=3d`.
 
 ## Terrain data
 `npm run bake:terrain` reads two internal tiles (~4 MB) of Copernicus GLO-30 from AWS Open Data via HTTP Range
