@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
 import { driveT } from "@/lib/drive";
+import { mistPatch, weather } from "@/lib/weather";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
 
@@ -19,9 +20,9 @@ const PROTO_END_Z = -204;
  * first mist by 6, nearly white from 7 to 9, then the mist breaks before Lakkidi. */
 function churamMood(t: number, bends: number[]) {
   const keys: [number, number, number][] = [ // [t, fog density, mist opacity]
-    // a damp monsoon morning: light haze low down (plus aerial haze and valley mist from lib/atmosphere), mist from 6,
-    // white at 7–8, thinning for the gateway
-    [0, 0.007, 0.15], [bends[2], 0.009, 0.2], [bends[5], 0.035, 0.4], [bends[6], 0.07, 0.6], [bends[8], 0.06, 0.5], [0.98, 0.01, 0.15],
+    // the base: a little more haze higher up the ghat. Mist and cloud on top come from lib/weather, which varies by visit
+    // (the storyboard's fixed white-out at 7–8 gave way to the owner's dynamic weather, 2026-10-19)
+    [0, 0.004, 0.06], [bends[2], 0.005, 0.08], [bends[5], 0.008, 0.12], [bends[8], 0.008, 0.12], [0.98, 0.005, 0.06],
   ];
   const i = Math.max(0, keys.findIndex(([k]) => k > t) - 1);
   const [t0, f0, m0] = keys[i], [t1, f1, m1] = keys[Math.min(i + 1, keys.length - 1)];
@@ -34,6 +35,9 @@ function churamMood(t: number, bends: number[]) {
  * `bob` is a barely-there vertical drift from the road surface: enough to feel moving, not enough to sway. */
 const BUS = { eye: 0.28, lane: 0, ahead: 4, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004 };
 const WHITE = new Color(0xffffff);
+/* Churam sky and haze colours for clear and full cloud (lib/weather blends between them), and for thick mist. */
+const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2);
+const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST = new Color(0xd9dee0);
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
   soochipara: [[45, 6, -95], [20, 12, -150]],
@@ -52,9 +56,9 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
   mistRef: React.MutableRefObject<Points | null>;
   fliesRef: React.MutableRefObject<Points | null>;
 }) {
-  const { scene, camera } = useThree();
+  const { scene, camera, gl } = useThree();
   const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3()), aim = useRef(new Vector3()), yaw = useRef<number | null>(null);
-  const side = useRef(new Vector3()), roll = useRef(0), odometer = useRef(0), last = useRef(new Vector3()), tint = useRef(new Color());
+  const side = useRef(new Vector3()), roll = useRef(0), odometer = useRef(0), last = useRef(new Vector3()), tint = useRef(new Color()), tmpSky = useRef(new Color()), tmpFog = useRef(new Color());
   const length = useMemo(() => curve.getLength(), [curve]);
   const { spots, end } = useMemo(() => {
     const end = curve.getPointAt(1);
@@ -116,11 +120,23 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
 
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;
-    if (act === "churam") ({ fog: fogDensity, mist } = churamMood(driveT(p), scrollState.bends));
+    let sky = SKY_CLEAR, fogTint = FOG_CLEAR;
+    if (act === "churam") {
+      const t = driveT(p);
+      ({ fog: fogDensity, mist } = churamMood(t, scrollState.bends));
+      // weather: banks of mist along the road (some stretches clear), thicker overall in mist and drizzle; capped so the
+      // road ahead stays readable (0.045 → the road 15 m ahead is ~95 % visible, 150 m ahead mostly hidden)
+      fogDensity += weather.mist * (0.35 + 0.65 * mistPatch(t)) * 0.04 + weather.cloud * 0.003;
+      mist = Math.max(mist, weather.mist * 0.55);
+      sky = tmpSky.current.copy(SKY_CLEAR).lerp(SKY_CLOUD, weather.cloud);
+      fogTint = tmpFog.current.copy(FOG_CLEAR).lerp(FOG_CLOUD, weather.cloud).lerp(FOG_MIST, weather.mist * 0.6);
+    }
     // fireflies come out through Stay, peak at Night, and fade over Plan
     const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
-    fog.color.lerp(new Color(P.fog), 0.05);
-    (scene.background as Color).lerp(new Color(P.sky), 0.05);
+    fog.color.lerp(act === "churam" ? fogTint : tmpFog.current.set(P.fog), 0.05);
+    (scene.background as Color).lerp(act === "churam" ? sky : tmpSky.current.set(P.sky), 0.05);
+    // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
+    gl.toneMappingExposure += (1.1 - 0.17 * weather.cloud - gl.toneMappingExposure) * 0.05;
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white

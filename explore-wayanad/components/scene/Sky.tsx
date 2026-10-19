@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { BackSide, Color, FogExp2, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from "three";
 import { SUN_DIR } from "./Lighting";
 import { AIR_LINEAR } from "@/lib/atmosphere";
+import { weather } from "@/lib/weather";
 
 /**
  * Sky dome that follows the camera: the act's sky colour overhead, the same pale haze as the land's aerial perspective at
@@ -16,7 +17,7 @@ export default function Sky() {
     side: BackSide, depthWrite: false, fog: false,
     uniforms: {
       top: { value: new Color() }, haze: { value: new Vector3(...AIR_LINEAR) }, fogColor: { value: new Color() }, fogAmount: { value: 0 },
-      sunDir: { value: SUN_DIR }, sunColor: { value: new Color(0xfff1d6) }, time: { value: 0 },
+      sunDir: { value: SUN_DIR }, sunColor: { value: new Color(0xfff1d6) }, time: { value: 0 }, cloud: { value: 0 }, sun: { value: 1 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -26,7 +27,7 @@ export default function Sky() {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 top, haze, fogColor, sunDir, sunColor;
-      uniform float fogAmount, time;
+      uniform float fogAmount, time, cloud, sun;
       varying vec3 vDir;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
@@ -42,12 +43,12 @@ export default function Sky() {
         // clouds on a flat layer overhead: projected so they shrink toward the horizon
         if (dir.y > 0.02) {
           vec2 uv = dir.xz / (dir.y + 0.12) * 0.9 + vec2(time * 0.004, time * 0.0015);
-          float c = smoothstep(0.36, 0.7, fbm(uv)); // monsoon: mostly cloud, a few breaks
+          float c = smoothstep(mix(0.6, 0.3, cloud), mix(0.82, 0.62, cloud), fbm(uv)); // a few clouds when clear, near-full cover when overcast
           float shade = 0.82 + 0.18 * smoothstep(0.4, 0.9, fbm(uv * 1.7 + 3.1));
-          col = mix(col, vec3(0.80, 0.83, 0.86) * shade, c * smoothstep(0.02, 0.25, dir.y) * 0.95);
+          col = mix(col, mix(vec3(0.97, 0.98, 0.99), vec3(0.74, 0.77, 0.8), cloud) * shade, c * smoothstep(0.02, 0.25, dir.y) * 0.95);
         }
-        float sun = max(dot(dir, normalize(sunDir)), 0.0);
-        col += sunColor * (pow(sun, 8.0) * 0.15 + pow(sun, 400.0) * 1.2) * 0.6; // a sun veiled by cloud
+        float sunDisc = max(dot(dir, normalize(sunDir)), 0.0);
+        col += sunColor * (pow(sunDisc, 8.0) * 0.25 + pow(sunDisc, 400.0) * 4.0) * (0.15 + 0.85 * sun); // veiled as cloud passes over
         col = mix(col, fogColor, fogAmount);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
@@ -60,6 +61,7 @@ export default function Sky() {
     mesh.current.position.copy(camera.position);
     const u = material.uniforms, fog = scene.fog as FogExp2 | null;
     u.time.value += dt;
+    u.cloud.value = weather.cloud; u.sun.value = weather.sun;
     if (fog) { u.fogColor.value.copy(fog.color); u.fogAmount.value = Math.min(1, Math.max(0, (fog.density - 0.01) / 0.05)); }
     if (scene.background instanceof Color) u.top.value.copy(scene.background);
   });

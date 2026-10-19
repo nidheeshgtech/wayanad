@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { CanvasTexture, Color, InstancedMesh, Matrix4, MeshBasicMaterial, PlaneGeometry, type WebGLProgramParametersWithUniforms } from "three";
 import { height, roadDistance, terrainGrid } from "@/lib/terrain";
+import { weather } from "@/lib/weather";
 
 /* Low cloud lying in the valleys below the churam, as in monsoon drone footage: big soft banks over low ground, away from
  * the road, seen from above as you climb. Camera-facing cards (billboarded in the vertex shader), drifting slowly,
@@ -64,6 +65,10 @@ export default function ValleyClouds({ count = CLOUD.count }: { count?: number }
     mesh.name = "valley-clouds";
     return mesh;
   }, [count]);
-  useFrame((_, dt) => { time.value += dt; });
+  useFrame((_, dt) => {
+    time.value += dt;
+    // a few wisps in clear weather; thick banks when mist or heavy cloud settles (lib/weather)
+    (mesh.material as MeshBasicMaterial).opacity = 0.25 + 0.75 * Math.max(weather.mist, weather.cloud * 0.6);
+  });
   return <primitive object={mesh} />;
 }

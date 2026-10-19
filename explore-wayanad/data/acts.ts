@@ -31,7 +31,7 @@ export const ACTS: ActContent[] = [
 
 /** `grade`: a colour multiplied over the whole page (the prototype's #grade layer), or null for none. */
 export const PALETTE: Record<ActId, { sky: number; fog: number; ground: number; light: number; fogDensity: number; mist: number; flies: number; grade: string | null }> = {
-  churam:     { sky: 0x8797a5, fog: 0xbcc6cb, ground: 0x1f4a2c, light: 0xfff4dc, fogDensity: 0.02, mist: 0.12, flies: 0, grade: null },
+  churam:     { sky: 0x6f9fcf, fog: 0xd3dee6, ground: 0x1f4a2c, light: 0xfff4dc, fogDensity: 0.02, mist: 0.12, flies: 0, grade: null },
   kalpetta:   { sky: 0xd9c9a8, fog: 0xd9c9a8, ground: 0x2e4a3a, light: 0xffe6b8, fogDensity: 0.012, mist: 0.08, flies: 0, grade: null },
   soochipara: { sky: 0x8ea1a8, fog: 0xb9c7cc, ground: 0x24413a, light: 0xe8f0ff, fogDensity: 0.02, mist: 0.35, flies: 0, grade: "#c9d5dc" },
   kuruva:     { sky: 0xa9bdb6, fog: 0xa9bdb6, ground: 0x1b332c, light: 0xfff8e6, fogDensity: 0.015, mist: 0.12, flies: 0, grade: null },

@@ -5,6 +5,7 @@ import {
   MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, TextureLoader, Vector3,
 } from "three";
 import { SECTION, archT, height, roadShapeAt } from "@/lib/terrain";
+import { wetUniform } from "@/lib/weather";
 
 /* True scale, 1 unit = 10 m. Curve points sit 0.6 above the road bed (a convention from the prototype). */
 const LIFT = 0.012; // asphalt sits a hand's width proud of the band, which is shaded identically beneath it
@@ -40,16 +41,16 @@ function asphalt() {
     const t = loader.load(`/textures/${name}.jpg`); t.wrapS = t.wrapT = RepeatWrapping; t.anisotropy = 8;
     if (srgb) t.colorSpace = SRGBColorSpace; return t;
   };
-  const m = new MeshStandardMaterial({ color: 0x6f706c, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 }); // wet: darker, and glossy below
+  const m = new MeshStandardMaterial({ color: 0x86867f, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
   const color = load("asphalt-color", true), normal = load("asphalt-normal", false);
   m.customProgramCacheKey = () => "explore-wayanad-asphalt-1";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 } });
+    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoad;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRoad = aRoad;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vRoad;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth;")
+      .replace("#include <common>", "#include <common>\nvarying vec2 vRoad;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;")
       .replace("#include <map_fragment>", `
         vec2 aUv = vec2(vRoad.x * uWidth, vRoad.y) * uTile;
         diffuseColor.rgb *= texture2D(tAsphalt, aUv).rgb;
@@ -58,7 +59,7 @@ function asphalt() {
         float centre = (1.0 - smoothstep(0.004, 0.008, abs(vRoad.x - 0.5))) * step(0.5, fract(vRoad.y / 0.9));
         float paint = max(edge * step(0.02, min(vRoad.x, 1.0 - vRoad.x)), centre);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.82, 0.78), paint * 0.9);`)
-      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(0.62, 0.68, paint);") // damp asphalt: a soft sheen, not a mirror
+      .replace("#include <roughnessmap_fragment>", "diffuseColor.rgb *= mix(1.0, 0.68, uWet);\nfloat roughnessFactor = mix(mix(0.88, 0.42, uWet), 0.62, paint);") // wet (lib/weather): darker, with a sheen
       .replace("#include <normal_fragment_maps>", `
         vec3 an = texture2D(tAsphaltN, aUv).xyz * 2.0 - 1.0;
         normal = normalize(normal + (viewMatrix * vec4(an.x, 0.0, an.y, 0.0)).xyz * 0.5);`);

@@ -2,12 +2,13 @@
 import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { BufferAttribute, BufferGeometry, LineBasicMaterial, LineSegments } from "three";
+import { weather } from "@/lib/weather";
 
-/* Light monsoon drizzle: short streaks falling in a box that travels with the camera (positions wrap inside it),
+/* Light drizzle, when lib/weather brings it: short streaks falling in a box that travels with the camera (positions wrap inside it),
  * slanted a little by the wind. Faint on purpose: you notice it, it doesn't hide the road. Units of 10 m. */
 const BOX = { x: 5, y: 3, z: 5 }, FALL = 0.9, WIND = 0.08, STREAK = 0.035;
 
-export default function Rain({ count = 2500, opacity = 0.22 }: { count?: number; opacity?: number }) {
+export default function Rain({ count = 2500, opacity = 0.3 }: { count?: number; opacity?: number }) {
   const { lines, seeds } = useMemo(() => {
     const seeds = Float32Array.from({ length: count * 3 }, (_, i) => Math.random() * [BOX.x, BOX.y, BOX.z][i % 3] * 2);
     const geo = new BufferGeometry();
@@ -19,6 +20,10 @@ export default function Rain({ count = 2500, opacity = 0.22 }: { count?: number;
   }, [count, opacity]);
 
   useFrame(({ camera, clock }) => {
+    // drizzle only in rainy weather (lib/weather), fading in and out; no per-frame work while it's dry
+    (lines.material as LineBasicMaterial).opacity = opacity * Math.min(1, weather.rain * 1.5);
+    lines.visible = weather.rain > 0.02;
+    if (!lines.visible) return;
     const p = lines.geometry.attributes.position as BufferAttribute, a = p.array as Float32Array, t = clock.elapsedTime;
     const wrap = (v: number, size: number) => ((v % (size * 2)) + size * 2) % (size * 2) - size;
     for (let i = 0; i < count; i++) {

@@ -1,3 +1,4 @@
+import { wetUniform } from "@/lib/weather";
 import { MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, TextureLoader } from "three";
 
 /* Poly Haven CC0 textures, fetched by scripts/fetch-textures.ts. Scales are repeats per unit (1 unit = 10 m). */
@@ -27,7 +28,7 @@ export function groundMaterial() {
   const uniforms = {
     tGround: { value: load("ground-color", true) }, tGroundN: { value: load("ground-normal", false) },
     tRock: { value: load("rock-color", true) }, tRockN: { value: load("rock-normal", false) },
-    uGroundScale: { value: GROUND_SCALE }, uRockScale: { value: ROCK_SCALE },
+    uGroundScale: { value: GROUND_SCALE }, uRockScale: { value: ROCK_SCALE }, uWet: wetUniform,
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 });
   m.customProgramCacheKey = () => "explore-wayanad-ground-1";
@@ -45,7 +46,7 @@ export function groundMaterial() {
         varying vec3 vWorldNormal;
         varying float vRoadDist;
         uniform sampler2D tGround, tGroundN, tRock, tRockN;
-        uniform float uGroundScale, uRockScale;`)
+        uniform float uGroundScale, uRockScale, uWet;`)
       .replace("#include <map_fragment>", `
         vec3 wN = normalize(vWorldNormal);
         float flatness = smoothstep(0.62, 0.86, wN.y);
@@ -65,8 +66,8 @@ export function groundMaterial() {
         vec3 albedo = mix(rock, ground, flatness) * (0.75 + 0.5 * macro);
         // packed earth and grit on the shoulders and drains, fading into the verge
         albedo = mix(albedo, albedo * vec3(0.78, 0.66, 0.54) + vec3(0.05, 0.04, 0.03), (1.0 - smoothstep(0.7, 1.15, vRoadDist)) * 0.8);
-        diffuseColor.rgb *= albedo;`)
-      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(0.48, 0.95, flatness); // wet rock catches the light; earth and moss stay matte")
+        diffuseColor.rgb *= albedo * mix(1.0, mix(0.85, 0.7, 1.0 - flatness), uWet); // damp: darker, rock most`)
+      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(mix(0.72, 0.38, uWet), mix(0.95, 0.85, uWet), flatness); // rock picks up a sheen when wet; earth and moss stay matte")
       .replace("#include <normal_fragment_maps>", `
         // whiteout-blended triplanar normal mapping (rock), planar for the ground; built in world space, then to view
         vec3 tnx = texture2D(tRockN, vWorldPos.zy * uRockScale).xyz * 2.0 - 1.0;
