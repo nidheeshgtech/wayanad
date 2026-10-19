@@ -18,7 +18,11 @@ const BBOX = "11.44,75.94,11.57,76.07"; // S,W,N,E — a margin around the heigh
 const ADIVARAM = { lat: 11.4849767, lon: 76.0126133 }; // OSM place node, same origin as lib/terrain.ts
 const PAST_LAKKIDI = { lat: 11.545, lon: 76.039 }; // a point on NH766 towards Vythiri, used only to route past the top
 const VIEWPOINT_NAME = /Lakkidi viewpoint/i;
-const ARCH_T = 0.9; // the road continues past the arch so the camera has room to lift for the plateau
+/* The "Welcome to Wayanad" gateway. Not in OSM (as of 2026-10-19), so placed by hand: the road runs straight through it
+ * in photographs, with shops just beyond, which fits the start of the straight north of the last bend, ~700 m before
+ * the Lakkidi bus stop. Metres from Adivaram; verify against Google Maps / on site and adjust. */
+const GATE_ALONG = 12150;
+const ROAD_PAST_GATE = 900; // metres of road kept beyond the gate: the first stretch of Lakkidi's shops
 const STEP = 10; // metres between resampled points
 const BENDS = 9;
 const OUT = path.resolve(import.meta.dirname, "../public/terrain/churam-road.json");
@@ -131,10 +135,10 @@ console.log(`  ${ways.length} NH766 ways, viewpoint "${viewpoint.tags!.name}"`);
 
 const full = resample(shortestPath(ways, ADIVARAM, PAST_LAKKIDI), STEP);
 const nearestAlong = (p: LatLon) => full.points.reduce((b, q) => { const d = Math.hypot(q.x - toXY(p).x, q.y - toXY(p).y); return d < b.d ? { along: q.along, d } : b; }, { along: 0, d: Infinity });
-const arch = nearestAlong(viewpoint);
-const length = Math.min(full.length, arch.along / ARCH_T);
+const arch = { along: GATE_ALONG, d: 0 };
+const length = Math.min(full.length, GATE_ALONG + ROAD_PAST_GATE);
 const points = full.points.filter((p) => p.along <= length);
-console.log(`  road ${(full.length / 1000).toFixed(2)} km routed, kept ${(length / 1000).toFixed(2)} km; arch ${(arch.along / 1000).toFixed(2)} km from Adivaram (${arch.d.toFixed(0)} m off the viewpoint node)`);
+console.log(`  road ${(full.length / 1000).toFixed(2)} km routed, kept ${(length / 1000).toFixed(2)} km; gate at ${(arch.along / 1000).toFixed(2)} km (viewpoint at ${(nearestAlong(viewpoint).along / 1000).toFixed(2)} km)`);
 
 // Candidates: the heading turns more than 140° within ±70 m. The detector finds 12 below the arch; HAIRPINS_KM picks the nine.
 const candidates = findHairpins(points, 7, 140).filter((b) => points[b.index].along < arch.along);
@@ -175,7 +179,8 @@ const out = {
   length: Math.round(length),
   points: points.map(ll),
   bends: found.map((b, i) => { const [lat, lon] = ll(points[b.index]); return { n: i + 1, lat, lon, along: Math.round(points[b.index].along) }; }),
-  arch: { lat: round(viewpoint.lat), lon: round(viewpoint.lon), along: Math.round(arch.along), note: "OSM Lakkidi viewpoint node; the gateway arch stands near it. Verify on site." },
+  arch: (() => { const g = points[Math.round(GATE_ALONG / STEP)]; const [lat, lon] = ll(g); return { lat, lon, along: GATE_ALONG, note: "Placed by hand on the straight north of the last bend; not in OSM. Verify." }; })(),
+  viewpoint: { lat: round(viewpoint.lat), lon: round(viewpoint.lon), along: Math.round(nearestAlong(viewpoint).along) },
 };
 await mkdir(path.dirname(OUT), { recursive: true });
 await writeFile(OUT, JSON.stringify(out) + "\n");

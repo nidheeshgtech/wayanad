@@ -14,6 +14,7 @@ import Road from "./Road";
 import Vegetation from "./Vegetation";
 import Props from "./Props";
 import Gateway from "./Gateway";
+import Town from "./Town";
 import Particles from "./Particles";
 import Sky from "./Sky";
 import Shafts from "./Shafts";
@@ -80,6 +81,7 @@ function World({ small }: { small: boolean }) {
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
       <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />
+      <Town curve={curve} />
       <BendSigns curve={curve} />
       <Shafts curve={curve} count={small ? 20 : 40} />
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />

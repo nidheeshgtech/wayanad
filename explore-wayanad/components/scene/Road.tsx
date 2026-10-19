@@ -4,7 +4,7 @@ import {
   BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DoubleSide, InstancedMesh, Matrix4, Mesh,
   MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, TextureLoader, Vector3,
 } from "three";
-import { SECTION, height } from "@/lib/terrain";
+import { SECTION, archT, height } from "@/lib/terrain";
 
 /* True scale, 1 unit = 10 m. Curve points sit 0.6 above the road bed (a convention from the prototype). */
 const LIFT = 0.012; // asphalt sits a hand's width proud of the band, which is shaded identically beneath it
@@ -122,16 +122,19 @@ export default function Road({ curve, detail = 900 }: { curve: CatmullRomCurve3;
     );
     const m = new Matrix4(), side = new Vector3();
     const feet: { p: Vector3; y: number; outer: number; side: Vector3 }[] = [];
+    let placed = 0;
     for (let i = 0; i < n; i++) {
       const t = i / n, pt = curve.getPointAt(t), tan = curve.getTangentAt(t);
+      if (t > archT()) break; // the ghat ends at the gateway; Lakkidi's shops line the road beyond
       side.set(tan.z, 0, -tan.x).normalize();
       // the drop is on whichever side the ground is lower, sampled past the road's edge
       const outer = height(pt.x + side.x * 2, pt.z + side.z * 2) < height(pt.x - side.x * 2, pt.z - side.z * 2) ? 1 : -1;
       const p = pt.clone().addScaledVector(side, outer * POSTS.at), y = height(p.x, p.z);
       m.makeTranslation(p.x, y + POSTS.height / 2, p.z);
-      mesh.setMatrixAt(i, m);
+      mesh.setMatrixAt(placed++, m);
       feet.push({ p, y, outer, side: side.clone().multiplyScalar(outer) });
     }
+    mesh.count = placed;
     mesh.instanceMatrix.needsUpdate = true;
     mesh.castShadow = true;
     return [mesh, guardRail(feet)];

@@ -31,7 +31,7 @@ function churamMood(t: number, bends: number[]) {
  * looking `ahead` down the road. The pace comes from lib/drive.ts (slow seat-level moments joined by mist); the heading
  * eases and is capped at `maxTurn` °/s while in view, and the cabin leans gently into bends.
  * `bob` is a barely-there vertical drift from the road surface: enough to feel moving, not enough to sway. */
-const BUS = { eye: 0.28, lane: 0, ahead: 4, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004, lift: 6 };
+const BUS = { eye: 0.28, lane: 0, ahead: 4, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004 };
 const WHITE = new Color(0xffffff);
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
@@ -55,13 +55,11 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
   const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3()), aim = useRef(new Vector3()), yaw = useRef<number | null>(null);
   const side = useRef(new Vector3()), roll = useRef(0), odometer = useRef(0), last = useRef(new Vector3()), tint = useRef(new Color());
   const length = useMemo(() => curve.getLength(), [curve]);
-  const { spots, plateau, end } = useMemo(() => {
-    const end = curve.getPointAt(1), dir = curve.getTangentAt(1).setY(0).normalize();
+  const { spots, end } = useMemo(() => {
+    const end = curve.getPointAt(1);
     const onGround = ([x, y, z]: number[]) => { const wx = x + end.x, wz = z - PROTO_END_Z + end.z; return [wx, height(wx, wz) + y, wz]; };
-    const ahead = end.clone().addScaledVector(dir, 40);
     return {
       spots: Object.fromEntries(Object.entries(SPOTS).map(([k, [a, b]]) => [k, [onGround(a), onGround(b)]])),
-      plateau: ahead.setY(height(ahead.x, ahead.z) + 2), // where the camera looks as it lifts off the road at Lakkidi
       end,
     };
   }, [curve]);
@@ -89,13 +87,11 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
       side.current.set(-heading.current.z, 0, heading.current.x); // driver's left
       odometer.current += pt.distanceTo(last.current.lengthSq() ? last.current : pt);
       last.current.copy(pt);
-      // past the gateway the storyboard lifts off the road for the plateau
-      const lift = p > 0.95 ? MathUtils.smoothstep(p, 0.95, 1) * BUS.lift : 0;
-      tmp.current.copy(pt).addScaledVector(side.current, BUS.lane).addScaledVector(up.current, BUS.eye - 0.6 + lift + Math.sin(odometer.current * 2.1) * BUS.bob);
+      // seat height the whole way: through the gateway and on into Lakkidi's shops (the owner's call; no drone lift)
+      tmp.current.copy(pt).addScaledVector(side.current, BUS.lane).addScaledVector(up.current, BUS.eye - 0.6 + Math.sin(odometer.current * 2.1) * BUS.bob);
       camera.position.copy(tmp.current);
       look.current.copy(tmp.current).addScaledVector(heading.current, BUS.ahead);
-      look.current.y = ahead.y - 0.6 + BUS.eye * 0.7 + lift * 0.4; // follow the climb, eyes a touch below the horizon
-      if (p > 0.95) look.current.lerp(plateau, MathUtils.smoothstep(p, 0.95, 1));
+      look.current.y = ahead.y - 0.6 + BUS.eye * 0.7; // follow the climb, eyes a touch below the horizon
       aim.current.copy(look.current);
       // lean into the turn, like a cabin on its springs
       roll.current += (MathUtils.clamp(-step / Math.max(delta, 1e-3) * BUS.lean, -MathUtils.degToRad(BUS.maxLean), MathUtils.degToRad(BUS.maxLean)) - roll.current) * 0.05;
