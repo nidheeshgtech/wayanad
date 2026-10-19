@@ -3,8 +3,9 @@ import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
-import type { ActContent } from "@/data/acts";
+import { PALETTE, type ActContent } from "@/data/acts";
 import { scrollState } from "@/lib/scrollState";
+import { useHud } from "@/components/ui/Hud";
 import styles from "./Act.module.scss";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -19,6 +20,7 @@ export default function Act({ content, children, onProgress }: {
   onProgress?: (p: number) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const hud = useHud();
 
   useGSAP(() => {
     const el = ref.current!;
@@ -31,7 +33,7 @@ export default function Act({ content, children, onProgress }: {
       end: isPlan ? "bottom bottom" : `+=${Math.round(window.innerHeight * content.length)}`,
       pin: !isPlan && !reduce,
       scrub: 0.6,
-      onToggle: (self) => { if (self.isActive) scrollState.act = content.id; },
+      onToggle: (self) => { if (self.isActive) { scrollState.act = content.id; hud.setGrade(PALETTE[content.id].grade); } },
       onUpdate: (self) => {
         const p = self.progress;
         scrollState.act = content.id; scrollState.progress = p;

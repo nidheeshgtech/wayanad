@@ -90,6 +90,8 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;
     if (act === "churam") ({ fog: fogDensity, mist } = churamMood(p * 0.98, scrollState.bends));
+    // fireflies come out through Stay, peak at Night, and fade over Plan
+    const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
     fog.color.lerp(new Color(P.fog), 0.05);
     (scene.background as Color).lerp(new Color(P.sky), 0.05);
     fog.density += (fogDensity - fog.density) * 0.08;
@@ -97,7 +99,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     if (terrain) (terrain.material as MeshLambertMaterial).color.lerp(new Color(P.ground), 0.05);
     if (sunRef.current) sunRef.current.color.lerp(new Color(P.light), 0.05);
     const mm = mistRef.current?.material as { opacity: number } | undefined; if (mm) mm.opacity += (mist - mm.opacity) * 0.06;
-    const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (P.flies - fm.opacity) * 0.04;
+    const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (flies - fm.opacity) * 0.04;
   });
   return null;
 }

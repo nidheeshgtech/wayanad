@@ -15,3 +15,14 @@
   background: linear-gradient(to bottom, transparent, var(--bg) 25%);
   .copy { max-width: 560px; }
 }
+
+/* act extras, from the prototype */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 560px;
+  div { border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; background: rgba(8, 24, 20, .45); backdrop-filter: blur(6px); }
+  b { display: block; font-weight: 500; margin-bottom: 2px; } }
+.hold { font-size: 12px; color: var(--amber); border: 1px solid var(--amber); padding: 4px 10px; border-radius: 999px; width: max-content; opacity: 0; transition: opacity .4s; }
+.route { width: min(100%, 520px); height: 64px;
+  path { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+  circle { fill: var(--amber); } }
+.stays { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-width: 560px;
+  div { aspect-ratio: 4 / 3; border-radius: 10px; background: rgba(8, 24, 20, .5); border: 1px solid var(--line); padding: 10px; display: flex; align-items: flex-end; font-size: 13px; backdrop-filter: blur(6px); } }
