@@ -25,7 +25,7 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
     sky.add(new Mesh(new SphereGeometry(10, 48, 24), new ShaderMaterial({
       side: BackSide,
       uniforms: {
-        horizon: { value: new Color(0xd6dde1) }, zenith: { value: new Color(0x8aa6c2) }, ground: { value: new Color(0x26332a) },
+        horizon: { value: new Color(0xdde6ec) }, zenith: { value: new Color(0x7fa7d4) }, ground: { value: new Color(0x26332a) },
         sun: { value: new Color(0xfff1d6) }, sunDir: { value: SUN_DIR },
       },
       vertexShader: "varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
@@ -55,10 +55,10 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
   useFrame((_, dt) => {
     stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1);
     // clouds over the sun: direct light fades to a quarter (shadows soften with it); sky light dims a little
-    scene.environmentIntensity = 1.0 - 0.3 * weather.cloud;
+    scene.environmentIntensity = 1.1 - 0.35 * weather.cloud;
     const sun = sunRef.current;
     if (!sun) return;
-    sun.intensity = (0.7 + 2.5 * weather.sun) * (1 - 0.2 * weather.mist);
+    sun.intensity = (0.8 + 3.0 * weather.sun) * (1 - 0.2 * weather.mist);
     target.position.copy(camera.position);
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, SHADOW.distance);
     target.updateMatrixWorld();

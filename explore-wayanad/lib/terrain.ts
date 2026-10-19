@@ -202,15 +202,36 @@ function natural(f: Field, x: number, z: number) {
 }
 
 /** The road's cross-section at distance d from the centre line, given the bed and the natural ground there. */
-function crossSection(d: number, bed: number, ground: number, wall = 0) {
+/* Relief on the cut faces, like the churam's real cuts: blocky ledges and bulges a metre or so deep, a hint of
+ * near-horizontal bedding. Only where the cut face stands (not the road, shoulder or drain), and at wavelengths the
+ * 3 m road band can resolve; finer cracks and seams are the rock shader's job. Units of 10 m. */
+const RELIEF = { depth: 0.09, scale: 1.1, strata: 0.025 };
+const hash2 = (x: number, z: number) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
+function valueNoise(x: number, z: number) {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), e = hash2(ix + 1, iz + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + e) * u * v;
+}
+function rockRelief(x: number, z: number, y: number) {
+  const n = valueNoise(x * RELIEF.scale, z * RELIEF.scale), m = valueNoise(x * RELIEF.scale * 2.3 + 7.1, z * RELIEF.scale * 2.3 - 3.4);
+  const blocky = Math.abs(n - 0.5) * 2; // ridged: sharp-edged ledges rather than soft bumps
+  return RELIEF.depth * (0.65 * blocky + 0.35 * m - 0.5) + RELIEF.strata * Math.sin(y * 7 + n * 3);
+}
+
+function crossSection(d: number, bed: number, ground: number, wall = 0, x = 0, z = 0) {
   let y: number;
   if (d <= SECTION.half) y = bed;
   else if (d <= SECTION.shoulder) y = bed - 0.025 * MathUtils.smoothstep(d, SECTION.half, SECTION.shoulder);
   else if (ground >= bed) {
     // uphill: a shallow drain, then the cut face rising until it meets the hillside
-    y = d <= SECTION.drain
-      ? bed - 0.025 - 0.06 * Math.sin((Math.PI * (d - SECTION.shoulder)) / (SECTION.drain - SECTION.shoulder))
-      : Math.min(ground, bed - 0.025 + (d - SECTION.drain) * SECTION.cut);
+    if (d <= SECTION.drain) y = bed - 0.025 - 0.06 * Math.sin((Math.PI * (d - SECTION.shoulder)) / (SECTION.drain - SECTION.shoulder));
+    else {
+      const face = bed - 0.025 + (d - SECTION.drain) * SECTION.cut;
+      y = Math.min(ground, face);
+      // relief on the face itself: none at its foot (the drain stays clean), none where it meets the hillside
+      const onFace = MathUtils.smoothstep(d, SECTION.drain + 0.05, SECTION.drain + 0.35) * (1 - MathUtils.smoothstep(face, ground - 0.4, ground));
+      y += rockRelief(x, z, y) * onFace;
+    }
   } else {
     // downhill: the embankment falls away until it meets the slope
     // at hairpins the retaining wall: the ground drops almost straight down from just past the posts
@@ -243,7 +264,7 @@ function noise(x: number, z: number) {
 export function height(x: number, z: number): number {
   if (field) {
     const near = nearestAny(x, z);
-    return near ? crossSection(near.d, near.bed, natural(field, x, z), near.wall) : groundHeight(field, x, z);
+    return near ? crossSection(near.d, near.bed, natural(field, x, z), near.wall, x, z) : groundHeight(field, x, z);
   }
   const valley = Math.max(0, 1 - Math.abs(x) / 90);
   return ramp(z) + noise(x, z) * (0.6 + valley * 0.8) - valley * 2;

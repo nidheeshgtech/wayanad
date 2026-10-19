@@ -23,6 +23,21 @@
   "bush": {
     "aspect": 0.949
   },
+  "tree-fig": {
+    "aspect": 0.752
+  },
+  "tree-emergent": {
+    "aspect": 0.25
+  },
+  "banana": {
+    "aspect": 0.753
+  },
+  "shrub": {
+    "aspect": 1.039
+  },
+  "creeper": {
+    "aspect": 0.701
+  },
   "teak": {
     "aspect": 0.594
   },

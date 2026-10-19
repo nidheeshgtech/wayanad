@@ -13,5 +13,10 @@ no ground or shadow, transparent background):
 - fern: lush clump of tropical ferns on a monsoon roadside bank
 - grass: tall wild grass and weeds from a monsoon verge
 - bush: dense low forest-edge bush with trailing creepers
+- tree-fig: banyan / strangler fig, aerial roots, wide spreading crown
+- tree-emergent: very tall slender emergent, bare trunk, small umbrella crown, vines
+- banana: clump of wild banana, huge leaves, some torn and browning
+- shrub: dense understorey shrub with large broad leaves and a creeper
+- creeper: curtain of hanging creepers, for wet rock cuttings (hung on the cut faces)
 - teak: tall teak tree of the moist deciduous forest, very large leaves, some yellowing (forest road)
 - elephant: adult wild Asian elephant walking, side-on (the crossing on the forest road; not a photograph of a real animal)

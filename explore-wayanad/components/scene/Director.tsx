@@ -157,7 +157,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog), 0.05);
     (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky), 0.05);
     // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
-    gl.toneMappingExposure += (1.1 - 0.17 * weather.cloud - gl.toneMappingExposure) * 0.05;
+    gl.toneMappingExposure += (1.15 - 0.2 * weather.cloud - gl.toneMappingExposure) * 0.05;
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white

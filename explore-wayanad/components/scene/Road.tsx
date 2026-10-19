@@ -5,7 +5,7 @@ import {
   MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, TextureLoader, Vector3,
 } from "three";
 import { SECTION, archT, height, roadShapeAt } from "@/lib/terrain";
-import { wetUniform } from "@/lib/weather";
+import { CLOUD_SHADOW_GLSL, cloudShadowUniforms, wetUniform } from "@/lib/weather";
 
 /* True scale, 1 unit = 10 m. Curve points sit 0.6 above the road bed (a convention from the prototype). */
 const LIFT = 0.012; // asphalt sits a hand's width proud of the band, which is shaded identically beneath it
@@ -43,23 +43,37 @@ function asphalt() {
   };
   const m = new MeshStandardMaterial({ color: 0x86867f, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
   const color = load("asphalt-color", true), normal = load("asphalt-normal", false);
-  m.customProgramCacheKey = () => "explore-wayanad-asphalt-1";
+  m.customProgramCacheKey = () => "explore-wayanad-asphalt-3";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform });
+    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform, ...cloudShadowUniforms });
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoad;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRoad = aRoad;");
+      .replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRoad = aRoad;\nvRoadXZ = (modelMatrix * vec4(transformed, 1.0)).xz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vRoad;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;")
+      .replace("#include <common>", `#include <common>\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;\n${CLOUD_SHADOW_GLSL}`)
       .replace("#include <map_fragment>", `
         vec2 aUv = vec2(vRoad.x * uWidth, vRoad.y) * uTile;
         diffuseColor.rgb *= texture2D(tAsphalt, aUv).rgb;
+        // a used ghat road, not a fresh render: large-scale tone drift; darker, polished wheel tracks (two per lane);
+        // patch repairs in darker, smoother asphalt; crumbled edges with soil washed in from the shoulders
+        float drift = texture2D(tAsphalt, vec2(vRoad.x * uWidth, vRoad.y) * 0.06 + 0.37).g;
+        float u = vRoad.x;
+        float track = exp(-pow((u - 0.13) / 0.045, 2.0)) + exp(-pow((u - 0.37) / 0.045, 2.0)) + exp(-pow((u - 0.63) / 0.045, 2.0)) + exp(-pow((u - 0.87) / 0.045, 2.0));
+        float cell = floor(vRoad.y / 0.55), lane = step(0.5, u);
+        float h1 = fract(sin(cell * 12.9898 + lane * 78.233) * 43758.5453), h2 = fract(sin(cell * 39.346 + lane * 11.135) * 24634.6345);
+        float along = fract(vRoad.y / 0.55), patchMask = step(0.86, h1) * step(0.1, along) * step(along, 0.25 + 0.6 * h2)
+                    * step(abs(u - (0.25 + 0.5 * lane)), 0.12 + 0.1 * h2);
+        float rim = 1.0 - smoothstep(0.0, 0.07, min(u, 1.0 - u));
+        float crumble = rim * smoothstep(0.35, 0.65, texture2D(tAsphalt, aUv * 2.7 + 0.5).r + 0.3 * drift);
+        diffuseColor.rgb *= (0.86 + 0.28 * drift) * (1.0 - 0.1 * track) * mix(1.0, 0.72, patchMask);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.34, 0.27, 0.2), crumble * 0.75 + rim * 0.12); // soil and grit at the edge
+        diffuseColor.rgb *= 1.0 - 0.45 * cloudShadow(vRoadXZ);
         // markings, widths in road-fractions: edge lines 15 cm, centre dashes 10 cm, 4.5 m on / 4.5 m off
         float edge = 1.0 - smoothstep(0.018, 0.026, min(vRoad.x, 1.0 - vRoad.x) - 0.02);
         float centre = (1.0 - smoothstep(0.004, 0.008, abs(vRoad.x - 0.5))) * step(0.5, fract(vRoad.y / 0.9));
         float paint = max(edge * step(0.02, min(vRoad.x, 1.0 - vRoad.x)), centre);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.82, 0.78), paint * 0.9);`)
-      .replace("#include <roughnessmap_fragment>", "diffuseColor.rgb *= mix(1.0, 0.68, uWet);\nfloat roughnessFactor = mix(mix(0.88, 0.42, uWet), 0.62, paint);") // wet (lib/weather): darker, with a sheen
+      .replace("#include <roughnessmap_fragment>", "diffuseColor.rgb *= mix(1.0, 0.68, uWet);\nfloat roughnessFactor = mix(mix(0.9 - 0.12 * track - 0.12 * patchMask, 0.42, uWet), 0.62, paint);") // wet (lib/weather): darker, with a sheen
       .replace("#include <normal_fragment_maps>", `
         vec3 an = texture2D(tAsphaltN, aUv).xyz * 2.0 - 1.0;
         normal = normalize(normal + (viewMatrix * vec4(an.x, 0.0, an.y, 0.0)).xyz * 0.5);`);
