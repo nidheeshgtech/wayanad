@@ -2,10 +2,10 @@
 import { Suspense, use, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { CatmullRomCurve3, DirectionalLight, Points } from "three";
-import { archT, bendTs, buildRoadCurve, churamEndT, placesT, setHeightmaps, terrainGrids } from "@/lib/terrain";
+import { archT, bendTs, buildRoadCurve, churamEndT, forestRoad, placesT, setHeightmaps, terrainGrids } from "@/lib/terrain";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
-import { DRIVER_LINE, ROUTE, setPace } from "@/lib/drive";
+import { DRIVER_LINE, ROUTE, setForestPace, setPace } from "@/lib/drive";
 import { setEstateFrame } from "@/lib/estates";
 import { patchAtmosphere } from "@/lib/atmosphere";
 import Terrain from "./Terrain";
@@ -26,6 +26,9 @@ import Shafts from "./Shafts";
 import BendSigns from "./BendSigns";
 import Director from "./Director";
 import Quality from "./Quality";
+import ShowIn, { FOREST_ACTS } from "./ShowIn";
+import Elephant from "./Elephant";
+import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
 
 patchAtmosphere(); // before any material compiles
@@ -38,9 +41,12 @@ const loadTerrain = () =>
     loadHeightmap(),
     loadHeightmap("/terrain/plateau").catch((err) => void console.warn("Plateau terrain unavailable:", err)),
     loadRoad().catch((err) => void console.warn("Road unavailable, using the procedural road:", err)),
+    loadHeightmap("/terrain/forest").catch((err) => void console.warn("Forest terrain unavailable:", err)),
+    loadRoad("/terrain/forest-road.json").catch((err) => void console.warn("Forest road unavailable:", err)),
   ])
-    .then(([hm, plateau, road]) => {
-      setHeightmaps(plateau ? [hm, plateau] : [hm], road ?? null);
+    .then(([hm, plateau, road, forestHm, forestRd]) => {
+      const tiles = [{ ...hm, region: "churam" }, ...(plateau ? [{ ...plateau, region: "plateau" }] : []), ...(forestHm && forestRd ? [{ ...forestHm, region: "forest" }] : [])];
+      setHeightmaps(tiles, road ?? null, forestHm && forestRd ? forestRd : null);
       scrollState.bends = bendTs();
       scrollState.arch = archT();
       scrollState.churamEnd = churamEndT();
@@ -77,6 +83,14 @@ function World({ small }: { small: boolean }) {
     setEstateFrame(curve.getPointAt(archT()).z, townCircles(curve));
     scrollState.roadMetres = curve.getLength() * 10;
   }, [curve]);
+  const forest = useMemo(() => {
+    const f = forestRoad();
+    if (f) {
+      const screens = setForestPace(turnProfile(f.curve, 2000, 1), f.curve.getLength(), f.muthanga);
+      if (process.env.NODE_ENV !== "production") console.info("[drive] forest screens", screens);
+    }
+    return f;
+  }, []);
   const sunRef = useRef<DirectionalLight | null>(null);
   const mistRef = useRef<Points | null>(null);
   const fliesRef = useRef<Points | null>(null);
@@ -88,7 +102,8 @@ function World({ small }: { small: boolean }) {
     <>
       <Lighting sunRef={sunRef} shadows={!small} />
       <Sky />
-      {grids.length ? grids.map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
+      <ShowIn acts={FOREST_ACTS} not>
+      {grids.length ? grids.filter((g) => g.region !== "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
       <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
       <Road curve={curve} detail={detail} />
       <RetainingWalls curve={curve} />
@@ -99,10 +114,23 @@ function World({ small }: { small: boolean }) {
       <TeaHedges curve={curve} density={small ? 0.5 : 1} />
       <BendSigns curve={curve} />
       <Shafts curve={curve} count={small ? 20 : 40} />
+      </ShowIn>
+      {forest && (
+        <ShowIn acts={FOREST_ACTS}>
+          {grids.filter((g) => g.region === "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />)}
+          <RoadBand curve={forest.curve} spacing={small ? 0.45 : 0.3} />
+          <Road curve={forest.curve} detail={Math.round(forest.curve.getLength() * (small ? 2 : 4))} kind="forest" />
+          <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" />
+          <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
+          <Shafts curve={forest.curve} count={small ? 40 : 90} />
+          <Elephant curve={forest.curve} />
+          <Checkpost curve={forest.curve} />
+        </ShowIn>
+      )}
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 1200 : 2500} />
-      <Director curve={curve} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
+      <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} />
     </>
   );
@@ -110,7 +138,7 @@ function World({ small }: { small: boolean }) {
 
 /** Degrees the road's heading turns over each of `steps` from t = 0 to ROUTE.end, from tangents averaged over ±8 units
  * (a driver's line, not every wobble in the mapped centre line). Feeds the climb's pace in lib/drive.ts. */
-function turnProfile(curve: CatmullRomCurve3, steps = 4000) {
+function turnProfile(curve: CatmullRomCurve3, steps = 4000, span = ROUTE.end) {
   const L = curve.getLength(), yaw = (t: number) => {
     let x = 0, z = 0;
     for (let k = -4; k <= 4; k++) { const g = curve.getTangentAt(Math.min(0.999, Math.max(0, t + (k / 4) * (DRIVER_LINE / L)))); x += g.x; z += g.z; }
@@ -119,7 +147,7 @@ function turnProfile(curve: CatmullRomCurve3, steps = 4000) {
   const out = new Float32Array(steps);
   let prev = yaw(0);
   for (let i = 0; i < steps; i++) {
-    const y = yaw(((i + 1) / steps) * ROUTE.end);
+    const y = yaw(((i + 1) / steps) * span);
     out[i] = (Math.abs(Math.atan2(Math.sin(y - prev), Math.cos(y - prev))) * 180) / Math.PI;
     prev = y;
   }

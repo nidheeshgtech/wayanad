@@ -12,22 +12,24 @@ export type HeightmapMeta = {
 };
 
 /** `data` is elevation in metres, row-major, row 0 = north, column 0 = west. */
-export type Heightmap = HeightmapMeta & { data: Float32Array };
+export type Heightmap = HeightmapMeta & { data: Float32Array; region?: string };
 
 /** scripts/bake-road.ts output: NH766 from Adivaram, `step` metres between points; `along` = metres from Adivaram. */
 export type RoadData = {
   step: number;
   length: number;
   points: [number, number][];
-  bends: { n: number; lat: number; lon: number; along: number }[];
-  arch: { lat: number; lon: number; along: number };
+  bends?: { n: number; lat: number; lon: number; along: number }[]; // the churam's hairpins (not on the forest road)
+  arch?: { lat: number; lon: number; along: number };
+  /** forest road: metres from Sulthan Bathery where Act 7 hands over to Act 8 (the sanctuary entrance) */
+  muthanga?: number;
   /** metres from Adivaram where Act 1 ends and Act 2 begins (missing in older bakes: the whole road is Act 1) */
   churamEnd?: number;
   places?: { name: string; lat: number; lon: number; along: number; off: number }[];
   attribution: string;
 };
 
-export async function loadRoad(url = "/terrain/churam-road.json"): Promise<RoadData> {
+export async function loadRoad(url = "/terrain/churam-road.json"): Promise<RoadData> { // also "/terrain/forest-road.json"
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} ${r.status}`);
   return r.json();

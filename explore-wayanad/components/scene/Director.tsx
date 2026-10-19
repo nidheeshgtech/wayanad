@@ -3,7 +3,7 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
-import { driveT, driveT2 } from "@/lib/drive";
+import { driveT, driveT2, driveT7, driveT8 } from "@/lib/drive";
 import { mistPatch, weather } from "@/lib/weather";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
@@ -37,6 +37,8 @@ const BUS = { eye: 0.28, lane: 0, ahead: 4, ease: 0.12, maxTurn: 60, lean: 0.35,
 const WHITE = new Color(0xffffff);
 /* Act 2's end: over the last part of the act the camera rises `rise` units over Kalpetta, aim pushed `ahead` and down. */
 const HUB = { from: 0.84, rise: 9, ahead: 10 };
+/* Act 8: once the drive has stopped at the barrier (FOREST.arrive), the camera turns 180° over this act progress. */
+const TURN_BACK = [0.58, 0.92] as const;
 /* Churam sky and haze colours for clear and full cloud (lib/weather blends between them), and for thick mist. */
 const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2);
 const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST = new Color(0xd9dee0);
@@ -52,8 +54,10 @@ const SPOTS: Record<string, [number[], number[]]> = {
   plan:       [[-25, 5, -200], [-45, 8, -250]],
 };
 
-export default function Director({ curve, sunRef, mistRef, fliesRef }: {
+export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
   curve: CatmullRomCurve3;
+  /** the forest road (Acts 7–8), when loaded */
+  forest: CatmullRomCurve3 | null;
   sunRef: React.MutableRefObject<DirectionalLight | null>;
   mistRef: React.MutableRefObject<Points | null>;
   fliesRef: React.MutableRefObject<Points | null>;
@@ -62,6 +66,8 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
   const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3()), aim = useRef(new Vector3()), yaw = useRef<number | null>(null);
   const side = useRef(new Vector3()), roll = useRef(0), odometer = useRef(0), last = useRef(new Vector3()), tint = useRef(new Color()), tmpSky = useRef(new Color()), tmpFog = useRef(new Color());
   const length = useMemo(() => curve.getLength(), [curve]);
+  const forestLength = useMemo(() => forest?.getLength() ?? 1, [forest]);
+  const lastRoad = useRef<CatmullRomCurve3 | null>(null);
   const { spots, end } = useMemo(() => {
     const end = curve.getPointAt(1);
     const onGround = ([x, y, z]: number[]) => { const wx = x + end.x, wz = z - PROTO_END_Z + end.z; return [wx, height(wx, wz) + y, wz]; };
@@ -78,14 +84,19 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     const fog = scene.fog as FogExp2;
 
     /* ---- camera ---- */
-    const driving = act === "churam" || act === "kalpetta";
+    const onForest = !!forest && (act === "forest" || act === "border");
+    const driving = act === "churam" || act === "kalpetta" || onForest;
     if (driving) {
-      const t = act === "churam" ? driveT(p) : driveT2(p);
-      const pt = curve.getPointAt(t), ahead = curve.getPointAt(Math.min(0.999, t + BUS.ahead / length));
+      const road = onForest ? forest! : curve, roadLength = onForest ? forestLength : length;
+      const t = act === "churam" ? driveT(p) : act === "kalpetta" ? driveT2(p) : act === "forest" ? driveT7(p) : driveT8(p);
+      const pt = road.getPointAt(t), ahead = road.getPointAt(Math.min(0.999, t + BUS.ahead / roadLength));
       // look where the road goes: the point BUS.ahead along it (round a hairpin that's the exit, never the bank beside you);
       // the easing and turn limit below filter out the small wobbles in the mapped centre line
-      const target = Math.atan2(ahead.x - pt.x, ahead.z - pt.z);
-      if (yaw.current === null) yaw.current = target;
+      let target = Math.atan2(ahead.x - pt.x, ahead.z - pt.z);
+      // at the border gate the camera turns round to face back west, down the whole road you came (storyboard, Act 8)
+      if (act === "border") target += Math.PI * MathUtils.smoothstep(p, TURN_BACK[0], TURN_BACK[1]);
+      // a different road (the forest acts are on another stretch of NH766): face along it at once, no swing
+      if (yaw.current === null || lastRoad.current !== road) { yaw.current = target; lastRoad.current = road; }
       const cap = MathUtils.degToRad(BUS.maxTurn) * delta;
       // ease toward the target at the same rate whatever the frame rate (BUS.ease per frame at 60 fps)
       const ease = 1 - Math.pow(1 - BUS.ease, delta * 60);
@@ -116,7 +127,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
       camera.position.lerp(tmp.current, 0.06);
       look.current.set(b[0], b[1], b[2]);
       // turn to face back the way you came
-      if (act === "border" && p > 0.55) {
+      if (act === "border" && !forest && p > 0.55) {
         const k = (p - 0.55) / 0.45, z = -300 - PROTO_END_Z + end.z + k * 460, back = end.z + 84;
         look.current.set(end.x, height(end.x, back) + 10 - k * 4, z);
       }
@@ -131,7 +142,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     let fogDensity = P.fogDensity, mist = P.mist;
     let sky = SKY_CLEAR, fogTint = FOG_CLEAR;
     if (driving) {
-      const t = act === "churam" ? driveT(p) : driveT2(p);
+      const t = act === "churam" ? driveT(p) : act === "kalpetta" ? driveT2(p) : act === "forest" ? driveT7(p) : driveT8(p);
       // the churam's base haze rises with the ghat; the plateau keeps the haze it had at the top
       ({ fog: fogDensity, mist } = act === "churam" ? churamMood(t, scrollState.bends) : { fog: 0.005, mist: 0.06 });
       // weather: banks of mist along the road (some stretches clear), thicker overall in mist and drizzle; capped so the

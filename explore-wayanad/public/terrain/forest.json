@@ -1,0 +1,23 @@
+{
+  "size": 512,
+  "bounds": {
+    "south": 11.62,
+    "north": 11.73,
+    "west": 76.24,
+    "east": 76.44
+  },
+  "elevation": {
+    "min": 789,
+    "max": 1148,
+    "unit": "m",
+    "datum": "EGM2008"
+  },
+  "metres": {
+    "width": 21806,
+    "height": 12168
+  },
+  "encoding": "16-bit greyscale PNG, row 0 = north, column 0 = west; value / 65535 maps linearly to elevation.min..max; samples sit on the bounds edges (grid-registered)",
+  "source": "Copernicus DEM GLO-30 (DSM, includes canopy)",
+  "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
+  "baked": "2026-10-19"
+}

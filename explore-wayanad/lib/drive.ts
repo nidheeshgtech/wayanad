@@ -27,7 +27,17 @@ const CHURAM = {
 const PLATEAU = { turn: 80, cruise: 110 }; // Act 2: wider, gentler road; 1.1 km per screen on the straights
 
 type Table = { from: number; to: number; cum: Float64Array };
-let churam: Table | null = null, plateau: Table | null = null;
+let churam: Table | null = null, plateau: Table | null = null, forest: Table | null = null, border: Table | null = null;
+
+/** A pace table over t ∈ [from, to] of a road whose turning `turn` spans t 0–`span`: screens per sample from `screensAt`. */
+function build(turn: Float32Array, span: number, from: number, to: number, screensAt: (t: number, deg: number) => number): [Table, number] {
+  const N = turn.length, dt = span / N;
+  const i0 = Math.floor(from / dt), i1 = Math.min(N, Math.ceil(to / dt)), cum = new Float64Array(i1 - i0 + 1);
+  for (let i = i0; i < i1; i++) cum[i - i0 + 1] = cum[i - i0] + screensAt((i + 0.5) * dt, turn[i]);
+  const total = cum[cum.length - 1];
+  for (let i = 0; i < cum.length; i++) cum[i] /= total;
+  return [{ from: i0 * dt, to: i1 * dt, cum }, total];
+}
 
 /**
  * Build both acts' pace from the road's turning: `turn[i]` = degrees the driver's line turns over sample i of
@@ -35,20 +45,13 @@ let churam: Table | null = null, plateau: Table | null = null;
  */
 export function setPace(turn: Float32Array, length: number, arch: number, churamEnd: number, end = ROUTE.end) {
   ROUTE.churamEnd = churamEnd; ROUTE.end = end;
-  const N = turn.length, dt = end / N, ds = dt * length;
-  const build = (from: number, to: number, screensAt: (t: number, deg: number) => number): [Table, number] => {
-    const i0 = Math.floor(from / dt), i1 = Math.min(N, Math.ceil(to / dt)), cum = new Float64Array(i1 - i0 + 1);
-    for (let i = i0; i < i1; i++) cum[i - i0 + 1] = cum[i - i0] + screensAt((i + 0.5) * dt, turn[i]);
-    const total = cum[cum.length - 1];
-    for (let i = 0; i < cum.length; i++) cum[i] /= total;
-    return [{ from: i0 * dt, to: i1 * dt, cum }, total];
-  };
+  const ds = (end / turn.length) * length;
   let screens1: number, screens2: number;
-  [churam, screens1] = build(0, churamEnd, (t, deg) => {
+  [churam, screens1] = build(turn, end, 0, churamEnd, (t, deg) => {
     const cap = t > arch + CHURAM.gateTo ? CHURAM.after : t > arch - CHURAM.gateFrom ? CHURAM.gate : CHURAM.cruise;
     return Math.max(deg / CHURAM.turn, ds / cap);
   });
-  [plateau, screens2] = build(churamEnd, end, (_, deg) => Math.max(deg / PLATEAU.turn, ds / PLATEAU.cruise));
+  [plateau, screens2] = build(turn, end, churamEnd, end, (_, deg) => Math.max(deg / PLATEAU.turn, ds / PLATEAU.cruise));
   return { churam: screens1, plateau: screens2 };
 }
 
@@ -70,4 +73,31 @@ export function driveT(q: number) {
 /** Act 2 scroll progress q (0–1) → t on the road (ROUTE.churamEnd–ROUTE.end). */
 export function driveT2(q: number) {
   return lookup(plateau, q, ROUTE.churamEnd, ROUTE.end);
+}
+
+/* The forest road (Acts 7–8), a separate road from Sulthan Bathery to the border gate. Act 7 drives to the sanctuary
+ * entrance and stops for the elephant in FOREST.hold (act progress; the badge in ForestRoad.tsx uses the same window).
+ * Act 8 drives on to FOREST.stop units short of the border gate in its first half, then holds while the camera turns. */
+export const FOREST = { turn: 70, cruise: 100, hold: [0.45, 0.62] as const, stop: 2.5, arrive: 0.5 };
+export const FOREST_ROUTE = { muthanga: 0.68, stop: 0.99 };
+
+export function setForestPace(turn: Float32Array, length: number, muthanga: number) {
+  const ds = (1 / turn.length) * length, stop = 1 - FOREST.stop / length;
+  FOREST_ROUTE.muthanga = muthanga; FOREST_ROUTE.stop = stop;
+  const at = (_: number, deg: number) => Math.max(deg / FOREST.turn, ds / FOREST.cruise);
+  let s7: number, s8: number;
+  [forest, s7] = build(turn, 1, 0, muthanga, at);
+  [border, s8] = build(turn, 1, muthanga, stop, at);
+  return { forest: s7 / (1 - (FOREST.hold[1] - FOREST.hold[0])), border: s8 / FOREST.arrive };
+}
+
+/** Act 7 progress q → t on the forest road; frozen through the elephant's hold. */
+export function driveT7(q: number) {
+  const [h0, h1] = FOREST.hold, x = q < h0 ? q : q < h1 ? h0 : q - (h1 - h0);
+  return lookup(forest, x / (1 - (h1 - h0)), 0, FOREST_ROUTE.muthanga);
+}
+
+/** Act 8 progress q → t on the forest road: on to the stop by FOREST.arrive, then standing at the barrier. */
+export function driveT8(q: number) {
+  return lookup(border, Math.min(1, q / FOREST.arrive), FOREST_ROUTE.muthanga, FOREST_ROUTE.stop);
 }

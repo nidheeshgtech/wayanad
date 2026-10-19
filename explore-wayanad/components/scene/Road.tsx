@@ -13,14 +13,14 @@ const TILE = 0.3; // one asphalt texture tile per 3 m
 const POSTS = { every: 0.25, radius: 0.02, height: 0.08, at: SECTION.half + 0.18 }; // 80 cm posts every 2.5 m on the shoulder
 
 /** The road surface: a strip following the curve with u across (0–1) and v = distance along it, for texture and markings. */
-function ribbon(curve: CatmullRomCurve3, segments: number) {
+function ribbon(curve: CatmullRomCurve3, segments: number, widen: (t: number) => number) {
   const pos = new Float32Array((segments + 1) * 6), uv = new Float32Array((segments + 1) * 4), index: number[] = [];
   const side = new Vector3();
   let along = 0, prev = curve.getPointAt(0);
   for (let i = 0; i <= segments; i++) {
     const t = i / segments, p = curve.getPointAt(t), tan = curve.getTangentAt(t);
     along += p.distanceTo(prev); prev = p;
-    side.set(tan.z, 0, -tan.x).normalize().multiplyScalar(SECTION.half + roadShapeAt(t).widen); // wider round hairpins
+    side.set(tan.z, 0, -tan.x).normalize().multiplyScalar(SECTION.half + widen(t)); // wider round the churam's hairpins
     const y = p.y - 0.6 + LIFT;
     pos.set([p.x + side.x, y, p.z + side.z, p.x - side.x, y, p.z - side.z], i * 6);
     uv.set([0, along, 1, along], i * 4);
@@ -106,12 +106,15 @@ function stripes() {
   const tex = new CanvasTexture(c); tex.colorSpace = SRGBColorSpace; return tex;
 }
 
-export default function Road({ curve, detail = 900 }: { curve: CatmullRomCurve3; detail?: number }) {
+/** `kind`: "ghat" (the churam and plateau road: hairpin widening, valley-side posts and rail up to the gateway) or
+ * "forest" (the Muthanga road: plain two-lane asphalt). */
+export default function Road({ curve, detail = 900, kind = "ghat" }: { curve: CatmullRomCurve3; detail?: number; kind?: "ghat" | "forest" }) {
+  const ghat = kind === "ghat";
   const surface = useMemo(() => {
-    const m = new Mesh(ribbon(curve, detail), asphalt());
+    const m = new Mesh(ribbon(curve, detail, ghat ? (t) => roadShapeAt(t).widen : () => 0), asphalt());
     m.receiveShadow = true;
     return m;
-  }, [curve, detail]);
+  }, [curve, detail, ghat]);
 
   /* striped barrier posts on the valley-side shoulder — the churam's signature detail — carrying a galvanised W-beam rail */
   const [posts, rail] = useMemo(() => {
@@ -144,8 +147,8 @@ export default function Road({ curve, detail = 900 }: { curve: CatmullRomCurve3;
   return (
     <group name="road">
       <primitive object={surface} />
-      <primitive object={posts} />
-      <primitive object={rail} />
+      {ghat && <primitive object={posts} />}
+      {ghat && <primitive object={rail} />}
     </group>
   );
 }

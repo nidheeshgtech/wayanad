@@ -21,9 +21,11 @@ const proj = { perLat: 0, perLon: 0, base: 0 };
 /* Real road, once there is a road: NH766 in world units, its smoothed bed, and a hash for distance queries. */
 type RealRoad = { curve: CatmullRomCurve3; bends: number[]; arch: number; churamEnd: number; places: { name: string; t: number; off: number }[]; index: RoadIndex; cumT: Float32Array };
 let road: RealRoad | null = null;
+/* The forest road (Acts 7–8): NH766 from Sulthan Bathery to the border gate, on its own heightmap tile. */
+let forest: RealRoad | null = null;
 
 /** The first heightmap is the churam's (Adivaram is on it); any others extend the ground, e.g. onto the plateau. */
-export function setHeightmaps(maps: Heightmap[], roadData?: RoadData | null) {
+export function setHeightmaps(maps: Heightmap[], roadData?: RoadData | null, forestData?: RoadData | null) {
   const [first] = maps, s = GEO.unitsPerMetre, { lat, lon } = GEO.origin;
   proj.perLon = first.metres.width / (first.bounds.east - first.bounds.west);
   proj.perLat = first.metres.height / (first.bounds.north - first.bounds.south);
@@ -36,6 +38,7 @@ export function setHeightmaps(maps: Heightmap[], roadData?: RoadData | null) {
   field = fields[0];
   proj.base = elevation(field, 0, 0);
   road = roadData ? buildRealRoad(roadData) : null;
+  forest = forestData ? buildRealRoad(forestData) : null;
 }
 
 /** lat/lon → world x, z. */
@@ -67,7 +70,7 @@ function groundHeight(_f: Field, x: number, z: number) {
 /** Every tile's world rectangle and sample count (for one terrain mesh each); empty while procedural. */
 export function terrainGrids() {
   return fields.map((f, i) => ({
-    index: i, west: f.west, north: f.north, width: f.east - f.west, length: f.south - f.north, size: f.hm.size, attribution: f.hm.attribution,
+    index: i, region: f.hm.region ?? "", west: f.west, north: f.north, width: f.east - f.west, length: f.south - f.north, size: f.hm.size, attribution: f.hm.attribution,
   }));
 }
 
@@ -128,14 +131,15 @@ function buildRealRoad(data: RoadData): RealRoad {
     (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(i);
   }
   const widen = new Float32Array(n), wall = new Float32Array(n);
-  for (let i = 0; i < n; i++) for (const b of data.bends) {
+  for (let i = 0; i < n; i++) for (const b of data.bends ?? []) {
     const m = Math.abs(i * data.step - b.along);
     widen[i] = Math.max(widen[i], HAIRPIN.widen * (1 - MathUtils.smoothstep(m, HAIRPIN.widenSpan * 0.4, HAIRPIN.widenSpan)));
     wall[i] = Math.max(wall[i], 1 - MathUtils.smoothstep(m, HAIRPIN.wallSpan * 0.75, HAIRPIN.wallSpan));
   }
   const cumT = Float32Array.from(cum, (c) => c / cum[n - 1]);
   return {
-    curve, bends: data.bends.map((b) => tAt(b.along)), arch: tAt(data.arch.along), churamEnd: tAt(data.churamEnd ?? data.length),
+    curve, bends: (data.bends ?? []).map((b) => tAt(b.along)), arch: data.arch ? tAt(data.arch.along) : 0,
+    churamEnd: tAt(data.churamEnd ?? data.muthanga ?? data.length),
     places: (data.places ?? []).map((p) => ({ name: p.name, t: tAt(p.along), off: p.off })),
     index: { cell, buckets, xs, zs, bed, widen, wall }, cumT,
   };
@@ -176,8 +180,19 @@ export function roadShapeAt(t: number) {
 }
 
 /** Distance to the road's centre line, or Infinity beyond SECTION.reach (for the terrain mesh to step aside, and for placement). */
+/** The nearer of the two roads' cross-sections at (x, z), if either is within reach. */
+function nearestAny(x: number, z: number) {
+  const a = road && nearestRoad(road.index, x, z), b = forest && nearestRoad(forest.index, x, z);
+  return a && b ? (a.d <= b.d ? a : b) : a ?? b;
+}
+
+/** The forest road's curve, where Act 7 hands over to Act 8 (the sanctuary entrance), and its places; null without it. */
+export function forestRoad() {
+  return forest ? { curve: forest.curve, muthanga: forest.churamEnd, places: forest.places } : null;
+}
+
 export function roadDistance(x: number, z: number) {
-  const near = road && nearestRoad(road.index, x, z);
+  const near = nearestAny(x, z);
   return near ? near.d : Infinity;
 }
 
@@ -227,7 +242,7 @@ function noise(x: number, z: number) {
 
 export function height(x: number, z: number): number {
   if (field) {
-    const near = road && nearestRoad(road.index, x, z);
+    const near = nearestAny(x, z);
     return near ? crossSection(near.d, near.bed, natural(field, x, z), near.wall) : groundHeight(field, x, z);
   }
   const valley = Math.max(0, 1 - Math.abs(x) / 90);

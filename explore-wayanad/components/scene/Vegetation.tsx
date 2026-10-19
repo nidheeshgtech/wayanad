@@ -15,6 +15,18 @@ import { teaAt } from "@/lib/estates";
  * `perUnit`: plants per unit of road; `zone`: distance band from the road's centre line where they grow;
  * `trunk`: casts shadows and stays off cut faces; `lowland`: thins out with altitude (palms). */
 type Species = { name: keyof typeof CARDS; tall: [number, number]; perUnit: number; zone: [number, number]; sway: number; trunk?: boolean; lowland?: boolean };
+/* The Muthanga forest road (Acts 7–8): moist deciduous forest of teak and bamboo, closing in over the road. Denser
+ * and nearer the asphalt than the ghat, so the road runs through a tunnel of trunks; no palms, few evergreens. */
+const FOREST_SPECIES: Species[] = [
+  { name: "grass", tall: [0.06, 0.12], perUnit: 14, zone: [SECTION.half + 0.2, 1.4], sway: 0.05 },
+  { name: "bush", tall: [0.1, 0.2], perUnit: 6, zone: [SECTION.drain, 4], sway: 0.02 },
+  { name: "bamboo", tall: [1.4, 2.2], perUnit: 3, zone: [1.0, 8], sway: 0.04, trunk: true },
+  { name: "tree-young", tall: [0.5, 0.8], perUnit: 3, zone: [1.0, 8], sway: 0.025, trunk: true },
+  { name: "teak", tall: [2.2, 3.4], perUnit: 9, zone: [1.05, 14], sway: 0.012, trunk: true },
+  { name: "tree-broadleaf", tall: [1.0, 1.5], perUnit: 1.5, zone: [1.2, 12], sway: 0.012, trunk: true },
+  { name: "tree-evergreen", tall: [2.5, 3.6], perUnit: 2, zone: [1.5, 18], sway: 0.01, trunk: true },
+];
+
 const SPECIES: Species[] = [
   { name: "grass", tall: [0.06, 0.12], perUnit: 40, zone: [SECTION.half + 0.18, 1.6], sway: 0.05 },
   { name: "fern", tall: [0.08, 0.15], perUnit: 20, zone: [SECTION.shoulder, 3], sway: 0.03 },
@@ -71,31 +83,32 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
       transformed.z += cos(uWind * 0.8 + phase * 1.3) * bend * 3.0;`);
 };
 
-export default function Vegetation({ curve, density = 1, alphaToCoverage = true }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean }) {
+export default function Vegetation({ curve, density = 1, alphaToCoverage = true, kind = "ghat" }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean; kind?: "ghat" | "forest" }) {
   const meshes = useMemo(() => {
     const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve), plateauFrom = churamEndT();
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
-    return SPECIES.map((s) => {
+    const ghat = kind === "ghat"; // the churam + plateau road: towns, tea and the plateau's thinning apply
+    return (ghat ? SPECIES : FOREST_SPECIES).map((s) => {
       const map = loader.load(`/vegetation/${s.name}.webp`);
       map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
       const material = new MeshStandardMaterial({ map, alphaTest: 0.45, side: DoubleSide, roughness: 1, alphaToCoverage });
       material.onBeforeCompile = swayShader(s.sway);
       material.customProgramCacheKey = () => `veg-${s.sway}`;
-      const share = PLATEAU[s.name] ?? 1, effective = L * (plateauFrom + (1 - plateauFrom) * share);
+      const share = ghat ? PLATEAU[s.name] ?? 1 : 1, effective = L * (plateauFrom + (1 - plateauFrom) * share);
       const count = Math.round(s.perUnit * effective * density), mesh = new InstancedMesh(geo, material, count);
       const aspect = CARDS[s.name].aspect;
       let placed = 0;
       for (let tries = 0; placed < count && tries < count * 4; tries++) {
         const t = random();
-        if (t > plateauFrom && random() > share) continue;
+        if (ghat && t > plateauFrom && random() > share) continue;
         const p = curve.getPointAt(t), tan = curve.getTangentAt(t);
         side.set(tan.z, 0, -tan.x).normalize().multiplyScalar(random() < 0.5 ? -1 : 1);
         const [d0, d1] = s.zone, d = d0 + (d1 - d0) * random() ** 1.6; // denser toward the road
         const x = p.x + side.x * d + (random() - 0.5) * 0.6, z = p.z + side.z * d + (random() - 0.5) * 0.6;
         if (roadDistance(x, z) < d0) continue; // another leg of the road (hairpins), or back onto the shoulder
-        if (t > townFrom && s.name !== "grass" && inTown(x, z, plan)) continue; // not on or against Lakkidi's buildings
+        if (ghat && t > townFrom && s.name !== "grass" && inTown(x, z, plan)) continue; // not on or against Lakkidi's buildings
         const y = height(x, z);
-        if (t > plateauFrom && s.name !== "grass" && teaAt(x, z, y) > 0.3 && random() > 0.04) continue; // estates are tea; a few shade trees stand in them
+        if (ghat && t > plateauFrom && s.name !== "grass" && teaAt(x, z, y) > 0.3 && random() > 0.04) continue; // estates are tea; a few shade trees stand in them
         if (s.trunk && Math.hypot(height(x + 0.2, z) - height(x - 0.2, z), height(x, z + 0.2) - height(x, z - 0.2)) / 0.4 > CUT_FACE) continue;
         if (s.lowland && random() < clamp01((y - 5) / 40)) continue; // palms thin out above ~50 m of climb, gone by ~450 m
         const tall = s.tall[0] + (s.tall[1] - s.tall[0]) * random();
@@ -117,7 +130,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true 
       mesh.name = `veg-${s.name}`;
       return mesh;
     });
-  }, [curve, density, alphaToCoverage]);
+  }, [curve, density, alphaToCoverage, kind]);
 
   useFrame((_, dt) => { wind.value += dt; });
   return <>{meshes.map((mesh) => <primitive key={mesh.name} object={mesh} />)}</>;

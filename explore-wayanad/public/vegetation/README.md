@@ -13,3 +13,5 @@ no ground or shadow, transparent background):
 - fern: lush clump of tropical ferns on a monsoon roadside bank
 - grass: tall wild grass and weeds from a monsoon verge
 - bush: dense low forest-edge bush with trailing creepers
+- teak: tall teak tree of the moist deciduous forest, very large leaves, some yellowing (forest road)
+- elephant: adult wild Asian elephant walking, side-on (the crossing on the forest road; not a photograph of a real animal)

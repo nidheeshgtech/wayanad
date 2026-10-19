@@ -30,7 +30,7 @@ export default function MiniMap() {
       .then((road) => {
         // the churam only: Adivaram to where Act 1 ends; `all` keeps the whole road's point count for t → index
         const last = Math.round((road.churamEnd ?? road.length) / road.step);
-        setMap({ ...draw(road.points.slice(0, last + 1), road.bends.map((b) => Math.round(b.along / road.step)), Math.round(road.arch.along / road.step)), all: road.points.length });
+        setMap({ ...draw(road.points.slice(0, last + 1), (road.bends ?? []).map((b) => Math.round(b.along / road.step)), Math.round((road.arch?.along ?? 0) / road.step)), all: road.points.length });
       })
       .catch(() => {}); // no map without the road file; the counter still works
   }, []);

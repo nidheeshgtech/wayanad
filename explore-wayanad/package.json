@@ -12,7 +12,8 @@
     "bake:road": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bake-road.ts",
     "fetch:textures": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-textures.ts",
     "prepare:vegetation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/prepare-vegetation.ts",
-    "fetch:models": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-models.ts"
+    "fetch:models": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/fetch-models.ts",
+    "bake:forest-road": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bake-forest-road.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

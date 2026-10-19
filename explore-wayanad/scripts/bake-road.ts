@@ -10,9 +10,9 @@
  *   arch    where the Lakkidi gateway stands (nearest road point to the OSM viewpoint node)
  * The Overpass response is cached in scripts/.cache; delete it to refetch.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { NH766, overpass, projection, type LatLon, type OsmNode, type OsmWay } from "./osm.ts";
 
 const BBOX = "11.44,75.94,11.66,76.16"; // S,W,N,E — a margin around both heightmaps (churam and plateau)
 const ADIVARAM = { lat: 11.4849767, lon: 76.0126133 }; // OSM place node, same origin as lib/terrain.ts
@@ -36,85 +36,12 @@ const BENDS = 9;
 const OUT = path.resolve(import.meta.dirname, "../public/terrain/churam-road.json");
 const CACHE = path.resolve(import.meta.dirname, ".cache/overpass-nh766-kalpetta.json");
 
-type LatLon = { lat: number; lon: number };
-type OsmWay = { type: "way"; id: number; nodes: number[]; geometry: LatLon[]; tags: Record<string, string> };
-type OsmNode = { type: "node"; id: number; lat: number; lon: number; tags?: Record<string, string> };
-
-async function overpass(): Promise<(OsmWay | OsmNode)[]> {
-  if (existsSync(CACHE)) return JSON.parse(await readFile(CACHE, "utf8")).elements;
-  const query = `[out:json][timeout:90];
-    way["highway"]["ref"~"(^|;)\\s*NH\\s*766\\s*($|;)"](${BBOX});out geom;
+const elementsQuery = `[out:json][timeout:90];
+    ${NH766(BBOX)}
     node["name"](${BBOX})["tourism"="viewpoint"];out;
     node["name"~"[Hh]air ?pin"](${BBOX});out;
     node["name"~"[Cc]hain ?[Tt]ree"](${BBOX});out;`;
-  // the public Overpass servers are often at capacity: retry with backoff, alternating between two of them
-  const servers = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
-  let json: { elements: (OsmWay | OsmNode)[] } | null = null, last = "";
-  for (let attempt = 0; attempt < 8 && !json; attempt++) {
-    if (attempt) { const wait = Math.min(60, 5 * 2 ** (attempt - 1)); console.log(`  Overpass busy (${last}), retrying in ${wait} s`); await new Promise((r) => setTimeout(r, wait * 1000)); }
-    try {
-      const res = await fetch(servers[attempt % servers.length], {
-        method: "POST",
-        headers: { "User-Agent": "explore-wayanad-bake/0.1", "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ data: query }),
-      });
-      const text = await res.text();
-      if (res.ok && text.startsWith("{")) json = JSON.parse(text); else last = `HTTP ${res.status}`;
-    } catch (err) { last = String(err); }
-  }
-  if (!json) throw new Error(`Overpass unavailable after retries (${last})`);
-  await mkdir(path.dirname(CACHE), { recursive: true });
-  await writeFile(CACHE, JSON.stringify(json));
-  return json.elements;
-}
-
-/* local flat metres around Adivaram; plenty accurate over 15 km */
-const R = 6371008.8, rad = Math.PI / 180, cosLat = Math.cos(ADIVARAM.lat * rad);
-const toXY = (p: LatLon) => ({ x: (p.lon - ADIVARAM.lon) * rad * R * cosLat, y: (p.lat - ADIVARAM.lat) * rad * R });
-const toLatLon = (x: number, y: number): LatLon => ({ lat: ADIVARAM.lat + y / (R * rad), lon: ADIVARAM.lon + x / (R * rad * cosLat) });
-const dist = (a: LatLon, b: LatLon) => { const p = toXY(a), q = toXY(b); return Math.hypot(p.x - q.x, p.y - q.y); };
-
-/** Undirected graph over OSM node ids; Dijkstra on metres. NH766 here is single-carriageway, two-way. */
-function shortestPath(ways: OsmWay[], from: LatLon, to: LatLon) {
-  const pos = new Map<number, LatLon>(), adj = new Map<number, { id: number; w: number }[]>();
-  for (const way of ways) way.nodes.forEach((id, i) => {
-    pos.set(id, way.geometry[i]);
-    if (i === 0) return;
-    const prev = way.nodes[i - 1], w = dist(way.geometry[i - 1], way.geometry[i]);
-    (adj.get(prev) ?? adj.set(prev, []).get(prev)!).push({ id, w });
-    (adj.get(id) ?? adj.set(id, []).get(id)!).push({ id: prev, w });
-  });
-  const nearest = (p: LatLon) => [...pos].reduce((best, [id, q]) => (dist(p, q) < best.d ? { id, d: dist(p, q) } : best), { id: -1, d: Infinity });
-  const start = nearest(from), goal = nearest(to);
-  console.log(`  start node ${start.id} is ${start.d.toFixed(0)} m from Adivaram; goal node ${goal.id} is ${goal.d.toFixed(0)} m from the target`);
-  const best = new Map([[start.id, 0]]), prev = new Map<number, number>(), open = new Set([start.id]);
-  while (open.size) {
-    const u = [...open].reduce((a, b) => (best.get(a)! <= best.get(b)! ? a : b));
-    open.delete(u);
-    if (u === goal.id) break;
-    for (const { id, w } of adj.get(u) ?? []) {
-      const d = best.get(u)! + w;
-      if (d < (best.get(id) ?? Infinity)) { best.set(id, d); prev.set(id, u); open.add(id); }
-    }
-  }
-  if (!prev.has(goal.id)) throw new Error("NH766 ways do not connect Adivaram to the target; check the Overpass result");
-  const ids = [goal.id];
-  while (ids[0] !== start.id) ids.unshift(prev.get(ids[0])!);
-  return ids.map((id) => pos.get(id)!);
-}
-
-function resample(line: LatLon[], step: number) {
-  const xy = line.map(toXY), out: { x: number; y: number; along: number }[] = [{ ...xy[0], along: 0 }];
-  let along = 0, carry = 0;
-  for (let i = 1; i < xy.length; i++) {
-    const a = xy[i - 1], b = xy[i], seg = Math.hypot(b.x - a.x, b.y - a.y);
-    let s = step - carry;
-    while (s <= seg) { out.push({ x: a.x + ((b.x - a.x) * s) / seg, y: a.y + ((b.y - a.y) * s) / seg, along: along + s }); s += step; }
-    carry = seg - (s - step);
-    along += seg;
-  }
-  return { points: out, length: along };
-}
+const { toXY, toLatLon, shortestPath, resample } = projection(ADIVARAM);
 
 /** Hairpins: runs where the heading turns more than `threshold` within ±window samples; the bend is the run's peak. */
 function findHairpins(pts: { x: number; y: number }[], window: number, threshold: number) {
@@ -144,7 +71,7 @@ const ll0 = (p: { x: number; y: number }) => { const q = toLatLon(p.x, p.y); ret
 /* ---- bake ---- */
 
 console.log("OpenStreetMap NH766 → Adivaram to Kalpetta");
-const elements = await overpass();
+const elements = await overpass(elementsQuery, CACHE);
 const ways = elements.filter((e): e is OsmWay => e.type === "way");
 const named = elements.filter((e): e is OsmNode => e.type === "node" && !!e.tags?.name);
 const viewpoint = named.find((n) => VIEWPOINT_NAME.test(n.tags!.name));

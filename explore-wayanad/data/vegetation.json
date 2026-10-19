@@ -22,5 +22,11 @@
   },
   "bush": {
     "aspect": 0.949
+  },
+  "teak": {
+    "aspect": 0.594
+  },
+  "elephant": {
+    "aspect": 1.521
   }
 }

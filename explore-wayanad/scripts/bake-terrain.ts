@@ -1,7 +1,7 @@
 /**
  * Bakes the churam heightmap from Copernicus GLO-30 (30 m DSM, public on AWS Open Data).
  *
- *   npm run bake:terrain [churam|plateau]
+ *   npm run bake:terrain [churam|plateau|forest]
  *
  * Reads only the internal COG tiles covering BOUNDS (HTTP Range requests, cached in scripts/.cache),
  * mosaics across the 1° file seam at 76° E, resamples bilinearly to SIZE², and writes:
@@ -14,11 +14,12 @@ import { existsSync } from "node:fs";
 import { deflateSync, inflateSync } from "node:zlib";
 import path from "node:path";
 
-/* Regions: `npm run bake:terrain [churam|plateau]`. The plateau tile starts where the churam's ends (11.55° N) and spans
+/* Regions: `npm run bake:terrain [churam|plateau|forest]`. The plateau tile starts where the churam's ends (11.55° N) and spans
  * twice its longitude at the same sample count, so every other plateau sample on the shared edge sits on a churam one. */
 const REGIONS = {
   churam: { south: 11.45, north: 11.55, west: 75.95, east: 76.05 }, // Adivaram up the ghat to Lakkidi
   plateau: { south: 11.55, north: 11.65, west: 75.95, east: 76.15 }, // Lakkidi, Vythiri, Chundale to Kalpetta
+  forest: { south: 11.62, north: 11.73, west: 76.24, east: 76.44 }, // Sulthan Bathery through Muthanga to the border gate
 };
 const REGION = (process.argv[2] ?? "churam") as keyof typeof REGIONS;
 if (!(REGION in REGIONS)) throw new Error(`unknown region "${REGION}"; use ${Object.keys(REGIONS).join(" or ")}`);

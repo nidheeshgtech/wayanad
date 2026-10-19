@@ -41,7 +41,11 @@ export default function Quality({ start = 0 }: { start?: number }) {
     }
   };
 
-  useEffect(() => { apply(level.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    apply(level.current);
+    // the whole scene has been built by the time this effect runs (it mounts last): how long the page took to get here
+    if (process.env.NODE_ENV !== "production") console.info(`[scene] built ${Math.round(performance.now())} ms after navigation`);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame((_, dt) => {
     const c = clock.current;

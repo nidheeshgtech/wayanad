@@ -30,7 +30,7 @@ function rng(seed: number) {
   return () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-export default function Props({ curve, density = 1 }: { curve: CatmullRomCurve3; density?: number }) {
+export default function Props({ curve, density = 1, towns = true }: { curve: CatmullRomCurve3; density?: number; towns?: boolean }) {
   const models = use(useMemo(() => Promise.all(KINDS.map((k) => load(k.model))), []));
   const chunks = useMemo(() => {
     const L = curve.getLength(), townFrom = archT(), plan = townPlan(curve), out: { centre: Vector3; radius: number; view: number; meshes: InstancedMesh[] }[] = [];
@@ -45,7 +45,7 @@ export default function Props({ curve, density = 1 }: { curve: CatmullRomCurve3;
           const d = k.zone[0] + (k.zone[1] - k.zone[0]) * random() ** 1.5;
           const x = p.x + side.x * d, z = p.z + side.z * d;
           if (roadDistance(x, z) < k.zone[0]) continue;
-          if (t > townFrom && inTown(x, z, plan)) continue; // no boulders on Lakkidi's buildings
+          if (towns && t > townFrom && inTown(x, z, plan)) continue; // no boulders on Lakkidi's buildings
           // `size` is the scale applied to the scan (in metres), in scene units: e.g. 0.2 → the 30 cm stone becomes 60 cm
           const s = k.size[0] + (k.size[1] - k.size[0]) * random() ** 2;
           q.setFromAxisAngle(new Vector3(0, 1, 0), random() * Math.PI * 2);
@@ -68,7 +68,7 @@ export default function Props({ curve, density = 1 }: { curve: CatmullRomCurve3;
       }
     });
     return out;
-  }, [curve, density, models]);
+  }, [curve, density, models, towns]);
 
   useFrame(({ camera }) => {
     for (const c of chunks) {
