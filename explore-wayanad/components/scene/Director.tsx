@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Color, FogExp2, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshLambertMaterial } from "three";
+import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshLambertMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
@@ -13,6 +13,18 @@ import { height } from "@/lib/terrain";
 /** [x, height above ground, z] for camera (a) and look target (b), laid out around the prototype's road end at (0, PROTO_END_Z);
  * shifted to wherever the road actually ends and resolved against the terrain once it has loaded. */
 const PROTO_END_Z = -204;
+
+/** Storyboard fog for the climb, keyed to the hairpins (t on the road, bend 1 = bends[0]): clear air through 1–3,
+ * first mist by 6, nearly white from 7 to 9, then the mist breaks before Lakkidi. */
+function churamMood(t: number, bends: number[]) {
+  const keys: [number, number, number][] = [ // [t, fog density, mist opacity]
+    [0, 0.02, 0.12], [bends[2], 0.022, 0.18], [bends[5], 0.06, 0.35], [bends[6], 0.11, 0.55], [bends[8], 0.11, 0.55], [0.98, 0.012, 0],
+  ];
+  const i = Math.max(0, keys.findIndex(([k]) => k > t) - 1);
+  const [t0, f0, m0] = keys[i], [t1, f1, m1] = keys[Math.min(i + 1, keys.length - 1)];
+  const k = t1 > t0 ? MathUtils.smoothstep(t, t0, t1) : 1;
+  return { fog: f0 + (f1 - f0) * k, mist: m0 + (m1 - m0) * k };
+}
 const LOOK_AHEAD = 7.2; // units ahead of the camera's road point: 0.012 of the prototype's ~600-unit road
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
@@ -77,10 +89,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
 
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;
-    if (act === "churam") {
-      fogDensity = p < 0.84 ? 0.02 + (0.11 - 0.02) * (p / 0.84) : 0.11 + (0.012 - 0.11) * ((p - 0.84) / 0.16);
-      mist = p < 0.84 ? 0.12 + p * 0.5 : 0.55 * (1 - (p - 0.84) / 0.16);
-    }
+    if (act === "churam") ({ fog: fogDensity, mist } = churamMood(p * 0.98, scrollState.bends));
     fog.color.lerp(new Color(P.fog), 0.05);
     (scene.background as Color).lerp(new Color(P.sky), 0.05);
     fog.density += (fogDensity - fog.density) * 0.08;

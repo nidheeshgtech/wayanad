@@ -67,7 +67,9 @@ export function terrainGrid() {
  * The bed is a moving average of it, and height() blends the terrain down/up to the bed within ROAD_CUT of the centre line.
  */
 const ROAD_SMOOTH = 8; // ± samples (10 m each) in the bed's moving average
-const ROAD_CUT = { flat: 1.3, edge: 4 }; // units from the centre line: fully on the bed, then easing back to terrain
+// units from the centre line: fully on the bed, then easing back to terrain. Wide enough for the terrain mesh's
+// 2.1-unit triangles to resolve, and for the camera, which trails 2.5 units behind and swings off the asphalt on hairpins.
+const ROAD_CUT = { flat: 3, edge: 6.5 };
 
 type RoadIndex = { cell: number; buckets: Map<string, number[]>; xs: Float32Array; zs: Float32Array; bed: Float32Array };
 

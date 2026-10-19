@@ -10,6 +10,8 @@ import Road from "./Road";
 import Forest from "./Forest";
 import Gateway from "./Gateway";
 import Particles from "./Particles";
+import Sky from "./Sky";
+import Shafts from "./Shafts";
 import Director from "./Director";
 import type { Tier } from "@/hooks/useCapability";
 
@@ -51,18 +53,22 @@ function World({ small }: { small: boolean }) {
   const mistRef = useRef<Points | null>(null);
   const fliesRef = useRef<Points | null>(null);
   const grid = terrainGrid();
-  const segments = grid ? (small ? (grid.size - 1) >> 1 : grid.size - 1) : small ? 96 : 160;
+  // the heightmap at full resolution on every tier: at half, the road cut smears and the camera ends up inside the bank
+  const segments = grid ? grid.size - 1 : small ? 96 : 160;
   // the prototype's 900 tube segments over its ~600-unit road, kept per unit for the 1,300-unit real one
   const detail = Math.max(small ? 500 : 900, Math.round(curve.getLength() * (small ? 1 : 1.5)));
-  const trees = Math.round((small ? 700 : 1800) * Math.max(1, curve.getLength() / 600));
+  // the prototype's density per unit of road, doubled: rainforest closes in, it doesn't dot the slope
+  const trees = Math.round((small ? 1400 : 3600) * Math.max(1, curve.getLength() / 600));
   return (
     <>
       <hemisphereLight args={[0xdfe8e4, 0x1a2a24, 0.9]} />
       <directionalLight ref={sunRef} position={[40, 60, -20]} intensity={1} />
+      <Sky sunRef={sunRef} />
       <Terrain segments={segments} />
       <Road curve={curve} detail={detail} />
       <Forest curve={curve} count={trees} />
       <Gateway curve={curve} />
+      <Shafts curve={curve} sunRef={sunRef} count={small ? 20 : 40} />
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <Director curve={curve} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
     </>

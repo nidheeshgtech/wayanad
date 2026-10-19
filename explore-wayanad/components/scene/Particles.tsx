@@ -1,7 +1,16 @@
 "use client";
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { BufferAttribute, BufferGeometry, Points, PointsMaterial } from "three";
+import { BufferAttribute, BufferGeometry, CanvasTexture, Points, PointsMaterial } from "three";
+
+/** Soft round falloff, so mist reads as puffs and fireflies as glows instead of squares. */
+function softDot() {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const ctx = c.getContext("2d")!, g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.4, "rgba(255,255,255,0.45)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  return new CanvasTexture(c);
+}
 
 function cloud(n: number, spread: number) {
   const g = new BufferGeometry(); const a = new Float32Array(n * 3);
@@ -14,8 +23,9 @@ function cloud(n: number, spread: number) {
 export default function Particles({ mistRef, fliesRef, small }: { mistRef: React.MutableRefObject<Points | null>; fliesRef: React.MutableRefObject<Points | null>; small: boolean }) {
   const mistGeo = useMemo(() => cloud(small ? 300 : 700, 120), [small]);
   const flyGeo = useMemo(() => cloud(small ? 160 : 320, 60), [small]);
-  const mistMat = useRef(new PointsMaterial({ size: 1.6, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
-  const flyMat = useRef(new PointsMaterial({ size: 0.35, color: 0xf2d27a, transparent: true, opacity: 0, depthWrite: false }));
+  const dot = useMemo(softDot, []);
+  const mistMat = useRef(new PointsMaterial({ size: 3.2, map: dot, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+  const flyMat = useRef(new PointsMaterial({ size: 0.5, map: dot, color: 0xf2d27a, transparent: true, opacity: 0, depthWrite: false }));
 
   useFrame(({ camera, clock }, dt) => {
     const m = mistRef.current, f = fliesRef.current;
