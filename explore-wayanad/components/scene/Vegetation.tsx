@@ -30,13 +30,13 @@ function rng(seed: number) {
   return () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-/** Three vertical cards crossing at 60°, 1 × 1 with the origin at the foot. Normals lean upward, so a card is lit like
- * foliage (from the sky) rather than like a flat board facing one way. */
+/** Three vertical cards crossing at 60°, 1 × 1 with the origin at the foot. Normals point up, so a plant is lit like
+ * foliage (from the sky) rather than like flat boards facing different ways. */
 function crossCards() {
   const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
   for (let k = 0; k < 3; k++) {
-    const a = (k * Math.PI) / 3, cx = Math.cos(a) * 0.5, cz = Math.sin(a) * 0.5, nx = -Math.sin(a), nz = Math.cos(a), base = k * 4;
-    const n = new Vector3(nx * 0.35, 0.9, nz * 0.35).normalize();
+    const a = (k * Math.PI) / 3, cx = Math.cos(a) * 0.5, cz = Math.sin(a) * 0.5, base = k * 4;
+    const n = new Vector3(0, 1, 0); // every plane of a plant lit alike, so none shows as a pale or dark half
     for (const [x, y, z, u, v] of [[-cx, 0, -cz, 0, 0], [cx, 0, cz, 1, 0], [cx, 1, cz, 1, 1], [-cx, 1, -cz, 0, 1]]) {
       pos.push(x, y, z); nor.push(n.x, n.y, n.z); uv.push(u, v);
     }
