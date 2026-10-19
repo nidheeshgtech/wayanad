@@ -2,10 +2,11 @@
 import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
-  AdditiveBlending, CanvasTexture, CatmullRomCurve3, DirectionalLight, DoubleSide, InstancedMesh, Matrix4,
+  AdditiveBlending, CanvasTexture, CatmullRomCurve3, DoubleSide, InstancedMesh, Matrix4,
   MeshBasicMaterial, PlaneGeometry, Quaternion, Vector3,
 } from "three";
 import { height } from "@/lib/terrain";
+import { SUN_DIR } from "./Lighting";
 
 /** Bright core fading to nothing at the sides and at both ends (canvas top = the sun end). */
 function beamTexture() {
@@ -21,13 +22,13 @@ function beamTexture() {
   return new CanvasTexture(c);
 }
 
-const LENGTH = 34, WIDTH = 3.2;
+const LENGTH = 14, WIDTH = 0.9; // true scale: 140 m of beam, 9 m wide
 
 /**
  * Light shafts through the canopy: long additive quads slanting down from the sun, scattered beside the road.
  * Each one turns about its own axis to face the camera, so it never shows its edge. Fog fades the far ones.
  */
-export default function Shafts({ curve, sunRef, count = 40 }: { curve: CatmullRomCurve3; sunRef: React.MutableRefObject<DirectionalLight | null>; count?: number }) {
+export default function Shafts({ curve, count = 40 }: { curve: CatmullRomCurve3; count?: number }) {
   const { mesh, feet } = useMemo(() => {
     const geo = new PlaneGeometry(WIDTH, LENGTH);
     geo.translate(0, LENGTH / 2, 0); // origin at the foot, beam extends up toward the sun
@@ -35,9 +36,9 @@ export default function Shafts({ curve, sunRef, count = 40 }: { curve: CatmullRo
       map: beamTexture(), color: 0xf3e2b8, transparent: true, opacity: 0.11, blending: AdditiveBlending, depthWrite: false, side: DoubleSide,
     }), count);
     const feet = Array.from({ length: count }, () => {
-      const p = curve.getPointAt(Math.random()), a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 18;
+      const p = curve.getPointAt(Math.random()), a = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 10;
       const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
-      return new Vector3(x, height(x, z) + 1, z);
+      return new Vector3(x, height(x, z) + 0.3, z);
     });
     mesh.frustumCulled = false;
     return { mesh, feet };
@@ -47,7 +48,7 @@ export default function Shafts({ curve, sunRef, count = 40 }: { curve: CatmullRo
   const normal = useMemo(() => new Vector3(), []), m = useMemo(() => new Matrix4(), []), q = useMemo(() => new Quaternion(), []);
   const one = useMemo(() => new Vector3(1, 1, 1), []);
   useFrame(({ camera }) => {
-    axis.copy(sunRef.current?.position ?? new Vector3(0.5, 0.8, -0.3)).normalize();
+    axis.copy(SUN_DIR);
     feet.forEach((foot, i) => {
       // axis-constrained billboard: up = toward the sun, face = as close to the camera as the axis allows
       toCam.subVectors(camera.position, foot);

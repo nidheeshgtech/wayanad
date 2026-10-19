@@ -1,9 +1,9 @@
 "use client";
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshLambertMaterial } from "three";
+import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
-import { driveT, veilAt } from "@/lib/drive";
+import { DRIVER_LINE, driveT } from "@/lib/drive";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
 
@@ -31,7 +31,8 @@ function churamMood(t: number, bends: number[]) {
  * looking `ahead` down the road. The pace comes from lib/drive.ts (slow seat-level moments joined by mist); the heading
  * eases and is capped at `maxTurn` °/s while in view, and the cabin leans gently into bends.
  * `bob` is a barely-there vertical drift from the road surface: enough to feel moving, not enough to sway. */
-const BUS = { eye: 0.9, lane: 0, ahead: 7, ease: 0.12, maxTurn: 90, lean: 0.35, maxLean: 1.5, bob: 0.012, lift: 6 };
+const BUS = { eye: 0.28, lane: 0, ahead: 5, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004, lift: 6 };
+const WHITE = new Color(0xffffff);
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
   soochipara: [[45, 6, -95], [20, 12, -150]],
@@ -52,7 +53,7 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
 }) {
   const { scene, camera } = useThree();
   const tmp = useRef(new Vector3()), look = useRef(new Vector3()), up = useRef(new Vector3(0, 1, 0)), heading = useRef(new Vector3()), aim = useRef(new Vector3()), yaw = useRef<number | null>(null);
-  const side = useRef(new Vector3()), roll = useRef(0), odometer = useRef(0), last = useRef(new Vector3());
+  const side = useRef(new Vector3()), roll = useRef(0), odometer = useRef(0), last = useRef(new Vector3()), tint = useRef(new Color());
   const length = useMemo(() => curve.getLength(), [curve]);
   const { spots, plateau, end } = useMemo(() => {
     const end = curve.getPointAt(1), dir = curve.getTangentAt(1).setY(0).normalize();
@@ -75,13 +76,13 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     if (act === "churam") {
       const t = driveT(p);
       const pt = curve.getPointAt(t), ahead = curve.getPointAt(Math.min(0.999, t + BUS.ahead / length));
-      // aim along the road a little ahead (smoother than the tangent at the wheels), eased and rate-limited
-      const target = Math.atan2(ahead.x - pt.x, ahead.z - pt.z);
+      // aim along the driver's line (tangent averaged over ±DRIVER_LINE, the same line the pace is built from), eased and rate-limited
+      let lx = 0, lz = 0;
+      for (let k = -4; k <= 4; k++) { const g = curve.getTangentAt(MathUtils.clamp(t + (k / 4) * (DRIVER_LINE / length), 0, 0.999)); lx += g.x; lz += g.z; }
+      const target = Math.atan2(lx, lz);
       if (yaw.current === null) yaw.current = target;
-      // inside the mist nobody sees the camera turn, so it lines up freely with the road before the next moment clears
-      const hidden = MathUtils.smoothstep(veilAt(t), 0.85, 1), cap = MathUtils.degToRad(BUS.maxTurn + hidden * 2000) * delta;
-      const want = Math.atan2(Math.sin(target - yaw.current), Math.cos(target - yaw.current)) * (BUS.ease + (1 - BUS.ease) * hidden);
-      const step = MathUtils.clamp(want, -cap, cap);
+      const cap = MathUtils.degToRad(BUS.maxTurn) * delta;
+      const step = MathUtils.clamp(Math.atan2(Math.sin(target - yaw.current), Math.cos(target - yaw.current)) * BUS.ease, -cap, cap);
       yaw.current += step;
       heading.current.set(Math.sin(yaw.current), 0, Math.cos(yaw.current));
       side.current.set(-heading.current.z, 0, heading.current.x); // driver's left
@@ -117,20 +118,15 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
 
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;
-    if (act === "churam") {
-      const t = driveT(p), veil = veilAt(t);
-      ({ fog: fogDensity, mist } = churamMood(t, scrollState.bends));
-      // between moments the mist swallows the road completely (white-out), and lifts as the next moment begins
-      fogDensity = Math.max(fogDensity, veil * 0.35);
-      mist = Math.max(mist, veil * 0.7);
-    }
+    if (act === "churam") ({ fog: fogDensity, mist } = churamMood(driveT(p), scrollState.bends));
     // fireflies come out through Stay, peak at Night, and fade over Plan
     const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
     fog.color.lerp(new Color(P.fog), 0.05);
     (scene.background as Color).lerp(new Color(P.sky), 0.05);
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
-    if (terrain) (terrain.material as MeshLambertMaterial).color.lerp(new Color(P.ground), 0.05);
+    // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white
+    if (terrain) (terrain.material as MeshStandardMaterial).color.lerp(tint.current.set(P.ground).lerp(WHITE, 0.8), 0.05);
     if (sunRef.current) sunRef.current.color.lerp(new Color(P.light), 0.05);
     const mm = mistRef.current?.material as { opacity: number } | undefined; if (mm) mm.opacity += (mist - mm.opacity) * 0.06;
     const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (flies - fm.opacity) * 0.04;

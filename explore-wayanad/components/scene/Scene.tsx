@@ -5,8 +5,10 @@ import { CatmullRomCurve3, DirectionalLight, Points } from "three";
 import { archT, bendTs, buildRoadCurve, setHeightmap, terrainGrid } from "@/lib/terrain";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
-import { END, setPace } from "@/lib/drive";
+import { DRIVER_LINE, END, setPace } from "@/lib/drive";
 import Terrain from "./Terrain";
+import RoadBand from "./RoadBand";
+import Lighting from "./Lighting";
 import Road from "./Road";
 import Forest from "./Forest";
 import Gateway from "./Gateway";
@@ -37,8 +39,10 @@ export default function Scene({ tier }: { tier: Tier }) {
   return (
     <Canvas
       dpr={[1, small ? 1.5 : 2]}
-      camera={{ fov: 58, near: 0.1, far: 400 }}
+      camera={{ fov: 60, near: 0.02, far: 400 }}
       gl={{ antialias: !small, powerPreference: "high-performance" }}
+      shadows={small ? false : "soft"}
+      onCreated={({ gl }) => { gl.toneMappingExposure = 1.05; }}
       style={{ position: "fixed", inset: 0, zIndex: 0 }}
     >
       <Suspense fallback={null}>
@@ -52,40 +56,40 @@ export default function Scene({ tier }: { tier: Tier }) {
 function World({ small }: { small: boolean }) {
   use(loadTerrain());
   const curve = useMemo(() => buildRoadCurve(), []);
-  useMemo(() => setPace(turnProfile(curve), curve.getLength(), scrollState.bends, scrollState.arch), [curve]);
+  useMemo(() => setPace(turnProfile(curve), curve.getLength(), scrollState.arch), [curve]);
   const sunRef = useRef<DirectionalLight | null>(null);
   const mistRef = useRef<Points | null>(null);
   const fliesRef = useRef<Points | null>(null);
   const grid = terrainGrid();
   // the heightmap at full resolution on every tier: at half, the road cut smears and the camera ends up inside the bank
   const segments = grid ? grid.size - 1 : small ? 96 : 160;
-  // the prototype's 900 tube segments over its ~600-unit road, kept per unit for the 1,300-unit real one
-  const detail = Math.max(small ? 500 : 900, Math.round(curve.getLength() * (small ? 1 : 1.5)));
+  // road surface segments: ~1.7 m apart (3.3 m on lite), fine enough that the painted lines stay smooth round hairpins
+  const detail = Math.round(curve.getLength() * (small ? 3 : 6));
   // the prototype's density per unit of road, doubled: rainforest closes in, it doesn't dot the slope
   const trees = Math.round((small ? 1400 : 3600) * Math.max(1, curve.getLength() / 600));
   return (
     <>
-      <hemisphereLight args={[0xdfe8e4, 0x1a2a24, 0.9]} />
-      <directionalLight ref={sunRef} position={[40, 60, -20]} intensity={1} />
-      <Sky sunRef={sunRef} />
+      <Lighting sunRef={sunRef} shadows={!small} />
+      <Sky />
       <Terrain segments={segments} />
+      <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
       <Road curve={curve} detail={detail} />
       <Forest curve={curve} count={trees} />
       <Gateway curve={curve} />
       <BendSigns curve={curve} />
-      <Shafts curve={curve} sunRef={sunRef} count={small ? 20 : 40} />
+      <Shafts curve={curve} count={small ? 20 : 40} />
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <Director curve={curve} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
     </>
   );
 }
 
-/** Degrees the road's heading turns over each of 2,000 steps from t = 0 to END, from tangents averaged over ±3 units
+/** Degrees the road's heading turns over each of 2,000 steps from t = 0 to END, from tangents averaged over ±8 units
  * (a driver's line, not every wobble in the mapped centre line). Feeds the climb's pace in lib/drive.ts. */
 function turnProfile(curve: CatmullRomCurve3, steps = 2000) {
   const L = curve.getLength(), yaw = (t: number) => {
     let x = 0, z = 0;
-    for (let k = -4; k <= 4; k++) { const g = curve.getTangentAt(Math.min(0.999, Math.max(0, t + (k / 4) * (3 / L)))); x += g.x; z += g.z; }
+    for (let k = -4; k <= 4; k++) { const g = curve.getTangentAt(Math.min(0.999, Math.max(0, t + (k / 4) * (DRIVER_LINE / L)))); x += g.x; z += g.z; }
     return Math.atan2(x, z);
   };
   const out = new Float32Array(steps);

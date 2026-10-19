@@ -63,15 +63,23 @@ export function terrainGrid() {
 }
 
 /* ---- the real road ----
- * The DSM includes canopy, so the raw profile along the road jumps by 20–30 m where it passes under trees.
- * The bed is a moving average of it, and height() blends the terrain down/up to the bed within ROAD_CUT of the centre line.
+ * The DSM includes canopy, so the raw profile along the road jumps by 20–30 m where it passes under trees; the bed is a
+ * moving average of it. Around the bed, height() builds the road's cross-section at true scale (1 unit = 10 m):
+ * asphalt, a gravel shoulder, a drain on the uphill side, then a steep cut up into the hillside or an embankment down
+ * to it, blending back into the natural ground by SECTION.reach. The terrain mesh is too coarse for this (21 m cells);
+ * a fine band along the road (RoadBand) shows it, and the coarse terrain sinks out of the way underneath.
  */
 const ROAD_SMOOTH = 8; // ± samples (10 m each) in the bed's moving average
-// units from the centre line: fully on the bed, then easing back to terrain. Wide enough for the terrain mesh's
-// 2.1-unit triangles to resolve, and for the camera, which trails 2.5 units behind and swings off the asphalt on hairpins.
-const ROAD_CUT = { flat: 3, edge: 6.5 };
+export const SECTION = {
+  half: 0.4, // asphalt half-width: an 8 m two-lane ghat road
+  shoulder: 0.72, // gravel shoulder out to here, a few cm below the asphalt
+  drain: 0.92, // uphill side: a shallow drain out to here
+  cut: 2.2, // rise per unit across a cut face (≈ 65°, rock)
+  fill: 1.1, // fall per unit down an embankment (≈ 48°)
+  reach: 9, // the profile has blended back into the natural ground by here
+};
 
-type RoadIndex = { cell: number; buckets: Map<string, number[]>; xs: Float32Array; zs: Float32Array; bed: Float32Array };
+type RoadIndex = { cell: number; buckets: Map<number, number[]>; xs: Float32Array; zs: Float32Array; bed: Float32Array };
 
 function buildRealRoad(data: RoadData): RealRoad {
   const f = field!, n = data.points.length;
@@ -94,25 +102,60 @@ function buildRealRoad(data: RoadData): RealRoad {
   for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + pts[i].distanceTo(pts[i - 1]);
   const tAt = (along: number) => cum[Math.min(n - 1, Math.round(along / data.step))] / cum[n - 1];
 
-  const cell = ROAD_CUT.edge, buckets = new Map<string, number[]>();
+  const cell = SECTION.reach, buckets = new Map<number, number[]>();
   for (let i = 0; i < n; i++) {
-    const key = `${Math.floor(xs[i] / cell)},${Math.floor(zs[i] / cell)}`;
+    const key = bucketKey(Math.floor(xs[i] / cell), Math.floor(zs[i] / cell));
     (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(i);
   }
   return { curve, bends: data.bends.map((b) => tAt(b.along)), arch: tAt(data.arch.along), index: { cell, buckets, xs, zs, bed } };
 }
 
-/** Nearest road sample to (x, z) within ROAD_CUT.edge, or null. */
+const bucketKey = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
+
+/** Distance from (x, z) to the road's centre line (nearest polyline segment) within SECTION.reach, and the bed height there. */
 function nearestRoad(idx: RoadIndex, x: number, z: number) {
-  const cx = Math.floor(x / idx.cell), cz = Math.floor(z / idx.cell);
-  let best = -1, bestD = ROAD_CUT.edge * ROAD_CUT.edge;
+  const cx = Math.floor(x / idx.cell), cz = Math.floor(z / idx.cell), n = idx.xs.length;
+  let best = Infinity, bed = 0;
   for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-    for (const i of idx.buckets.get(`${cx + dx},${cz + dz}`) ?? []) {
-      const d = (idx.xs[i] - x) ** 2 + (idx.zs[i] - z) ** 2;
-      if (d < bestD) { bestD = d; best = i; }
+    const list = idx.buckets.get(bucketKey(cx + dx, cz + dz));
+    if (!list) continue;
+    for (const i of list) {
+      if (i + 1 >= n) continue;
+      const ax = idx.xs[i], az = idx.zs[i], bx = idx.xs[i + 1] - ax, bz = idx.zs[i + 1] - az;
+      const u = Math.min(1, Math.max(0, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz)));
+      const d = (x - ax - bx * u) ** 2 + (z - az - bz * u) ** 2;
+      if (d < best) { best = d; bed = idx.bed[i] + (idx.bed[i + 1] - idx.bed[i]) * u; }
     }
   }
-  return best < 0 ? null : { bed: idx.bed[best], d: Math.sqrt(bestD) };
+  return best <= SECTION.reach * SECTION.reach ? { bed, d: Math.sqrt(best) } : null;
+}
+
+/** Distance to the road's centre line, or Infinity beyond SECTION.reach (for the terrain mesh to step aside, and for placement). */
+export function roadDistance(x: number, z: number) {
+  const near = road && nearestRoad(road.index, x, z);
+  return near ? near.d : Infinity;
+}
+
+/** Natural ground under the road corridor, lightly smoothed (the DSM's canopy bumps would otherwise ripple the cut faces). */
+function natural(f: Field, x: number, z: number) {
+  return (groundHeight(f, x, z) * 2 + groundHeight(f, x + 1.2, z) + groundHeight(f, x - 1.2, z) + groundHeight(f, x, z + 1.2) + groundHeight(f, x, z - 1.2)) / 6;
+}
+
+/** The road's cross-section at distance d from the centre line, given the bed and the natural ground there. */
+function crossSection(d: number, bed: number, ground: number) {
+  let y: number;
+  if (d <= SECTION.half) y = bed;
+  else if (d <= SECTION.shoulder) y = bed - 0.025 * MathUtils.smoothstep(d, SECTION.half, SECTION.shoulder);
+  else if (ground >= bed) {
+    // uphill: a shallow drain, then the cut face rising until it meets the hillside
+    y = d <= SECTION.drain
+      ? bed - 0.025 - 0.06 * Math.sin((Math.PI * (d - SECTION.shoulder)) / (SECTION.drain - SECTION.shoulder))
+      : Math.min(ground, bed - 0.025 + (d - SECTION.drain) * SECTION.cut);
+  } else {
+    // downhill: the embankment falls away until it meets the slope
+    y = Math.max(ground, bed - 0.025 - (d - SECTION.shoulder) * SECTION.fill);
+  }
+  return y + (ground - y) * MathUtils.smoothstep(d, SECTION.reach - 2, SECTION.reach);
 }
 
 /* ---- procedural stand-in for the Thamarassery ghat ----
@@ -137,10 +180,8 @@ function noise(x: number, z: number) {
 
 export function height(x: number, z: number): number {
   if (field) {
-    const ground = groundHeight(field, x, z), near = road && nearestRoad(road.index, x, z);
-    if (!near) return ground;
-    const w = 1 - MathUtils.smoothstep(near.d, ROAD_CUT.flat, ROAD_CUT.edge);
-    return ground + (near.bed - ground) * w;
+    const near = road && nearestRoad(road.index, x, z);
+    return near ? crossSection(near.d, near.bed, natural(field, x, z)) : groundHeight(field, x, z);
   }
   const valley = Math.max(0, 1 - Math.abs(x) / 90);
   return ramp(z) + noise(x, z) * (0.6 + valley * 0.8) - valley * 2;

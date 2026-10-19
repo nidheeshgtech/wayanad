@@ -1,43 +1,37 @@
 "use client";
 import { useMemo } from "react";
-import { BufferAttribute, MathUtils, PlaneGeometry } from "three";
-import { TERRAIN, height, terrainGrid } from "@/lib/terrain";
+import { BufferAttribute, Mesh, PlaneGeometry } from "three";
+import { SECTION, TERRAIN, height, roadDistance, terrainGrid } from "@/lib/terrain";
+import { groundMaterial } from "./groundMaterial";
 
-/* Vertex tints, multiplied by the act's ground colour (the Director lerps the material colour per act). */
-// Tints work in linear light: the churam's ground 0x1f4a2c is ~(0.014, 0.069, 0.025) linear, so stone grey needs a big red/blue lift.
-const ROCK = [6.2, 1.3, 3.1]; // weathered grey stone on steep faces (~0x56544e under the churam palette)
-const ROCK_SLOPE = [0.84, 0.68]; // normal.y: fully grass above the first, fully rock below the second
-
-/** Cheap deterministic noise for patchy grass, so the faceted ground reads as layered rather than flat. */
-const patch = (x: number, z: number) => 0.75 + 0.6 * (0.5 + 0.5 * Math.sin(x * 0.37 + Math.sin(z * 0.21) * 2.1) * Math.cos(z * 0.29 - x * 0.11));
+/* Within this distance of the road the fine RoadBand is the visible surface; the coarse mesh drops out of its way. */
+const UNDER_BAND = { from: SECTION.reach - 2.5, depth: 1.5 };
 
 /**
  * Ground mesh. With the baked heightmap loaded it covers the heightmap's footprint;
  * `segments = size - 1` puts one vertex on every sample. Otherwise the procedural stand-in.
- * Steep faces (the road cuts, the escarpment) shade to rock.
+ * Shaded by the shared physically based ground material (moss on gentle ground, rock on steep faces).
  */
 export default function Terrain({ segments = 160 }: { segments?: number }) {
-  const { geometry, x, z } = useMemo(() => {
+  const mesh = useMemo(() => {
     const grid = terrainGrid();
     const width = grid?.width ?? TERRAIN.width, length = grid?.length ?? TERRAIN.length;
     const x = grid ? grid.west + width / 2 : 0, z = grid ? grid.north + length / 2 : TERRAIN.offsetZ;
     const geo = new PlaneGeometry(width, length, segments, grid ? segments : Math.round((segments * length) / width));
     geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, height(pos.getX(i) + x, pos.getZ(i) + z));
-    geo.computeVertexNormals();
-
-    const normal = geo.attributes.normal, colour = new Float32Array(pos.count * 3);
+    const pos = geo.attributes.position, dist = new Float32Array(pos.count);
     for (let i = 0; i < pos.count; i++) {
-      const flat = MathUtils.smoothstep(normal.getY(i), ROCK_SLOPE[1], ROCK_SLOPE[0]), grass = patch(pos.getX(i) + x, pos.getZ(i) + z);
-      for (let c = 0; c < 3; c++) colour[i * 3 + c] = MathUtils.lerp(ROCK[c], grass, flat);
+      const wx = pos.getX(i) + x, wz = pos.getZ(i) + z, d = roadDistance(wx, wz);
+      pos.setY(i, height(wx, wz) - (d < UNDER_BAND.from ? UNDER_BAND.depth : 0));
+      dist[i] = Math.min(d, 99);
     }
-    geo.setAttribute("color", new BufferAttribute(colour, 3));
-    return { geometry: geo, x, z };
+    geo.setAttribute("aRoadDist", new BufferAttribute(dist, 1));
+    geo.computeVertexNormals();
+    const m = new Mesh(geo, groundMaterial());
+    m.position.set(x, 0, z);
+    m.receiveShadow = true;
+    m.name = "terrain";
+    return m;
   }, [segments]);
-  return (
-    <mesh geometry={geometry} position-x={x} position-z={z} name="terrain">
-      <meshLambertMaterial color={0x1f4a2c} vertexColors flatShading />
-    </mesh>
-  );
+  return <primitive object={mesh} />;
 }

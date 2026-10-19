@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import {
   BufferAttribute, BufferGeometry, CatmullRomCurve3, Color, CylinderGeometry, IcosahedronGeometry,
-  InstancedMesh, Matrix4, MeshLambertMaterial, Quaternion, Vector3,
+  InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3,
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { bendTs, height } from "@/lib/terrain";
@@ -47,8 +47,8 @@ const SHAPES = [
   ]) },
 ];
 const DARK = new Color(0x123020), LIGHT = new Color(0x3c6a3e);
-const BEND_CLEAR = 9; // units round each hairpin apex kept free of trees
-const ROAD_CLEAR = 7; // units from the centre line: crowns stay out of the follow camera's path above the road
+const BEND_CLEAR = 3; // units round each hairpin apex kept free of trees
+const ROAD_CLEAR = 1.6; // units from the centre line: past the shoulder and drain (true scale)
 
 /** The green wall: trees scattered either side of the road, kept off it and off the cut rock faces. */
 export default function Forest({ curve, count = 1800 }: { curve: CatmullRomCurve3; count?: number }) {
@@ -57,7 +57,7 @@ export default function Forest({ curve, count = 1800 }: { curve: CatmullRomCurve
     const n = Math.max(400, Math.ceil(curve.getLength()));
     for (let i = 0; i <= n; i++) samples.push(curve.getPointAt(i / n));
     const apexes = bendTs().map((t) => curve.getPointAt(t));
-    const material = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    const material = new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.85 }); // replaced by photo-real trees in phase 2
     const out = SHAPES.map((s) => new InstancedMesh(s.geo(), material, Math.ceil(count * s.share)));
     const placed = out.map(() => 0);
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color();
@@ -86,6 +86,7 @@ export default function Forest({ curve, count = 1800 }: { curve: CatmullRomCurve
       placed[kind]++;
     }
     out.forEach((mesh, k) => {
+      mesh.castShadow = true;
       mesh.count = placed[k];
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

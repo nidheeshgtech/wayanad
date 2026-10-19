@@ -1,6 +1,6 @@
 "use client";
 import { useMemo } from "react";
-import { CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshLambertMaterial, BoxGeometry, SRGBColorSpace, Sprite, SpriteMaterial, Vector3 } from "three";
+import { CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, BoxGeometry, SRGBColorSpace, Sprite, SpriteMaterial, Vector3 } from "three";
 import { bendTs, height } from "@/lib/terrain";
 
 /** The plate: hairpin number in the counter's amber on the site's dark green, "of 9" beneath. */
@@ -19,18 +19,18 @@ function plate(n: number) {
 /** A sign at each of the nine hairpins, on the valley side of the apex, always turned to face the camera. */
 export default function BendSigns({ curve }: { curve: CatmullRomCurve3 }) {
   const group = useMemo(() => {
-    const g = new Group(), side = new Vector3(), post = new BoxGeometry(0.16, 4.4, 0.16), postMat = new MeshLambertMaterial({ color: 0x3a3a36 });
+    const g = new Group(), side = new Vector3(), post = new BoxGeometry(0.008, 0.22, 0.008), postMat = new MeshStandardMaterial({ color: 0x55554f, roughness: 0.6, metalness: 0.4 });
     bendTs().forEach((t, i) => {
       const p = curve.getPointAt(t), tan = curve.getTangentAt(t);
       side.set(tan.z, 0, -tan.x).normalize();
       // valley side, matching the barrier posts
       const out = height(p.x + side.x * 5, p.z + side.z * 5) < height(p.x - side.x * 5, p.z - side.z * 5) ? 1 : -1;
-      const at = p.clone().addScaledVector(side, out * 1.8);
+      const at = p.clone().addScaledVector(side, out * 0.68); // on the shoulder, just past the asphalt
       const ground = height(at.x, at.z);
-      const pole = new Mesh(post, postMat); pole.position.set(at.x, ground + 2.2, at.z); g.add(pole);
+      const pole = new Mesh(post, postMat); pole.position.set(at.x, ground + 0.11, at.z); pole.castShadow = true; g.add(pole);
       const sign = new Sprite(new SpriteMaterial({ map: plate(i + 1) }));
-      // sized to read from the drone camera ~25 units up (a real sign would be ~1 m; this one is legibility, not scale)
-      sign.scale.set(2.6, 3.25, 1); sign.position.set(at.x, ground + 5.8, at.z);
+      // a real road sign: about 1.2 × 1.5 m, its foot 2 m up
+      sign.scale.set(0.12, 0.15, 1); sign.position.set(at.x, ground + 0.27, at.z);
       g.add(sign);
     });
     return g;
