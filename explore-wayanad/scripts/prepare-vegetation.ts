@@ -23,6 +23,11 @@ const SOURCES: Record<string, [string, number]> = {
   fern: ["hf_20261019_110610_28cbc2c4-6cb5-47ac-a561-b07163ff3e5f.png", 256],
   grass: ["hf_20261019_110610_fbc08655-d7d8-4f9e-82cd-41c6c3db8348.png", 256],
   bush: ["hf_20261019_110611_0eb6f6ed-4989-4f37-af25-384471db54dc.png", 256],
+  "tree-fig": ["hf_20261019_182154_ea6e156d-aff1-462a-bf84-e9eba7592ee0.png", 512],
+  "tree-emergent": ["hf_20261019_182156_ad54c2b1-9151-4ab5-989f-ff64e140e94e.png", 512],
+  banana: ["hf_20261019_182155_0dfc7657-c852-4f98-ac7b-85cb46a048d7.png", 384],
+  shrub: ["hf_20261019_182155_2b9fae5d-ef7d-4e37-8664-7703db5b7c4c.png", 256],
+  creeper: ["hf_20261019_182155_85c05b88-b3ad-4a9d-99be-1b2146b2a267.png", 384],
 };
 const ROOT = path.resolve(import.meta.dirname, "..");
 const OUT = path.join(ROOT, "public/vegetation");

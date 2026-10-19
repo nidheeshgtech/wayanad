@@ -18,6 +18,7 @@ import Gateway from "./Gateway";
 import Town, { townCircles } from "./Town";
 import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
+import Creepers from "./Creepers";
 import Rain from "./Rain";
 import ValleyClouds from "./ValleyClouds";
 import Particles from "./Particles";
@@ -92,6 +93,7 @@ function World({ small }: { small: boolean }) {
       <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
       <Road curve={curve} detail={detail} />
       <RetainingWalls curve={curve} />
+      <Creepers curve={curve} density={small ? 0.5 : 1} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
       <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />
