@@ -33,12 +33,12 @@ export default function Act({ content, children, onProgress }: {
       end: isPlan ? "bottom bottom" : `+=${Math.round(window.innerHeight * content.length)}`,
       pin: !isPlan && !reduce,
       scrub: content.scrub ?? 0.6,
-      onToggle: (self) => { if (self.isActive) { scrollState.act = content.id; hud.setGrade(PALETTE[content.id].grade); } },
+      onToggle: (self) => { if (self.isActive) { scrollState.act = content.id; hud.setGrade(PALETTE[content.id].grade); hud.showCounter(content.id === "churam" || content.id === "border"); } },
       onUpdate: (self) => {
         const p = self.progress;
         scrollState.act = content.id; scrollState.progress = p;
         if (!reduce) lines.forEach((l, i) => {
-          const k = gsap.utils.clamp(0, 1, (p - i * 0.08) * 6);
+          const from = content.reveal ?? 0, k = gsap.utils.clamp(0, 1, ((p - from) / (1 - from) - i * 0.08) * 6);
           l.style.opacity = String(k); l.style.transform = `translateY(${(1 - k) * 14}px)`;
         });
         onProgress?.(p);

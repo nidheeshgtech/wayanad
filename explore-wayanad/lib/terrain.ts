@@ -11,36 +11,45 @@ export const GEO = {
   verticalExaggeration: 1,
 };
 
-/* Real terrain, once setHeightmap() has run: the baked Copernicus GLO-30 grid placed in world units. */
-type Field = { hm: Heightmap; west: number; north: number; cellX: number; cellZ: number; base: number; perLat: number; perLon: number };
-let field: Field | null = null;
+/* Real terrain, once setHeightmaps() has run: baked Copernicus GLO-30 grids placed in world units — the churam tile,
+ * and the plateau tile north of it. One projection for all (the churam tile's metres per degree), so tiles and road agree. */
+type Field = { hm: Heightmap; west: number; north: number; cellX: number; cellZ: number; east: number; south: number };
+let fields: Field[] = [];
+let field: Field | null = null; // the churam tile: the origin's ground, the projection, the procedural fallback test
+const proj = { perLat: 0, perLon: 0, base: 0 };
 
-/* Real road, once setHeightmap() has a road: NH766 in world units, its smoothed bed, and a hash for distance queries. */
-type RealRoad = { curve: CatmullRomCurve3; bends: number[]; arch: number; index: RoadIndex; cumT: Float32Array };
+/* Real road, once there is a road: NH766 in world units, its smoothed bed, and a hash for distance queries. */
+type RealRoad = { curve: CatmullRomCurve3; bends: number[]; arch: number; churamEnd: number; places: { name: string; t: number; off: number }[]; index: RoadIndex; cumT: Float32Array };
 let road: RealRoad | null = null;
 
-export function setHeightmap(hm: Heightmap, roadData?: RoadData | null) {
-  const { bounds: b, size, metres } = hm, s = GEO.unitsPerMetre, { lat, lon } = GEO.origin;
-  const perLon = metres.width / (b.east - b.west), perLat = metres.height / (b.north - b.south);
-  const next: Field = {
-    hm, perLat, perLon,
-    west: (b.west - lon) * perLon * s,
-    north: -(b.north - lat) * perLat * s,
-    cellX: (metres.width * s) / (size - 1),
-    cellZ: (metres.height * s) / (size - 1),
-    base: 0,
-  };
-  next.base = elevation(next, 0, 0);
-  field = next;
+/** The first heightmap is the churam's (Adivaram is on it); any others extend the ground, e.g. onto the plateau. */
+export function setHeightmaps(maps: Heightmap[], roadData?: RoadData | null) {
+  const [first] = maps, s = GEO.unitsPerMetre, { lat, lon } = GEO.origin;
+  proj.perLon = first.metres.width / (first.bounds.east - first.bounds.west);
+  proj.perLat = first.metres.height / (first.bounds.north - first.bounds.south);
+  fields = maps.map((hm) => {
+    const b = hm.bounds, n = hm.size - 1;
+    const west = (b.west - lon) * proj.perLon * s, east = (b.east - lon) * proj.perLon * s;
+    const north = -(b.north - lat) * proj.perLat * s, south = -(b.south - lat) * proj.perLat * s;
+    return { hm, west, north, east, south, cellX: (east - west) / n, cellZ: (south - north) / n };
+  });
+  field = fields[0];
+  proj.base = elevation(field, 0, 0);
   road = roadData ? buildRealRoad(roadData) : null;
 }
 
-/** lat/lon → world x, z in the heightmap's frame. */
-function toWorld(f: Field, lat: number, lon: number) {
-  return { x: (lon - GEO.origin.lon) * f.perLon * GEO.unitsPerMetre, z: -(lat - GEO.origin.lat) * f.perLat * GEO.unitsPerMetre };
+/** lat/lon → world x, z. */
+function toWorld(_f: Field, lat: number, lon: number) {
+  return { x: (lon - GEO.origin.lon) * proj.perLon * GEO.unitsPerMetre, z: -(lat - GEO.origin.lat) * proj.perLat * GEO.unitsPerMetre };
 }
 
-/** Bilinear elevation in metres at world (x, z); clamps to the edge outside the baked bounds. */
+/** The tile under (x, z): the first that contains it, else the churam tile (clamped at its edge). */
+function fieldAt(x: number, z: number) {
+  for (const f of fields) if (x >= f.west && x <= f.east && z >= f.north && z <= f.south) return f;
+  return field!;
+}
+
+/** Bilinear elevation in metres at world (x, z) within one tile; clamps to its edge outside it. */
 function elevation(f: Field, x: number, z: number) {
   const n = f.hm.size - 1, d = f.hm.data;
   const cx = MathUtils.clamp((x - f.west) / f.cellX, 0, n), cz = MathUtils.clamp((z - f.north) / f.cellZ, 0, n);
@@ -50,16 +59,21 @@ function elevation(f: Field, x: number, z: number) {
   return top * (1 - fz) + bottom * fz;
 }
 
-/** Terrain height before the road is cut in. */
-function groundHeight(f: Field, x: number, z: number) {
-  return (elevation(f, x, z) - f.base) * GEO.unitsPerMetre * GEO.verticalExaggeration;
+/** Terrain height before the road is cut in, from whichever tile covers (x, z). */
+function groundHeight(_f: Field, x: number, z: number) {
+  return (elevation(fieldAt(x, z), x, z) - proj.base) * GEO.unitsPerMetre * GEO.verticalExaggeration;
 }
 
-/** World-space rectangle covered by the heightmap and its sample spacing; null while procedural. */
+/** Every tile's world rectangle and sample count (for one terrain mesh each); empty while procedural. */
+export function terrainGrids() {
+  return fields.map((f, i) => ({
+    index: i, west: f.west, north: f.north, width: f.east - f.west, length: f.south - f.north, size: f.hm.size, attribution: f.hm.attribution,
+  }));
+}
+
+/** The churam tile's world rectangle; null while procedural. */
 export function terrainGrid() {
-  if (!field) return null;
-  const n = field.hm.size - 1;
-  return { west: field.west, north: field.north, width: field.cellX * n, length: field.cellZ * n, size: field.hm.size, attribution: field.hm.attribution };
+  return terrainGrids()[0] ?? null;
 }
 
 /* ---- the real road ----
@@ -120,7 +134,11 @@ function buildRealRoad(data: RoadData): RealRoad {
     wall[i] = Math.max(wall[i], 1 - MathUtils.smoothstep(m, HAIRPIN.wallSpan * 0.75, HAIRPIN.wallSpan));
   }
   const cumT = Float32Array.from(cum, (c) => c / cum[n - 1]);
-  return { curve, bends: data.bends.map((b) => tAt(b.along)), arch: tAt(data.arch.along), index: { cell, buckets, xs, zs, bed, widen, wall }, cumT };
+  return {
+    curve, bends: data.bends.map((b) => tAt(b.along)), arch: tAt(data.arch.along), churamEnd: tAt(data.churamEnd ?? data.length),
+    places: (data.places ?? []).map((p) => ({ name: p.name, t: tAt(p.along), off: p.off })),
+    index: { cell, buckets, xs, zs, bed, widen, wall }, cumT,
+  };
 }
 
 const bucketKey = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
@@ -246,6 +264,16 @@ export function buildRoadCurve() {
 /** t along the road curve at each hairpin apex, 1 → 9. Procedural: the prototype's evenly spaced counter thresholds. */
 export function bendTs(): number[] {
   return road ? road.bends : Array.from({ length: ROAD.bends }, (_, i) => (0.88 * (i + 1)) / 9.99);
+}
+
+/** t where Act 1 (the churam) hands over to Act 2 (Lakkidi → Kalpetta); 0.98 on the procedural road (no Act 2 road). */
+export function churamEndT(): number {
+  return road ? road.churamEnd : 0.98;
+}
+
+/** Named places along Act 2 (Pookode Lake, Vythiri, Chundale, Kalpetta) as t on the curve, and metres off the road. */
+export function placesT() {
+  return road ? road.places : [];
 }
 
 /** t along the curve where the Lakkidi gateway stands. */

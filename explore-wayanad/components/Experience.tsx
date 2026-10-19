@@ -10,6 +10,7 @@ import Churam from "./acts/Churam";
 import Simple from "./acts/Simple";
 import ForestRoad from "./acts/ForestRoad";
 import Border from "./acts/Border";
+import Plateau from "./acts/Plateau";
 import styles from "./acts/Act.module.scss";
 
 const Scene = dynamic(() => import("./scene/Scene"), { ssr: false });
@@ -31,9 +32,9 @@ export default function Experience() {
         <Churam />
         {ACTS.slice(1).map((a) =>
           a.id === "forest" ? <ForestRoad key={a.id} content={a} /> :
+          a.id === "kalpetta" ? <Plateau key={a.id} content={a}><CompassCards /></Plateau> :
           a.id === "border" ? <Border key={a.id} content={a} /> : (
             <Simple key={a.id} content={a}>
-              {a.id === "kalpetta" && <CompassCards />}
               {a.id === "stay" && <StayCards />}
               {a.id === "plan" && <PlanRows />}
             </Simple>

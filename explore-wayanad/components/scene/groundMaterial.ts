@@ -1,4 +1,7 @@
 import { wetUniform } from "@/lib/weather";
+import { ESTATES, ESTATE_GLSL, estateUniforms } from "@/lib/estates";
+
+const ESTATES_ROW = ESTATES.row.toFixed(3);
 import { MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, TextureLoader } from "three";
 
 /* Poly Haven CC0 textures, fetched by scripts/fetch-textures.ts. Scales are repeats per unit (1 unit = 10 m). */
@@ -31,9 +34,9 @@ export function groundMaterial() {
     uGroundScale: { value: GROUND_SCALE }, uRockScale: { value: ROCK_SCALE }, uWet: wetUniform,
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 });
-  m.customProgramCacheKey = () => "explore-wayanad-ground-1";
+  m.customProgramCacheKey = () => "explore-wayanad-ground-3";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, uniforms, estateUniforms);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute float aRoadDist;\nvarying vec3 vWorldPos;\nvarying vec3 vWorldNormal;\nvarying float vRoadDist;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -46,7 +49,8 @@ export function groundMaterial() {
         varying vec3 vWorldNormal;
         varying float vRoadDist;
         uniform sampler2D tGround, tGroundN, tRock, tRockN;
-        uniform float uGroundScale, uRockScale, uWet;`)
+        uniform float uGroundScale, uRockScale, uWet;
+        ${ESTATE_GLSL}`)
       .replace("#include <map_fragment>", `
         vec3 wN = normalize(vWorldNormal);
         float flatness = smoothstep(0.62, 0.86, wN.y);
@@ -66,6 +70,14 @@ export function groundMaterial() {
         vec3 albedo = mix(rock, ground, flatness) * (0.75 + 0.5 * macro);
         // packed earth and grit on the shoulders and drains, fading into the verge
         albedo = mix(albedo, albedo * vec3(0.78, 0.66, 0.54) + vec3(0.05, 0.04, 0.03), (1.0 - smoothstep(0.7, 1.15, vRoadDist)) * 0.8);
+        // tea estates (lib/estates): bright tea green in contour rows of rounded bushes, a dark path between rows,
+        // leafy detail from the litter texture; the road's verge stays as it is
+        float tea = teaMask(vWorldPos, flatness) * smoothstep(1.2, 2.0, vRoadDist);
+        float teaRow = teaPhase(vWorldPos.y);
+        // rows show only on real slopes (on the flat they'd spread into rings) and fade before they'd shimmer far away
+        float rows = smoothstep(0.08, 0.25, length(wN.xz) / max(wN.y, 0.1)) * (1.0 - smoothstep(0.2, 0.45, fwidth(vWorldPos.y) / ${ESTATES_ROW}));
+        vec3 teaGreen = vec3(0.14, 0.31, 0.035) * (0.75 + 0.6 * lum) * mix(0.85, 0.7 + 0.3 * sin(teaRow * 3.14159), rows);
+        albedo = mix(albedo, mix(teaGreen, vec3(0.09, 0.07, 0.05), smoothstep(0.82, 0.92, teaRow) * rows), tea);
         diffuseColor.rgb *= albedo * mix(1.0, mix(0.85, 0.7, 1.0 - flatness), uWet); // damp: darker, rock most`)
       .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(mix(0.72, 0.38, uWet), mix(0.95, 0.85, uWet), flatness); // rock picks up a sheen when wet; earth and moss stay matte")
       .replace("#include <normal_fragment_maps>", `
@@ -79,7 +91,11 @@ export function groundMaterial() {
         vec3 rockN = normalize(tnx.zyx * bw.x + tny.xzy * bw.y + tnz.xyz * bw.z);
         vec3 tg = texture2D(tGroundN, gUv).xyz * 2.0 - 1.0;
         vec3 groundN = normalize(vec3(tg.x + wN.x, abs(tg.z) * wN.y, tg.y + wN.z));
-        normal = normalize((viewMatrix * vec4(normalize(mix(rockN, groundN, flatness)), 0.0)).xyz);`);
+        vec3 worldN = normalize(mix(rockN, groundN, flatness));
+        // tea rows: the surface rises and falls across each row (rounded bushes), along the slope's direction
+        vec2 downhill = wN.xz / max(length(wN.xz), 1e-3);
+        worldN = normalize(worldN + vec3(downhill.x, 0.0, downhill.y) * cos(teaRow * 6.2832) * 0.45 * tea * rows);
+        normal = normalize((viewMatrix * vec4(worldN, 0.0)).xyz);`);
   };
   shared = m;
   return m;

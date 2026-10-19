@@ -14,19 +14,27 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-const BBOX = "11.44,75.94,11.57,76.07"; // S,W,N,E — a margin around the heightmap bounds
+const BBOX = "11.44,75.94,11.66,76.16"; // S,W,N,E — a margin around both heightmaps (churam and plateau)
 const ADIVARAM = { lat: 11.4849767, lon: 76.0126133 }; // OSM place node, same origin as lib/terrain.ts
-const PAST_LAKKIDI = { lat: 11.545, lon: 76.039 }; // a point on NH766 towards Vythiri, used only to route past the top
+const KALPETTA = { lat: 11.610278, lon: 76.08281 }; // OSM place node: the drive ends in the town centre
 const VIEWPOINT_NAME = /Lakkidi viewpoint/i;
 /* The "Welcome to Wayanad" gateway. Not in OSM (as of 2026-10-19), so placed by hand: the road runs straight through it
  * in photographs, with shops just beyond, which fits the start of the straight north of the last bend, ~700 m before
  * the Lakkidi bus stop. Metres from Adivaram; verify against Google Maps / on site and adjust. */
 const GATE_ALONG = 12150;
-const ROAD_PAST_GATE = 900; // metres of road kept beyond the gate: the first stretch of Lakkidi's shops
+const CHURAM_PAST_GATE = 900; // metres past the gate where Act 1 ends and Act 2 (Lakkidi → Kalpetta) takes over
+/* Places along Act 2, by OSM place/water node (Nominatim, 2026-10-19). Pookode Lake lies ~1.5 km off the road: its
+ * `along` is the nearest point of the road, where you'd glimpse it. */
+const PLACES = [
+  { name: "Pookode Lake", lat: 11.5423338, lon: 76.0273064 },
+  { name: "Vythiri", lat: 11.5560885, lon: 76.038922 },
+  { name: "Chundale", lat: 11.5740364, lon: 76.0591416 },
+  { name: "Kalpetta", lat: 11.610278, lon: 76.08281 },
+];
 const STEP = 10; // metres between resampled points
 const BENDS = 9;
 const OUT = path.resolve(import.meta.dirname, "../public/terrain/churam-road.json");
-const CACHE = path.resolve(import.meta.dirname, ".cache/overpass-nh766.json");
+const CACHE = path.resolve(import.meta.dirname, ".cache/overpass-nh766-kalpetta.json");
 
 type LatLon = { lat: number; lon: number };
 type OsmWay = { type: "way"; id: number; nodes: number[]; geometry: LatLon[]; tags: Record<string, string> };
@@ -37,14 +45,24 @@ async function overpass(): Promise<(OsmWay | OsmNode)[]> {
   const query = `[out:json][timeout:90];
     way["highway"]["ref"~"(^|;)\\s*NH\\s*766\\s*($|;)"](${BBOX});out geom;
     node["name"](${BBOX})["tourism"="viewpoint"];out;
-    node["name"~"[Hh]air ?pin"](${BBOX});out;`;
-  const res = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "User-Agent": "explore-wayanad-bake/0.1", "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ data: query }),
-  });
-  if (!res.ok) throw new Error(`Overpass ${res.status}: ${await res.text()}`);
-  const json = await res.json();
+    node["name"~"[Hh]air ?pin"](${BBOX});out;
+    node["name"~"[Cc]hain ?[Tt]ree"](${BBOX});out;`;
+  // the public Overpass servers are often at capacity: retry with backoff, alternating between two of them
+  const servers = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+  let json: { elements: (OsmWay | OsmNode)[] } | null = null, last = "";
+  for (let attempt = 0; attempt < 8 && !json; attempt++) {
+    if (attempt) { const wait = Math.min(60, 5 * 2 ** (attempt - 1)); console.log(`  Overpass busy (${last}), retrying in ${wait} s`); await new Promise((r) => setTimeout(r, wait * 1000)); }
+    try {
+      const res = await fetch(servers[attempt % servers.length], {
+        method: "POST",
+        headers: { "User-Agent": "explore-wayanad-bake/0.1", "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ data: query }),
+      });
+      const text = await res.text();
+      if (res.ok && text.startsWith("{")) json = JSON.parse(text); else last = `HTTP ${res.status}`;
+    } catch (err) { last = String(err); }
+  }
+  if (!json) throw new Error(`Overpass unavailable after retries (${last})`);
   await mkdir(path.dirname(CACHE), { recursive: true });
   await writeFile(CACHE, JSON.stringify(json));
   return json.elements;
@@ -125,7 +143,7 @@ const ll0 = (p: { x: number; y: number }) => { const q = toLatLon(p.x, p.y); ret
 
 /* ---- bake ---- */
 
-console.log("OpenStreetMap NH766 → churam road");
+console.log("OpenStreetMap NH766 → Adivaram to Kalpetta");
 const elements = await overpass();
 const ways = elements.filter((e): e is OsmWay => e.type === "way");
 const named = elements.filter((e): e is OsmNode => e.type === "node" && !!e.tags?.name);
@@ -133,12 +151,12 @@ const viewpoint = named.find((n) => VIEWPOINT_NAME.test(n.tags!.name));
 if (!viewpoint) throw new Error("Lakkidi viewpoint node not found in OSM");
 console.log(`  ${ways.length} NH766 ways, viewpoint "${viewpoint.tags!.name}"`);
 
-const full = resample(shortestPath(ways, ADIVARAM, PAST_LAKKIDI), STEP);
+const full = resample(shortestPath(ways, ADIVARAM, KALPETTA), STEP);
 const nearestAlong = (p: LatLon) => full.points.reduce((b, q) => { const d = Math.hypot(q.x - toXY(p).x, q.y - toXY(p).y); return d < b.d ? { along: q.along, d } : b; }, { along: 0, d: Infinity });
 const arch = { along: GATE_ALONG, d: 0 };
-const length = Math.min(full.length, GATE_ALONG + ROAD_PAST_GATE);
+const length = full.length;
 const points = full.points.filter((p) => p.along <= length);
-console.log(`  road ${(full.length / 1000).toFixed(2)} km routed, kept ${(length / 1000).toFixed(2)} km; gate at ${(arch.along / 1000).toFixed(2)} km (viewpoint at ${(nearestAlong(viewpoint).along / 1000).toFixed(2)} km)`);
+console.log(`  road ${(full.length / 1000).toFixed(2)} km to Kalpetta; gate at ${(arch.along / 1000).toFixed(2)} km (viewpoint at ${(nearestAlong(viewpoint).along / 1000).toFixed(2)} km)`);
 
 // Candidates: the heading turns more than 140° within ±70 m. The detector finds 12 below the arch; HAIRPINS_KM picks the nine.
 const candidates = findHairpins(points, 7, 140).filter((b) => points[b.index].along < arch.along);
@@ -181,7 +199,13 @@ const out = {
   bends: found.map((b, i) => { const [lat, lon] = ll(points[b.index]); return { n: i + 1, lat, lon, along: Math.round(points[b.index].along) }; }),
   arch: (() => { const g = points[Math.round(GATE_ALONG / STEP)]; const [lat, lon] = ll(g); return { lat, lon, along: GATE_ALONG, note: "Placed by hand on the straight north of the last bend; not in OSM. Verify." }; })(),
   viewpoint: { lat: round(viewpoint.lat), lon: round(viewpoint.lon), along: Math.round(nearestAlong(viewpoint).along) },
+  churamEnd: GATE_ALONG + CHURAM_PAST_GATE,
+  places: [
+    ...PLACES.map((pl) => { const a = nearestAlong(pl); return { name: pl.name, lat: pl.lat, lon: pl.lon, along: Math.round(a.along), off: Math.round(a.d) }; }),
+    ...named.filter((n) => /chain ?tree/i.test(n.tags!.name)).map((n) => { const a = nearestAlong(n); return { name: "Chain Tree", lat: round(n.lat), lon: round(n.lon), along: Math.round(a.along), off: Math.round(a.d) }; }),
+  ],
 };
+for (const pl of out.places) console.log(`  ${pl.name.padEnd(13)} ${(pl.along / 1000).toFixed(2)} km along, ${pl.off} m off the road`);
 await mkdir(path.dirname(OUT), { recursive: true });
 await writeFile(OUT, JSON.stringify(out) + "\n");
 console.log(`  wrote ${path.relative(process.cwd(), OUT)} · ${out.points.length} points · ${(JSON.stringify(out).length / 1024).toFixed(0)} KB`);

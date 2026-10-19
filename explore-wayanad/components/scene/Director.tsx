@@ -3,7 +3,7 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
-import { driveT } from "@/lib/drive";
+import { driveT, driveT2 } from "@/lib/drive";
 import { mistPatch, weather } from "@/lib/weather";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
@@ -35,6 +35,8 @@ function churamMood(t: number, bends: number[]) {
  * `bob` is a barely-there vertical drift from the road surface: enough to feel moving, not enough to sway. */
 const BUS = { eye: 0.28, lane: 0, ahead: 4, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004 };
 const WHITE = new Color(0xffffff);
+/* Act 2's end: over the last part of the act the camera rises `rise` units over Kalpetta, aim pushed `ahead` and down. */
+const HUB = { from: 0.84, rise: 9, ahead: 10 };
 /* Churam sky and haze colours for clear and full cloud (lib/weather blends between them), and for thick mist. */
 const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2);
 const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST = new Color(0xd9dee0);
@@ -76,8 +78,9 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     const fog = scene.fog as FogExp2;
 
     /* ---- camera ---- */
-    if (act === "churam") {
-      const t = driveT(p);
+    const driving = act === "churam" || act === "kalpetta";
+    if (driving) {
+      const t = act === "churam" ? driveT(p) : driveT2(p);
       const pt = curve.getPointAt(t), ahead = curve.getPointAt(Math.min(0.999, t + BUS.ahead / length));
       // look where the road goes: the point BUS.ahead along it (round a hairpin that's the exit, never the bank beside you);
       // the easing and turn limit below filter out the small wobbles in the mapped centre line
@@ -97,6 +100,12 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
       camera.position.copy(tmp.current);
       look.current.copy(tmp.current).addScaledVector(heading.current, BUS.ahead);
       look.current.y = ahead.y - 0.6 + BUS.eye * 0.7; // follow the climb, eyes a touch below the horizon
+      // arriving in Kalpetta, the storyboard's low aerial: rise above the hub and look down the road into town
+      if (act === "kalpetta") {
+        const k = MathUtils.smoothstep(p, HUB.from, 1);
+        camera.position.y += k * HUB.rise;
+        look.current.addScaledVector(heading.current, k * HUB.ahead).y -= k * HUB.rise * 0.6;
+      }
       aim.current.copy(look.current);
       // lean into the turn, like a cabin on its springs
       roll.current += (MathUtils.clamp(-step / Math.max(delta, 1e-3) * BUS.lean, -MathUtils.degToRad(BUS.maxLean), MathUtils.degToRad(BUS.maxLean)) - roll.current) * 0.05;
@@ -114,16 +123,17 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     }
     // ease the aim too, so the view never snaps to a new target (hairpins, act changes)
     if (aim.current.lengthSq() === 0) aim.current.copy(look.current);
-    if (act !== "churam") aim.current.lerp(look.current, 0.06);
+    if (!driving) aim.current.lerp(look.current, 0.06);
     camera.lookAt(aim.current);
-    if (act === "churam") camera.rotateZ(roll.current);
+    if (driving) camera.rotateZ(roll.current);
 
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;
     let sky = SKY_CLEAR, fogTint = FOG_CLEAR;
-    if (act === "churam") {
-      const t = driveT(p);
-      ({ fog: fogDensity, mist } = churamMood(t, scrollState.bends));
+    if (driving) {
+      const t = act === "churam" ? driveT(p) : driveT2(p);
+      // the churam's base haze rises with the ghat; the plateau keeps the haze it had at the top
+      ({ fog: fogDensity, mist } = act === "churam" ? churamMood(t, scrollState.bends) : { fog: 0.005, mist: 0.06 });
       // weather: banks of mist along the road (some stretches clear), thicker overall in mist and drizzle; capped so the
       // road ahead stays readable (0.045 → the road 15 m ahead is ~95 % visible, 150 m ahead mostly hidden)
       fogDensity += weather.mist * (0.35 + 0.65 * mistPatch(t)) * 0.04 + weather.cloud * 0.003;
@@ -133,8 +143,8 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     }
     // fireflies come out through Stay, peak at Night, and fade over Plan
     const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
-    fog.color.lerp(act === "churam" ? fogTint : tmpFog.current.set(P.fog), 0.05);
-    (scene.background as Color).lerp(act === "churam" ? sky : tmpSky.current.set(P.sky), 0.05);
+    fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog), 0.05);
+    (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky), 0.05);
     // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
     gl.toneMappingExposure += (1.1 - 0.17 * weather.cloud - gl.toneMappingExposure) * 0.05;
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly

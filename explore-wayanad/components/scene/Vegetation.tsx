@@ -7,8 +7,9 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from "three";
 import CARDS from "@/data/vegetation.json";
-import { SECTION, archT, height, roadDistance } from "@/lib/terrain";
+import { SECTION, archT, churamEndT, height, roadDistance } from "@/lib/terrain";
 import { inTown, townPlan } from "./Town";
+import { teaAt } from "@/lib/estates";
 
 /* Species, true scale (1 unit = 10 m). Plants are cut-out cards (public/vegetation, see its README).
  * `perUnit`: plants per unit of road; `zone`: distance band from the road's centre line where they grow;
@@ -24,6 +25,8 @@ const SPECIES: Species[] = [
   { name: "palm-coconut", tall: [1.5, 2.2], perUnit: 0.6, zone: [1.5, 12], sway: 0.03, trunk: true, lowland: true },
   { name: "tree-evergreen", tall: [2.5, 4.0], perUnit: 26, zone: [2, 30], sway: 0.01, trunk: true },
 ];
+/* On the plateau (Act 2) the forest gives way to tea estates and towns: each species keeps this share of its density. */
+const PLATEAU: Partial<Record<keyof typeof CARDS, number>> = { grass: 0.6, fern: 0.3, bush: 0.5, "tree-young": 0.45, bamboo: 0.5, "tree-broadleaf": 0.6, "palm-coconut": 0, "tree-evergreen": 0.3 };
 const CUT_FACE = 1.4; // slope (rise per unit) beyond which trees don't stand; ferns and grass still cling on
 
 /** Deterministic random numbers, so the forest is the same on every visit. */
@@ -70,7 +73,7 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
 
 export default function Vegetation({ curve, density = 1, alphaToCoverage = true }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean }) {
   const meshes = useMemo(() => {
-    const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve);
+    const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve), plateauFrom = churamEndT();
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
     return SPECIES.map((s) => {
       const map = loader.load(`/vegetation/${s.name}.webp`);
@@ -78,17 +81,21 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true 
       const material = new MeshStandardMaterial({ map, alphaTest: 0.45, side: DoubleSide, roughness: 1, alphaToCoverage });
       material.onBeforeCompile = swayShader(s.sway);
       material.customProgramCacheKey = () => `veg-${s.sway}`;
-      const count = Math.round(s.perUnit * L * density), mesh = new InstancedMesh(geo, material, count);
+      const share = PLATEAU[s.name] ?? 1, effective = L * (plateauFrom + (1 - plateauFrom) * share);
+      const count = Math.round(s.perUnit * effective * density), mesh = new InstancedMesh(geo, material, count);
       const aspect = CARDS[s.name].aspect;
       let placed = 0;
       for (let tries = 0; placed < count && tries < count * 4; tries++) {
-        const t = random(), p = curve.getPointAt(t), tan = curve.getTangentAt(t);
+        const t = random();
+        if (t > plateauFrom && random() > share) continue;
+        const p = curve.getPointAt(t), tan = curve.getTangentAt(t);
         side.set(tan.z, 0, -tan.x).normalize().multiplyScalar(random() < 0.5 ? -1 : 1);
         const [d0, d1] = s.zone, d = d0 + (d1 - d0) * random() ** 1.6; // denser toward the road
         const x = p.x + side.x * d + (random() - 0.5) * 0.6, z = p.z + side.z * d + (random() - 0.5) * 0.6;
         if (roadDistance(x, z) < d0) continue; // another leg of the road (hairpins), or back onto the shoulder
         if (t > townFrom && s.name !== "grass" && inTown(x, z, plan)) continue; // not on or against Lakkidi's buildings
         const y = height(x, z);
+        if (t > plateauFrom && s.name !== "grass" && teaAt(x, z, y) > 0.3 && random() > 0.04) continue; // estates are tea; a few shade trees stand in them
         if (s.trunk && Math.hypot(height(x + 0.2, z) - height(x - 0.2, z), height(x, z + 0.2) - height(x, z - 0.2)) / 0.4 > CUT_FACE) continue;
         if (s.lowland && random() < clamp01((y - 5) / 40)) continue; // palms thin out above ~50 m of climb, gone by ~450 m
         const tall = s.tall[0] + (s.tall[1] - s.tall[0]) * random();

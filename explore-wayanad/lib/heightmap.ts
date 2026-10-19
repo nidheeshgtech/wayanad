@@ -21,6 +21,9 @@ export type RoadData = {
   points: [number, number][];
   bends: { n: number; lat: number; lon: number; along: number }[];
   arch: { lat: number; lon: number; along: number };
+  /** metres from Adivaram where Act 1 ends and Act 2 begins (missing in older bakes: the whole road is Act 1) */
+  churamEnd?: number;
+  places?: { name: string; lat: number; lon: number; along: number; off: number }[];
   attribution: string;
 };
 
@@ -80,7 +83,7 @@ export async function decodePng16(buffer: ArrayBuffer) {
   return { width, height, data: out };
 }
 
-export async function loadHeightmap(base = "/terrain/churam"): Promise<Heightmap> {
+export async function loadHeightmap(base = "/terrain/churam"): Promise<Heightmap> { // also "/terrain/plateau"
   const [meta, png] = await Promise.all([
     fetch(`${base}.json`).then((r) => (r.ok ? (r.json() as Promise<HeightmapMeta>) : Promise.reject(new Error(`${base}.json ${r.status}`)))),
     fetch(`${base}.png`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${base}.png ${r.status}`)))),

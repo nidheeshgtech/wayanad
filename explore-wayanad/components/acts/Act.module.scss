@@ -26,3 +26,7 @@
   circle { fill: var(--amber); } }
 .stays { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-width: 560px;
   div { aspect-ratio: 4 / 3; border-radius: 10px; background: rgba(8, 24, 20, .5); border: 1px solid var(--line); padding: 10px; display: flex; align-items: flex-end; font-size: 13px; backdrop-filter: blur(6px); } }
+/* a drive act's passing caption (Act 2): sits above the copy, fades between places */
+.caption { position: fixed; left: 20px; right: 20px; top: calc(110px + env(safe-area-inset-top, 0px)); max-width: 30ch; font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(22px, 4vw, 30px); line-height: 1.15; color: var(--ink); opacity: 0; transition: opacity .6s; text-shadow: 0 1px 12px rgba(5, 14, 12, .55); pointer-events: none;
+  @media (min-width: 720px) { left: calc(50% - 320px); } }
+@media (prefers-reduced-motion: reduce) { .caption { transition: none; } }

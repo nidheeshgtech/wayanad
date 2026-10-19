@@ -7,7 +7,7 @@ import { driveT } from "@/lib/drive";
 import styles from "./MiniMap.module.scss";
 
 const W = 120, PAD = 10;
-type Drawn = { w: number; h: number; d: string; pts: [number, number][]; bends: [number, number][]; arch: [number, number] };
+type Drawn = { w: number; h: number; d: string; pts: [number, number][]; bends: [number, number][]; arch: [number, number]; all?: number };
 
 /** Real OSM road, north up, scaled into a W-wide box (longitude squeezed by cos(latitude) so the shape isn't stretched). */
 function draw(points: [number, number][], bendIdx: number[], archIdx: number): Drawn {
@@ -27,7 +27,11 @@ export default function MiniMap() {
 
   useEffect(() => {
     loadRoad()
-      .then((road) => setMap(draw(road.points, road.bends.map((b) => Math.round(b.along / road.step)), Math.round(road.arch.along / road.step))))
+      .then((road) => {
+        // the churam only: Adivaram to where Act 1 ends; `all` keeps the whole road's point count for t → index
+        const last = Math.round((road.churamEnd ?? road.length) / road.step);
+        setMap({ ...draw(road.points.slice(0, last + 1), road.bends.map((b) => Math.round(b.along / road.step)), Math.round(road.arch.along / road.step)), all: road.points.length });
+      })
       .catch(() => {}); // no map without the road file; the counter still works
   }, []);
 
@@ -38,7 +42,7 @@ export default function MiniMap() {
       if (root.current) root.current.style.opacity = act === "churam" && progress < 0.97 ? "1" : "0";
       // t on the road ≈ distance fraction (the points are evenly spaced), at the same pace as the camera and counter
       const t = driveT(progress);
-      const [x, y] = map.pts[Math.min(map.pts.length - 1, Math.round(t * (map.pts.length - 1)))];
+      const [x, y] = map.pts[Math.min(map.pts.length - 1, Math.round(t * ((map.all ?? map.pts.length) - 1)))];
       dot.current?.setAttribute("cx", x.toFixed(1));
       dot.current?.setAttribute("cy", y.toFixed(1));
     };
