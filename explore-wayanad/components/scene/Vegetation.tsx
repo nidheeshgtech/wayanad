@@ -8,7 +8,7 @@ import {
 } from "three";
 import CARDS from "@/data/vegetation.json";
 import { SECTION, archT, height, roadDistance } from "@/lib/terrain";
-import { TOWN_CLEAR } from "./Town";
+import { inTown, townPlan } from "./Town";
 
 /* Species, true scale (1 unit = 10 m). Plants are cut-out cards (public/vegetation, see its README).
  * `perUnit`: plants per unit of road; `zone`: distance band from the road's centre line where they grow;
@@ -17,12 +17,12 @@ type Species = { name: keyof typeof CARDS; tall: [number, number]; perUnit: numb
 const SPECIES: Species[] = [
   { name: "grass", tall: [0.06, 0.12], perUnit: 40, zone: [SECTION.half + 0.18, 1.6], sway: 0.05 },
   { name: "fern", tall: [0.08, 0.15], perUnit: 20, zone: [SECTION.shoulder, 3], sway: 0.03 },
-  { name: "bush", tall: [0.1, 0.2], perUnit: 12, zone: [SECTION.drain, 5], sway: 0.02 },
-  { name: "tree-young", tall: [0.4, 0.7], perUnit: 8, zone: [1.2, 8], sway: 0.025, trunk: true },
+  { name: "bush", tall: [0.1, 0.2], perUnit: 16, zone: [SECTION.drain, 5], sway: 0.02 },
+  { name: "tree-young", tall: [0.4, 0.7], perUnit: 10, zone: [1.2, 8], sway: 0.025, trunk: true },
   { name: "bamboo", tall: [1.2, 2.0], perUnit: 0.8, zone: [1.5, 12], sway: 0.04, trunk: true },
-  { name: "tree-broadleaf", tall: [1.0, 1.5], perUnit: 6, zone: [1.6, 15], sway: 0.012, trunk: true },
+  { name: "tree-broadleaf", tall: [1.0, 1.5], perUnit: 8, zone: [1.6, 15], sway: 0.012, trunk: true },
   { name: "palm-coconut", tall: [1.5, 2.2], perUnit: 0.6, zone: [1.5, 12], sway: 0.03, trunk: true, lowland: true },
-  { name: "tree-evergreen", tall: [2.5, 4.0], perUnit: 20, zone: [2, 30], sway: 0.01, trunk: true },
+  { name: "tree-evergreen", tall: [2.5, 4.0], perUnit: 26, zone: [2, 30], sway: 0.01, trunk: true },
 ];
 const CUT_FACE = 1.4; // slope (rise per unit) beyond which trees don't stand; ferns and grass still cling on
 
@@ -70,7 +70,7 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
 
 export default function Vegetation({ curve, density = 1, alphaToCoverage = true }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean }) {
   const meshes = useMemo(() => {
-    const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT() + 0.1 / L;
+    const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve);
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
     return SPECIES.map((s) => {
       const map = loader.load(`/vegetation/${s.name}.webp`);
@@ -87,7 +87,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true 
         const [d0, d1] = s.zone, d = d0 + (d1 - d0) * random() ** 1.6; // denser toward the road
         const x = p.x + side.x * d + (random() - 0.5) * 0.6, z = p.z + side.z * d + (random() - 0.5) * 0.6;
         if (roadDistance(x, z) < d0) continue; // another leg of the road (hairpins), or back onto the shoulder
-        if (t > townFrom && d < TOWN_CLEAR && s.name !== "grass") continue; // Lakkidi's shops line the road past the gate
+        if (t > townFrom && s.name !== "grass" && inTown(x, z, plan)) continue; // not on or against Lakkidi's buildings
         const y = height(x, z);
         if (s.trunk && Math.hypot(height(x + 0.2, z) - height(x - 0.2, z), height(x, z + 0.2) - height(x, z - 0.2)) / 0.4 > CUT_FACE) continue;
         if (s.lowland && random() < clamp01((y - 5) / 40)) continue; // palms thin out above ~50 m of climb, gone by ~450 m

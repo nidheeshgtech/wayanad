@@ -16,7 +16,7 @@ type Field = { hm: Heightmap; west: number; north: number; cellX: number; cellZ:
 let field: Field | null = null;
 
 /* Real road, once setHeightmap() has a road: NH766 in world units, its smoothed bed, and a hash for distance queries. */
-type RealRoad = { curve: CatmullRomCurve3; bends: number[]; arch: number; index: RoadIndex };
+type RealRoad = { curve: CatmullRomCurve3; bends: number[]; arch: number; index: RoadIndex; cumT: Float32Array };
 let road: RealRoad | null = null;
 
 export function setHeightmap(hm: Heightmap, roadData?: RoadData | null) {
@@ -79,7 +79,13 @@ export const SECTION = {
   reach: 9, // the profile has blended back into the natural ground by here
 };
 
-type RoadIndex = { cell: number; buckets: Map<number, number[]>; xs: Float32Array; zs: Float32Array; bed: Float32Array };
+type RoadIndex = { cell: number; buckets: Map<number, number[]>; xs: Float32Array; zs: Float32Array; bed: Float32Array; widen: Float32Array; wall: Float32Array };
+
+/* Hairpins, as in drone footage of the churam: the road widens round each one (to ~13 m at the apex), and on the valley
+ * side it stands on a tall stone retaining wall rather than a soft embankment. `widen` adds to the half-width; `wall` is
+ * 0–1, and where it is set the ground falls away almost vertically below the road edge (RetainingWalls clads that drop). */
+export const HAIRPIN = { widen: 0.25, widenSpan: 70, wallSpan: 110, wallFill: 9 }; // units; spans are metres either side of the apex
+
 
 function buildRealRoad(data: RoadData): RealRoad {
   const f = field!, n = data.points.length;
@@ -107,7 +113,14 @@ function buildRealRoad(data: RoadData): RealRoad {
     const key = bucketKey(Math.floor(xs[i] / cell), Math.floor(zs[i] / cell));
     (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(i);
   }
-  return { curve, bends: data.bends.map((b) => tAt(b.along)), arch: tAt(data.arch.along), index: { cell, buckets, xs, zs, bed } };
+  const widen = new Float32Array(n), wall = new Float32Array(n);
+  for (let i = 0; i < n; i++) for (const b of data.bends) {
+    const m = Math.abs(i * data.step - b.along);
+    widen[i] = Math.max(widen[i], HAIRPIN.widen * (1 - MathUtils.smoothstep(m, HAIRPIN.widenSpan * 0.4, HAIRPIN.widenSpan)));
+    wall[i] = Math.max(wall[i], 1 - MathUtils.smoothstep(m, HAIRPIN.wallSpan * 0.75, HAIRPIN.wallSpan));
+  }
+  const cumT = Float32Array.from(cum, (c) => c / cum[n - 1]);
+  return { curve, bends: data.bends.map((b) => tAt(b.along)), arch: tAt(data.arch.along), index: { cell, buckets, xs, zs, bed, widen, wall }, cumT };
 }
 
 const bucketKey = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
@@ -115,7 +128,7 @@ const bucketKey = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
 /** Distance from (x, z) to the road's centre line (nearest polyline segment) within SECTION.reach, and the bed height there. */
 function nearestRoad(idx: RoadIndex, x: number, z: number) {
   const cx = Math.floor(x / idx.cell), cz = Math.floor(z / idx.cell), n = idx.xs.length;
-  let best = Infinity, bed = 0;
+  let best = Infinity, bed = 0, widen = 0, wall = 0;
   for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
     const list = idx.buckets.get(bucketKey(cx + dx, cz + dz));
     if (!list) continue;
@@ -124,10 +137,24 @@ function nearestRoad(idx: RoadIndex, x: number, z: number) {
       const ax = idx.xs[i], az = idx.zs[i], bx = idx.xs[i + 1] - ax, bz = idx.zs[i + 1] - az;
       const u = Math.min(1, Math.max(0, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz)));
       const d = (x - ax - bx * u) ** 2 + (z - az - bz * u) ** 2;
-      if (d < best) { best = d; bed = idx.bed[i] + (idx.bed[i + 1] - idx.bed[i]) * u; }
+      if (d < best) {
+        best = d; bed = idx.bed[i] + (idx.bed[i + 1] - idx.bed[i]) * u;
+        widen = idx.widen[i] + (idx.widen[i + 1] - idx.widen[i]) * u; wall = idx.wall[i] + (idx.wall[i + 1] - idx.wall[i]) * u;
+      }
     }
   }
-  return best <= SECTION.reach * SECTION.reach ? { bed, d: Math.sqrt(best) } : null;
+  // d is measured from a standard-width road: past a hairpin's widened edge counts as past the normal edge
+  return best <= SECTION.reach * SECTION.reach ? { bed, d: Math.max(0, Math.sqrt(best) - widen), wall } : null;
+}
+
+/** Road shape at t along the curve: extra half-width and retaining-wall weight (both 0 away from hairpins). */
+export function roadShapeAt(t: number) {
+  if (!road) return { widen: 0, wall: 0 };
+  const c = road.cumT, n = c.length;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (c[mid] <= t) lo = mid; else hi = mid; }
+  const u = c[hi] > c[lo] ? (t - c[lo]) / (c[hi] - c[lo]) : 0, { widen, wall } = road.index;
+  return { widen: widen[lo] + (widen[hi] - widen[lo]) * u, wall: wall[lo] + (wall[hi] - wall[lo]) * u };
 }
 
 /** Distance to the road's centre line, or Infinity beyond SECTION.reach (for the terrain mesh to step aside, and for placement). */
@@ -142,7 +169,7 @@ function natural(f: Field, x: number, z: number) {
 }
 
 /** The road's cross-section at distance d from the centre line, given the bed and the natural ground there. */
-function crossSection(d: number, bed: number, ground: number) {
+function crossSection(d: number, bed: number, ground: number, wall = 0) {
   let y: number;
   if (d <= SECTION.half) y = bed;
   else if (d <= SECTION.shoulder) y = bed - 0.025 * MathUtils.smoothstep(d, SECTION.half, SECTION.shoulder);
@@ -153,7 +180,9 @@ function crossSection(d: number, bed: number, ground: number) {
       : Math.min(ground, bed - 0.025 + (d - SECTION.drain) * SECTION.cut);
   } else {
     // downhill: the embankment falls away until it meets the slope
-    y = Math.max(ground, bed - 0.025 - (d - SECTION.shoulder) * SECTION.fill);
+    // at hairpins the retaining wall: the ground drops almost straight down from just past the posts
+    const fill = SECTION.fill + (HAIRPIN.wallFill - SECTION.fill) * wall, from = SECTION.shoulder - 0.1 * wall;
+    y = Math.max(ground, bed - 0.025 - Math.max(0, d - from) * fill);
   }
   return y + (ground - y) * MathUtils.smoothstep(d, SECTION.reach - 2, SECTION.reach);
 }
@@ -181,7 +210,7 @@ function noise(x: number, z: number) {
 export function height(x: number, z: number): number {
   if (field) {
     const near = road && nearestRoad(road.index, x, z);
-    return near ? crossSection(near.d, near.bed, natural(field, x, z)) : groundHeight(field, x, z);
+    return near ? crossSection(near.d, near.bed, natural(field, x, z), near.wall) : groundHeight(field, x, z);
   }
   const valley = Math.max(0, 1 - Math.abs(x) / 90);
   return ramp(z) + noise(x, z) * (0.6 + valley * 0.8) - valley * 2;

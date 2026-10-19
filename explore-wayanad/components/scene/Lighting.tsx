@@ -3,13 +3,13 @@ import { useEffect, useMemo } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { BackSide, Color, DirectionalLight, Mesh, Object3D, PMREMGenerator, Scene, ShaderMaterial, SphereGeometry, Vector3 } from "three";
 
-/** A clear mid-morning sun in the east (+x), a little north: soft shadows across the road. */
+/** A monsoon-morning sun in the east (+x), a little north, through high cloud: weak, soft shadows. */
 export const SUN_DIR = new Vector3(0.82, 0.5, -0.28).normalize();
 const SHADOW = { span: 22, distance: 70 }; // the shadowed box follows the camera: ±22 units (220 m) square
 
 /**
- * Daylight for physically based materials. The sky light is an environment map rendered from a clear-morning sky
- * gradient (pale hazy horizon, blue zenith, warm glow toward the sun, dark forest below), so everything is lit
+ * Daylight for physically based materials. The sky light is an environment map rendered from an overcast monsoon sky
+ * gradient (pale grey horizon, grey-blue zenith, a soft glow toward the sun, dark forest below), so everything is lit
  * softly from all around without downloading an HDR photo. The sun casts soft shadows in a box that travels with the
  * camera, so detail near the road stays sharp over the whole 12 km.
  */
@@ -22,7 +22,7 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
     sky.add(new Mesh(new SphereGeometry(10, 48, 24), new ShaderMaterial({
       side: BackSide,
       uniforms: {
-        horizon: { value: new Color(0xdfe7ec) }, zenith: { value: new Color(0x7fa6d0) }, ground: { value: new Color(0x26332a) },
+        horizon: { value: new Color(0xc9d1d5) }, zenith: { value: new Color(0x93a4b3) }, ground: { value: new Color(0x26332a) },
         sun: { value: new Color(0xfff1d6) }, sunDir: { value: SUN_DIR },
       },
       vertexShader: "varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
@@ -37,7 +37,7 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
     })));
     const pmrem = new PMREMGenerator(gl), env = pmrem.fromScene(sky, 0.02);
     scene.environment = env.texture;
-    scene.environmentIntensity = 1.0;
+    scene.environmentIntensity = 0.85;
     return () => { scene.environment = null; env.dispose(); pmrem.dispose(); };
   }, [gl, scene]);
 
@@ -60,8 +60,8 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
   return (
     <directionalLight
       ref={sunRef}
-      color={0xfff1dc}
-      intensity={3.2}
+      color={0xeef0ee}
+      intensity={1.5}
       castShadow={shadows}
       shadow-mapSize={[2048, 2048]}
       shadow-camera-left={-SHADOW.span}

@@ -5,12 +5,13 @@ import {
   LineSegments, Mesh, MeshStandardMaterial, SRGBColorSpace, Vector3,
 } from "three";
 import { SECTION, archT, height } from "@/lib/terrain";
+import { rubble } from "./stone";
 
 /* Lakkidi after the gateway: a strip of shops and houses on both sides, as in photographs of the place — one- and
  * two-storey concrete buildings in Kerala's pastel paints, tiled hip roofs or flat roofs with parapets, shop fronts with
  * rolling shutters or open counters under painted signboards, and a line of electric poles with sagging wires.
  * Generated, not mapped: the buildings are typical, not surveyed. Scene units (1 = 10 m). */
-const START = 0.25, END_MARGIN = 0.5; // units after the gate before the first building; kept clear of the road's end
+const END_MARGIN = 0.5; // units kept clear of the road's end
 const SETBACK: [number, number] = [SECTION.half + 0.3, SECTION.half + 0.55]; // building front from the centre line: a 3–5 m forecourt
 const FLOOR = 0.32; // 3.2 m storeys
 const WALLS = ["#efe6c8", "#e8d48a", "#bfe0c4", "#a9cfe0", "#f2f0ea", "#e9c3b5", "#d9e8a0", "#f0d9a8", "#c9c3e3"];
@@ -61,9 +62,9 @@ function facade(r: () => number, wall: string, floors: number, shop: boolean) {
   const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace; t.anisotropy = 4; return t;
 }
 
-function building(r: () => number, width: number) {
+function building(r: () => number, width: number, shop: boolean) {
   const g = new Group(), floors = r() < 0.6 ? 1 : 2, depth = 0.7 + r() * 0.35, h = floors * FLOOR, below = 1.5;
-  const wall = WALLS[Math.floor(r() * WALLS.length)], shop = r() < 0.75;
+  const wall = WALLS[Math.floor(r() * WALLS.length)];
   const plain = new MeshStandardMaterial({ color: wall, roughness: 0.92 });
   const front = new MeshStandardMaterial({ map: facade(r, wall, floors, shop), roughness: 0.85 });
   // box faces: +x, -x, +y, -y, +z (front, toward the road), -z; runs `below` into the ground for slopes
@@ -93,8 +94,84 @@ function building(r: () => number, width: number) {
   return g;
 }
 
-/** Distance from the road's centre line kept for the buildings: trees and rocks stay behind them (Vegetation, Props). */
-export const TOWN_CLEAR = 2.3;
+/* What stands past the gateway, in order, from photographs of Lakkidi: on the left a grey stone shed, a teal building,
+ * then the small temple (white compound wall with red pillars, a tiled pavilion, the shrine behind); a few shops further
+ * on, with forest between. The right side is mostly forest. `at` is metres past the gate (×0.1 → units), `w` the frontage. */
+type Kind = "shed" | "teal" | "temple" | "shop" | "house";
+const PLAN: { side: 1 | -1; at: number; w: number; kind: Kind }[] = [
+  { side: 1, at: 6, w: 7, kind: "shed" },
+  { side: 1, at: 15, w: 6, kind: "teal" },
+  { side: 1, at: 24, w: 28, kind: "temple" },
+  { side: 1, at: 95, w: 8, kind: "shop" },
+  { side: 1, at: 106, w: 7, kind: "shop" },
+  { side: 1, at: 190, w: 9, kind: "house" },
+  { side: -1, at: 70, w: 8, kind: "shop" },
+  { side: -1, at: 230, w: 9, kind: "house" },
+  { side: 1, at: 330, w: 8, kind: "shop" },
+  { side: -1, at: 345, w: 10, kind: "shop" },
+  { side: 1, at: 345, w: 7, kind: "shop" },
+];
+
+/** Where each building stands: position, rotation (front, +z, toward the road), and a footprint radius that keeps
+ * trees and rocks off it (Vegetation and Props call this too). Pure: no DOM, deterministic. */
+export function townPlan(curve: CatmullRomCurve3) {
+  const L = curve.getLength(), gate = archT() * L, up = new Vector3(0, 1, 0);
+  return PLAN.map((b, i) => {
+    const w = b.w * 0.1, s = Math.min(gate + b.at * 0.1 + w / 2, L - END_MARGIN), t = Math.min(0.999, s / L);
+    const p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize(), left = new Vector3().crossVectors(up, tan).normalize();
+    const off = b.kind === "temple" ? SECTION.half + 0.45 : SETBACK[0] + ((i * 0.37) % 1) * (SETBACK[1] - SETBACK[0]);
+    const at = p.clone().addScaledVector(left, b.side * off), facing = left.clone().multiplyScalar(-b.side);
+    return { ...b, w, at, y: Math.min(height(at.x, at.z), p.y - 0.6), rotation: Math.atan2(facing.x, facing.z), radius: w * 0.75 + (b.kind === "temple" ? 0.6 : 0.4) };
+  });
+}
+
+/** True where a tree or rock would stand on or against a building. */
+export function inTown(x: number, z: number, plan: ReturnType<typeof townPlan>) {
+  return plan.some((b) => (b.at.x - x) ** 2 + (b.at.z - z) ** 2 < b.radius ** 2);
+}
+
+/* Lakkidi's small roadside temple: low white compound wall on red pillars along the road, an entrance with a tiled
+ * pavilion, the shrine behind under a two-tier tiled roof. Local x along the road, +z toward it. Units. */
+function temple(w: number) {
+  const g = new Group(), white = new MeshStandardMaterial({ color: 0xf1eee6, roughness: 0.9 });
+  const red = new MeshStandardMaterial({ color: 0xb4432a, roughness: 0.8 }), tiles = new MeshStandardMaterial({ color: 0xa9502f, roughness: 0.85 });
+  const add = (m: Mesh, x: number, y: number, z: number) => { m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
+  const gap = 0.45;
+  for (const [from, to] of [[-w / 2, -gap / 2], [gap / 2, w / 2]]) {
+    add(new Mesh(new BoxGeometry(to - from, 0.1 + 1, 0.04), white), (from + to) / 2, 0.05 - 0.5, 0);
+    for (let x = from; x <= to + 1e-6; x += 0.3) add(new Mesh(new BoxGeometry(0.05, 0.16 + 1, 0.05), red), x, 0.08 - 0.5, 0);
+  }
+  // entrance pavilion: four red pillars under a tiled hip roof
+  for (const [x, z] of [[-0.2, -0.05], [0.2, -0.05], [-0.2, -0.45], [0.2, -0.45]]) add(new Mesh(new BoxGeometry(0.035, 0.24, 0.035), red), x, 0.12, z);
+  const hip = (sx: number, sz: number, h: number) => { const geo = new ConeGeometry(Math.SQRT1_2, 1, 4); geo.rotateY(Math.PI / 4); geo.translate(0, 0.5, 0); const m = new Mesh(geo, tiles); m.scale.set(sx, h, sz); return m; };
+  add(hip(0.62, 0.62, 0.16), 0, 0.24, -0.25);
+  // the shrine
+  add(new Mesh(new BoxGeometry(0.5, 0.28 + 1, 0.5), white), 0, 0.14 - 0.5, -1.0);
+  add(new Mesh(new BoxGeometry(0.52, 0.05, 0.52), red), 0, 0.02, -1.0);
+  add(hip(0.72, 0.72, 0.16), 0, 0.28, -1.0);
+  add(hip(0.42, 0.42, 0.14), 0, 0.4, -1.0);
+  add(new Mesh(new ConeGeometry(0.02, 0.08, 8), new MeshStandardMaterial({ color: 0xc9a23a, metalness: 0.8, roughness: 0.35 })), 0, 0.57, -1.0);
+  return g;
+}
+
+/** Small buildings by the gate: the grey rubble shed (lean-to roof) and the teal one, as in the photo. */
+function shed(w: number) {
+  const g = new Group(), stone = new MeshStandardMaterial({ map: rubble({ seed: 3 }), roughness: 0.95 });
+  stone.map!.repeat.set(2, 1);
+  const body = new Mesh(new BoxGeometry(w, 0.3 + 1, 0.6), stone); body.position.set(0, 0.15 - 0.5, -0.3);
+  const roof = new Mesh(new BoxGeometry(w * 1.05, 0.015, 0.7), new MeshStandardMaterial({ color: 0x5d5a52, roughness: 0.8 }));
+  roof.position.set(0, 0.32, -0.3); roof.rotation.x = -0.18;
+  for (const m of [body, roof]) { m.castShadow = m.receiveShadow = true; g.add(m); }
+  return g;
+}
+function teal(w: number) {
+  const g = new Group(), wall = new MeshStandardMaterial({ color: 0x2f8f86, roughness: 0.85 });
+  const body = new Mesh(new BoxGeometry(w, 0.34 + 1, 0.7), wall); body.position.set(0, 0.17 - 0.5, -0.35);
+  const door = new Mesh(new BoxGeometry(0.12, 0.22, 0.01), new MeshStandardMaterial({ color: 0x3b2c22 })); door.position.set(w * 0.2, 0.11, 0.001);
+  const parapet = new Mesh(new BoxGeometry(w, 0.05, 0.7), new MeshStandardMaterial({ color: 0xe9e6dd, roughness: 0.9 })); parapet.position.set(0, 0.36, -0.35);
+  for (const m of [body, door, parapet]) { m.castShadow = m.receiveShadow = true; g.add(m); }
+  return g;
+}
 
 export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
   const group = useMemo(() => {
@@ -103,19 +180,11 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
       const t = Math.min(0.999, s / L), p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize();
       return { p, tan, left: new Vector3().crossVectors(up, tan).normalize() }; // driver's left
     };
-    for (const side of [1, -1]) {
-      for (let s = gate + START; s < L - END_MARGIN;) {
-        const width = 0.6 + r() * 0.5;
-        if (r() < 0.18) { s += width; continue; } // an empty plot
-        const { p, left } = frame(s + width / 2), off = SETBACK[0] + (SETBACK[1] - SETBACK[0]) * r();
-        const at = p.clone().addScaledVector(left, side * off), b = building(r, width);
-        b.position.set(at.x, Math.min(height(at.x, at.z), p.y - 0.6), at.z); // never floating: the body runs on down
-        // front (+z) toward the road
-        const facing = left.clone().multiplyScalar(-side);
-        b.rotation.y = Math.atan2(facing.x, facing.z);
-        g.add(b);
-        s += width + 0.05 + r() * 0.4;
-      }
+    for (const b of townPlan(curve)) {
+      const obj = b.kind === "temple" ? temple(b.w) : b.kind === "shed" ? shed(b.w) : b.kind === "teal" ? teal(b.w) : building(r, b.w, b.kind === "shop");
+      obj.position.set(b.at.x, b.y, b.at.z);
+      obj.rotation.y = b.rotation;
+      g.add(obj);
     }
     // electric poles on the left with three sagging wires
     const poleMat = new MeshStandardMaterial({ color: 0x9a9890, roughness: 0.9 }), tops: Vector3[][] = [];

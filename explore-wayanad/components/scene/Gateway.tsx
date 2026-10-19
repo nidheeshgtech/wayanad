@@ -2,9 +2,10 @@
 import { useMemo } from "react";
 import {
   BoxGeometry, CanvasTexture, ConeGeometry, CatmullRomCurve3, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial,
-  Path, PlaneGeometry, RepeatWrapping, Shape, SRGBColorSpace,
+  Path, PlaneGeometry, Shape, SRGBColorSpace,
 } from "three";
 import { archT } from "@/lib/terrain";
+import { rubble } from "./stone";
 
 /* The Lakkidi "Welcome to Wayanad" gateway, from photographs of it. Modelled in metres (x across the road, y up,
  * z along it) and scaled by 0.1 into the scene. Two grey rubble-stone piers with small terracotta pyramid caps; a green
@@ -16,30 +17,7 @@ const G = {
   beamEnd: [4.9, 7.3], beamPeak: 7.9, depth: 1.0, // beam's vertical extent at its ends; its gabled top at the centre
   sideArch: [2.6, 1.15], mainArch: [6.8, 1.75], // [span, rise] of the side arches and the central one
 };
-const GREEN = 0x3f8f57, TRIM = 0x1f5a3d, STONE_MORTAR = "#4b4a45", TERRACOTTA = 0xc0603a;
-
-/** Random rubble masonry: irregular grey-brown stones in dark mortar, tiling. */
-function rubble() {
-  const c = document.createElement("canvas"); c.width = c.height = 512;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = STONE_MORTAR; ctx.fillRect(0, 0, 512, 512);
-  let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let row = 0; row < 12; row++) for (let col = 0; col < 7; col++) {
-    const w = 60 + r() * 40, h = 36 + r() * 16, x = col * 76 + (row % 2) * 38 + r() * 8, y = row * 44 + r() * 6;
-    const g = 120 + r() * 60, tint = r() * 18;
-    ctx.fillStyle = `rgb(${g + tint},${g + tint * 0.6},${g - 6})`;
-    for (const dx of [-512, 0, 512]) for (const dy of [-512, 0, 512]) {
-      ctx.beginPath();
-      const pts = 7;
-      for (let k = 0; k < pts; k++) {
-        const a = (k / pts) * Math.PI * 2, rr = 0.82 + r() * 0.18;
-        ctx.lineTo(x + dx + w / 2 + Math.cos(a) * (w / 2) * rr, y + dy + h / 2 + Math.sin(a) * (h / 2) * rr);
-      }
-      ctx.closePath(); ctx.fill();
-    }
-  }
-  const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace; t.wrapS = t.wrapT = RepeatWrapping; return t;
-}
+const GREEN = 0x3f8f57, TRIM = 0x1f5a3d, TERRACOTTA = 0xc0603a;
 
 /** White lettering, shrunk to fit its width, on `bg` (transparent if not given). Lines stack centred. */
 function lettering(lines: string[], w: number, h: number, size: number, bg?: string) {

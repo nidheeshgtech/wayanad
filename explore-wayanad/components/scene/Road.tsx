@@ -4,7 +4,7 @@ import {
   BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DoubleSide, InstancedMesh, Matrix4, Mesh,
   MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, TextureLoader, Vector3,
 } from "three";
-import { SECTION, archT, height } from "@/lib/terrain";
+import { SECTION, archT, height, roadShapeAt } from "@/lib/terrain";
 
 /* True scale, 1 unit = 10 m. Curve points sit 0.6 above the road bed (a convention from the prototype). */
 const LIFT = 0.012; // asphalt sits a hand's width proud of the band, which is shaded identically beneath it
@@ -19,7 +19,7 @@ function ribbon(curve: CatmullRomCurve3, segments: number) {
   for (let i = 0; i <= segments; i++) {
     const t = i / segments, p = curve.getPointAt(t), tan = curve.getTangentAt(t);
     along += p.distanceTo(prev); prev = p;
-    side.set(tan.z, 0, -tan.x).normalize().multiplyScalar(SECTION.half);
+    side.set(tan.z, 0, -tan.x).normalize().multiplyScalar(SECTION.half + roadShapeAt(t).widen); // wider round hairpins
     const y = p.y - 0.6 + LIFT;
     pos.set([p.x + side.x, y, p.z + side.z, p.x - side.x, y, p.z - side.z], i * 6);
     uv.set([0, along, 1, along], i * 4);
@@ -40,7 +40,7 @@ function asphalt() {
     const t = loader.load(`/textures/${name}.jpg`); t.wrapS = t.wrapT = RepeatWrapping; t.anisotropy = 8;
     if (srgb) t.colorSpace = SRGBColorSpace; return t;
   };
-  const m = new MeshStandardMaterial({ color: 0x8a8a86, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
+  const m = new MeshStandardMaterial({ color: 0x6f706c, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 }); // wet: darker, and glossy below
   const color = load("asphalt-color", true), normal = load("asphalt-normal", false);
   m.customProgramCacheKey = () => "explore-wayanad-asphalt-1";
   m.onBeforeCompile = (shader) => {
@@ -58,7 +58,7 @@ function asphalt() {
         float centre = (1.0 - smoothstep(0.004, 0.008, abs(vRoad.x - 0.5))) * step(0.5, fract(vRoad.y / 0.9));
         float paint = max(edge * step(0.02, min(vRoad.x, 1.0 - vRoad.x)), centre);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.82, 0.78), paint * 0.9);`)
-      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(0.9, 0.6, paint);")
+      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = mix(0.62, 0.68, paint);") // damp asphalt: a soft sheen, not a mirror
       .replace("#include <normal_fragment_maps>", `
         vec3 an = texture2D(tAsphaltN, aUv).xyz * 2.0 - 1.0;
         normal = normalize(normal + (viewMatrix * vec4(an.x, 0.0, an.y, 0.0)).xyz * 0.5);`);
@@ -129,7 +129,7 @@ export default function Road({ curve, detail = 900 }: { curve: CatmullRomCurve3;
       side.set(tan.z, 0, -tan.x).normalize();
       // the drop is on whichever side the ground is lower, sampled past the road's edge
       const outer = height(pt.x + side.x * 2, pt.z + side.z * 2) < height(pt.x - side.x * 2, pt.z - side.z * 2) ? 1 : -1;
-      const p = pt.clone().addScaledVector(side, outer * POSTS.at), y = height(p.x, p.z);
+      const p = pt.clone().addScaledVector(side, outer * (POSTS.at + roadShapeAt(t).widen)), y = height(p.x, p.z);
       m.makeTranslation(p.x, y + POSTS.height / 2, p.z);
       mesh.setMatrixAt(placed++, m);
       feet.push({ p, y, outer, side: side.clone().multiplyScalar(outer) });

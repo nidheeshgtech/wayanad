@@ -3,14 +3,14 @@ import { ShaderChunk } from "three";
 /**
  * Atmosphere for every fogged material, by patching three's fog shader chunks once (import before the first render).
  * On top of the scene's FogExp2 (the storyboard's fog: clear low down, white-out at hairpins 7–8), it adds:
- *  - aerial perspective: distance tints toward a pale blue haze, so ridges kilometres away fade like in a photograph;
+ *  - aerial perspective: distance tints toward a grey-blue monsoon haze, so far ridges fade like in a photograph;
  *  - valley mist: white mist lying in the lowland below MIST.top, shown once you have climbed above it;
  *  - sun glow: the haze brightens and warms toward the sun.
  * World position comes from the view matrix (view = rotation + translation, so world = Rᵀ·view + camera).
  * Colours are linear (three's working space). SUN must match Lighting.SUN_DIR.
  */
-const AIR = { density: 0.005, color: "vec3(0.47, 0.60, 0.76)", sunColor: "vec3(1.0, 0.82, 0.55)" };
-const MIST = { top: 6.0, fall: 5.0, density: 0.02, color: "vec3(0.86, 0.89, 0.91)", from: 10.0, full: 28.0 };
+const AIR = { density: 0.007, color: "vec3(0.50, 0.56, 0.62)", sunColor: "vec3(0.9, 0.85, 0.75)" };
+const MIST = { top: 10.0, fall: 7.0, density: 0.025, color: "vec3(0.86, 0.89, 0.91)", from: 10.0, full: 28.0 };
 const SUN = "normalize(vec3(0.82, 0.5, -0.28))";
 
 let patched = false;
@@ -44,4 +44,4 @@ export function patchAtmosphere() {
 }
 
 /** The same haze colour for the sky dome's horizon (linear), so land fades into sky without a seam. */
-export const AIR_LINEAR = [0.47, 0.6, 0.76] as const;
+export const AIR_LINEAR = [0.5, 0.56, 0.62] as const;

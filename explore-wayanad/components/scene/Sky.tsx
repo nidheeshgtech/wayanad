@@ -42,12 +42,12 @@ export default function Sky() {
         // clouds on a flat layer overhead: projected so they shrink toward the horizon
         if (dir.y > 0.02) {
           vec2 uv = dir.xz / (dir.y + 0.12) * 0.9 + vec2(time * 0.004, time * 0.0015);
-          float c = smoothstep(0.52, 0.78, fbm(uv));
+          float c = smoothstep(0.36, 0.7, fbm(uv)); // monsoon: mostly cloud, a few breaks
           float shade = 0.82 + 0.18 * smoothstep(0.4, 0.9, fbm(uv * 1.7 + 3.1));
-          col = mix(col, vec3(0.96, 0.97, 0.98) * shade, c * smoothstep(0.02, 0.25, dir.y) * 0.9);
+          col = mix(col, vec3(0.80, 0.83, 0.86) * shade, c * smoothstep(0.02, 0.25, dir.y) * 0.95);
         }
         float sun = max(dot(dir, normalize(sunDir)), 0.0);
-        col += sunColor * (pow(sun, 8.0) * 0.25 + pow(sun, 400.0) * 4.0);
+        col += sunColor * (pow(sun, 8.0) * 0.15 + pow(sun, 400.0) * 1.2) * 0.6; // a sun veiled by cloud
         col = mix(col, fogColor, fogAmount);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>

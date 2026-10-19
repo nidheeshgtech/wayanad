@@ -15,6 +15,9 @@ import Vegetation from "./Vegetation";
 import Props from "./Props";
 import Gateway from "./Gateway";
 import Town from "./Town";
+import RetainingWalls from "./RetainingWalls";
+import Rain from "./Rain";
+import ValleyClouds from "./ValleyClouds";
 import Particles from "./Particles";
 import Sky from "./Sky";
 import Shafts from "./Shafts";
@@ -48,7 +51,7 @@ export default function Scene({ tier }: { tier: Tier }) {
       camera={{ fov: 60, near: 0.02, far: 400 }}
       gl={{ antialias: !small, powerPreference: "high-performance" }}
       shadows={small ? false : "soft"}
-      onCreated={({ gl }) => { gl.toneMappingExposure = 1.12; }}
+      onCreated={({ gl }) => { gl.toneMappingExposure = 1.0; }}
       style={{ position: "fixed", inset: 0, zIndex: 0 }}
     >
       <Suspense fallback={null}>
@@ -78,6 +81,7 @@ function World({ small }: { small: boolean }) {
       <Terrain segments={segments} />
       <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
       <Road curve={curve} detail={detail} />
+      <RetainingWalls curve={curve} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
       <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />
@@ -85,6 +89,8 @@ function World({ small }: { small: boolean }) {
       <BendSigns curve={curve} />
       <Shafts curve={curve} count={small ? 20 : 40} />
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
+      <ValleyClouds count={small ? 80 : 160} />
+      <Rain count={small ? 1200 : 2500} />
       <Director curve={curve} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} />
     </>

@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { BufferGeometry, CatmullRomCurve3, Color, InstancedMesh, Material, Matrix4, Mesh, Quaternion, Vector3 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { SECTION, archT, height, roadDistance } from "@/lib/terrain";
-import { TOWN_CLEAR } from "./Town";
+import { inTown, townPlan } from "./Town";
 
 /* Real 3D scans from Poly Haven (CC0, scripts/fetch-models.ts), placed along the road at true scale (models are in metres,
  * the scene in 10 m units). Too detailed to draw all 12 km at once, so instances are grouped into chunks of road and only
@@ -33,7 +33,7 @@ function rng(seed: number) {
 export default function Props({ curve, density = 1 }: { curve: CatmullRomCurve3; density?: number }) {
   const models = use(useMemo(() => Promise.all(KINDS.map((k) => load(k.model))), []));
   const chunks = useMemo(() => {
-    const L = curve.getLength(), townFrom = archT(), out: { centre: Vector3; radius: number; view: number; meshes: InstancedMesh[] }[] = [];
+    const L = curve.getLength(), townFrom = archT(), plan = townPlan(curve), out: { centre: Vector3; radius: number; view: number; meshes: InstancedMesh[] }[] = [];
     const m = new Matrix4(), q = new Quaternion(), side = new Vector3(), tint = new Color();
     KINDS.forEach((k, ki) => {
       const parts = models[ki], random = rng(1000 + ki);
@@ -45,7 +45,7 @@ export default function Props({ curve, density = 1 }: { curve: CatmullRomCurve3;
           const d = k.zone[0] + (k.zone[1] - k.zone[0]) * random() ** 1.5;
           const x = p.x + side.x * d, z = p.z + side.z * d;
           if (roadDistance(x, z) < k.zone[0]) continue;
-          if (t > townFrom && d < TOWN_CLEAR) continue; // no boulders in front of the shops
+          if (t > townFrom && inTown(x, z, plan)) continue; // no boulders on Lakkidi's buildings
           // `size` is the scale applied to the scan (in metres), in scene units: e.g. 0.2 → the 30 cm stone becomes 60 cm
           const s = k.size[0] + (k.size[1] - k.size[0]) * random() ** 2;
           q.setFromAxisAngle(new Vector3(0, 1, 0), random() * Math.PI * 2);
