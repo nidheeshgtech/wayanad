@@ -1,0 +1,44 @@
+/**
+ * Prepares the vegetation cut-outs used as instanced "cards" in the churam scene.
+ *
+ *   npm run prepare:vegetation      (needs ImageMagick: `magick`)
+ *
+ * Source: AI-generated images (Higgsfield, gpt_image_2_5, transparent background), 2026-10-19 — generic plants of the
+ * Western Ghats, not photographs of real places; the owner allows generated images for this. Each is downloaded,
+ * trimmed to its visible pixels, resized to SIZE px tall and saved as WebP with alpha to public/vegetation/<name>.webp.
+ * data/vegetation.json records each card's aspect (width / height) so the scene sizes the quads correctly.
+ */
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+
+const BASE = "https://d8j0ntlcm91z4.cloudfront.net/user_3HpGzGV7UqFphYoUoTuds9yuacm";
+/** name → [Higgsfield result file, height in px after resizing]. Prompts are summarised in public/vegetation/README.md. */
+const SOURCES: Record<string, [string, number]> = {
+  "tree-evergreen": ["hf_20261019_110612_6db50c2e-932a-45e8-969c-489751973e92.png", 512],
+  "tree-broadleaf": ["hf_20261019_110613_175c5b84-3972-4a02-b54b-ef774a03b195.png", 512],
+  "tree-young": ["hf_20261019_110612_f3abc865-49f9-4e2e-b7de-0f9dfa29a376.png", 384],
+  "palm-coconut": ["hf_20261019_110611_93078b19-c8fe-4383-bcc5-99be0dc8358e.png", 512],
+  bamboo: ["hf_20261019_110611_c46699cb-0e92-424a-b80f-ae2101864ab9.png", 512],
+  fern: ["hf_20261019_110610_28cbc2c4-6cb5-47ac-a561-b07163ff3e5f.png", 256],
+  grass: ["hf_20261019_110610_fbc08655-d7d8-4f9e-82cd-41c6c3db8348.png", 256],
+  bush: ["hf_20261019_110611_0eb6f6ed-4989-4f37-af25-384471db54dc.png", 256],
+};
+const ROOT = path.resolve(import.meta.dirname, "..");
+const OUT = path.join(ROOT, "public/vegetation");
+
+await mkdir(OUT, { recursive: true });
+const meta: Record<string, { aspect: number }> = {};
+for (const [name, [file, px]] of Object.entries(SOURCES)) {
+  const src = path.join(OUT, `${name}.src.png`), dst = path.join(OUT, `${name}.webp`);
+  const res = await fetch(`${BASE}/${file}`);
+  if (!res.ok) throw new Error(`${name}: ${res.status}`);
+  await writeFile(src, Buffer.from(await res.arrayBuffer()));
+  execFileSync("magick", [src, "-trim", "+repage", "-resize", `x${px}`, "-quality", "82", "-define", "webp:alpha-quality=90", dst]);
+  await rm(src);
+  const [w, h] = execFileSync("magick", ["identify", "-format", "%w %h", dst]).toString().split(" ").map(Number);
+  meta[name] = { aspect: +(w / h).toFixed(3) };
+  console.log(`  ${name.padEnd(15)} ${w}×${h}  ${((await readFile(dst)).length / 1024).toFixed(0)} KB`);
+}
+await writeFile(path.join(ROOT, "data/vegetation.json"), JSON.stringify(meta, null, 2) + "\n");
+console.log(`wrote ${Object.keys(meta).length} cut-outs to public/vegetation and data/vegetation.json`);

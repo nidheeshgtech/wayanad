@@ -3,7 +3,7 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
-import { DRIVER_LINE, driveT } from "@/lib/drive";
+import { driveT } from "@/lib/drive";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
 
@@ -31,7 +31,7 @@ function churamMood(t: number, bends: number[]) {
  * looking `ahead` down the road. The pace comes from lib/drive.ts (slow seat-level moments joined by mist); the heading
  * eases and is capped at `maxTurn` °/s while in view, and the cabin leans gently into bends.
  * `bob` is a barely-there vertical drift from the road surface: enough to feel moving, not enough to sway. */
-const BUS = { eye: 0.28, lane: 0, ahead: 5, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004, lift: 6 };
+const BUS = { eye: 0.28, lane: 0, ahead: 4, ease: 0.12, maxTurn: 60, lean: 0.35, maxLean: 1.2, bob: 0.004, lift: 6 };
 const WHITE = new Color(0xffffff);
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
@@ -76,13 +76,14 @@ export default function Director({ curve, sunRef, mistRef, fliesRef }: {
     if (act === "churam") {
       const t = driveT(p);
       const pt = curve.getPointAt(t), ahead = curve.getPointAt(Math.min(0.999, t + BUS.ahead / length));
-      // aim along the driver's line (tangent averaged over ±DRIVER_LINE, the same line the pace is built from), eased and rate-limited
-      let lx = 0, lz = 0;
-      for (let k = -4; k <= 4; k++) { const g = curve.getTangentAt(MathUtils.clamp(t + (k / 4) * (DRIVER_LINE / length), 0, 0.999)); lx += g.x; lz += g.z; }
-      const target = Math.atan2(lx, lz);
+      // look where the road goes: the point BUS.ahead along it (round a hairpin that's the exit, never the bank beside you);
+      // the easing and turn limit below filter out the small wobbles in the mapped centre line
+      const target = Math.atan2(ahead.x - pt.x, ahead.z - pt.z);
       if (yaw.current === null) yaw.current = target;
       const cap = MathUtils.degToRad(BUS.maxTurn) * delta;
-      const step = MathUtils.clamp(Math.atan2(Math.sin(target - yaw.current), Math.cos(target - yaw.current)) * BUS.ease, -cap, cap);
+      // ease toward the target at the same rate whatever the frame rate (BUS.ease per frame at 60 fps)
+      const ease = 1 - Math.pow(1 - BUS.ease, delta * 60);
+      const step = MathUtils.clamp(Math.atan2(Math.sin(target - yaw.current), Math.cos(target - yaw.current)) * ease, -cap, cap);
       yaw.current += step;
       heading.current.set(Math.sin(yaw.current), 0, Math.cos(yaw.current));
       side.current.set(-heading.current.z, 0, heading.current.x); // driver's left

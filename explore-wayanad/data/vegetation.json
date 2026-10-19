@@ -1,0 +1,26 @@
+{
+  "tree-evergreen": {
+    "aspect": 0.662
+  },
+  "tree-broadleaf": {
+    "aspect": 0.756
+  },
+  "tree-young": {
+    "aspect": 0.742
+  },
+  "palm-coconut": {
+    "aspect": 0.631
+  },
+  "bamboo": {
+    "aspect": 0.754
+  },
+  "fern": {
+    "aspect": 1.008
+  },
+  "grass": {
+    "aspect": 1.008
+  },
+  "bush": {
+    "aspect": 0.996
+  }
+}

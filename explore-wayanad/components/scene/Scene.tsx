@@ -10,7 +10,7 @@ import Terrain from "./Terrain";
 import RoadBand from "./RoadBand";
 import Lighting from "./Lighting";
 import Road from "./Road";
-import Forest from "./Forest";
+import Vegetation from "./Vegetation";
 import Gateway from "./Gateway";
 import Particles from "./Particles";
 import Sky from "./Sky";
@@ -65,8 +65,6 @@ function World({ small }: { small: boolean }) {
   const segments = grid ? grid.size - 1 : small ? 96 : 160;
   // road surface segments: ~1.7 m apart (3.3 m on lite), fine enough that the painted lines stay smooth round hairpins
   const detail = Math.round(curve.getLength() * (small ? 3 : 6));
-  // the prototype's density per unit of road, doubled: rainforest closes in, it doesn't dot the slope
-  const trees = Math.round((small ? 1400 : 3600) * Math.max(1, curve.getLength() / 600));
   return (
     <>
       <Lighting sunRef={sunRef} shadows={!small} />
@@ -74,7 +72,7 @@ function World({ small }: { small: boolean }) {
       <Terrain segments={segments} />
       <RoadBand curve={curve} spacing={small ? 0.45 : 0.3} />
       <Road curve={curve} detail={detail} />
-      <Forest curve={curve} count={trees} />
+      <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
       <Gateway curve={curve} />
       <BendSigns curve={curve} />
       <Shafts curve={curve} count={small ? 20 : 40} />

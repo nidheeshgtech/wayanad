@@ -12,7 +12,7 @@
  */
 
 export const END = 0.98; // t at the end of the act (the road runs on a little past the camera's last point)
-/** Units either side over which the road's heading is averaged into a driver's line (pace and camera use the same). */
+/** Units either side over which the road's heading is averaged into a driver's line, for the pace (the camera aims ahead instead). */
 export const DRIVER_LINE = 8;
 const PACE = {
   turn: 45, // ° of view turn per screen of scroll (≈ 45 °/s at a brisk 1 screen per second; less when scrolled gently)
