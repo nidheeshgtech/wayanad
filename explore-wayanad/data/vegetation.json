@@ -43,5 +43,23 @@
   },
   "elephant": {
     "aspect": 1.521
+  },
+  "palm-areca": {
+    "aspect": 0.273
+  },
+  "coffee": {
+    "aspect": 0.996
+  },
+  "silver-oak": {
+    "aspect": 0.396
+  },
+  "tree-fern": {
+    "aspect": 0.742
+  },
+  "colocasia": {
+    "aspect": 1.004
+  },
+  "tree-vines": {
+    "aspect": 0.586
   }
 }

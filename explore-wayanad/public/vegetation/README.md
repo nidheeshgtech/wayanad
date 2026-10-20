@@ -20,3 +20,9 @@ no ground or shadow, transparent background):
 - creeper: curtain of hanging creepers, for wet rock cuttings (hung on the cut faces)
 - teak: tall teak tree of the moist deciduous forest, very large leaves, some yellowing (forest road)
 - elephant: adult wild Asian elephant walking, side-on (the crossing on the forest road; not a photograph of a real animal)
+- palm-areca (2026-10-20): tall slender areca nut palm, ringed grey trunk, small feathery crown with nut bunches
+- coffee: robusta coffee bush from a Wayanad plantation, glossy leaves, green and red cherries
+- silver-oak: tall silver oak (Grevillea) shade tree with a pepper vine climbing the trunk
+- tree-fern: Western Ghats tree fern, thin fibrous trunk, umbrella of lacy fronds
+- colocasia: clump of wild colocasia / elephant ear with jungle undergrowth, rain drops on the leaves
+- tree-vines: tall rainforest tree wrapped in lianas, climbing vines and epiphytic ferns, mossy bark

@@ -70,7 +70,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     // lamps at the model's own headlamp height (about a third of its height; bikes: one lamp, higher up)
     const bike = spec.width < .12;
     for (const x of bike ? [0] : [-spec.width*.32, spec.width*.32]) {
-      const light=new Mesh(lampGeometry,bulb);light.position.set(x,spec.height*(bike ? .62 : .32),spec.length*.5+.002);root.add(light);
+      const light=new Mesh(lampGeometry,bulb);light.name='lamp';light.position.set(x,spec.height*(bike ? .62 : .32),spec.length*.5+.002);root.add(light);
     }
     // buses: a route board on the front — some in Malayalam, some English, some both
     if (hasBoard(spec.name)) {
@@ -130,6 +130,9 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if (o.root.visible) visible++;
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
       for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist) * .35 : .1 + weather.rain * 2 + weather.mist;
+      // the little lamp quads only when they're lit (rain, mist, a dark sky): in daylight they were two draw calls a
+      // vehicle for a glow nobody could see
+      if (o.root.visible) { const lit = weather.rain + weather.mist + weather.gloom > .08; for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit; }
     }
     trafficControl.count = visible;
   }));

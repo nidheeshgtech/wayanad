@@ -1,5 +1,5 @@
 // Download a Sketchfab model (CC licence, downloadable) and make it web-ready for traffic:
-//   node scripts/fetch-sketchfab.mjs <uid> <name> [--size 1024] [--ratio 1] [--error 0.002] [--no-normal-maps] [--turn] [--keep-parts] [--reuse]
+//   node scripts/fetch-sketchfab.mjs <uid> <name> [--size 1024] [--ratio 1] [--error 0.002] [--no-normal-maps] [--turn] [--keep-parts] [--out dir] [--reuse]
 // - needs SKETCHFAB_TOKEN (free account → Settings → Password & API) in the environment or .env.local
 // - raw download goes to .cache/sketchfab/<name>.src.glb (not committed)
 // - output: public/models/traffic/<name>.glb — meshopt-compressed geometry, WebP textures at most --size px,
@@ -30,7 +30,7 @@ const info = await api(`models/${uid}`);
 const licence = info.license?.label ?? "unknown";
 if (!/^CC Attribution$|^CC0|Public Domain/i.test(licence)) { console.error(`licence "${licence}" is not CC BY / CC0 — not importing`); process.exit(1); }
 mkdirSync(".cache/sketchfab", { recursive: true });
-const src = `.cache/sketchfab/${name}.src.glb`, out = `public/models/traffic/${name}.glb`;
+const src = `.cache/sketchfab/${name}.src.glb`, out = `${opt("out", "public/models/traffic")}/${name}.glb`; // --out <dir>: somewhere else (wildlife)
 if (!reuse || !existsSync(src)) {
   const dl = await api(`models/${uid}/download`, true);
   if (!dl.glb?.url) throw new Error("no GLB archive offered for this model");

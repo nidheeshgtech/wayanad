@@ -30,13 +30,23 @@ const SOURCES: Record<string, [string, number]> = {
   creeper: ["hf_20261019_182155_85c05b88-b3ad-4a9d-99be-1b2146b2a267.png", 384],
   teak: ["hf_20261019_142353_d4940634-3d65-40c3-b524-f0f62e2f5a9e.png", 512],
   elephant: ["hf_20261019_142353_00268537-3a1d-4345-b1b4-3c3fea99f8cb.png", 384],
+  // 2026-10-20: a denser, more Wayanad forest — areca palms, coffee under silver oaks, tree ferns, undergrowth, lianas
+  "palm-areca": ["hf_20261020_185307_53122081-92d9-42b6-8dd0-c1288052882a.png", 512],
+  coffee: ["hf_20261020_185306_0c51ed9a-f64b-472a-b8c3-2038553fdb7f.png", 256],
+  "silver-oak": ["hf_20261020_185306_e0a86f18-b52c-4f92-9c5d-859b1b06cf07.png", 512],
+  "tree-fern": ["hf_20261020_185307_32287f4a-e29a-49d9-aafc-fa4637811da4.png", 384],
+  colocasia: ["hf_20261020_185307_9516a8bd-0246-4ab3-90bc-3a1ac2f89217.png", 256],
+  "tree-vines": ["hf_20261020_185307_ef864102-5adb-4a50-b6eb-88135894cb17.png", 512],
 };
 const ROOT = path.resolve(import.meta.dirname, "..");
 const OUT = path.join(ROOT, "public/vegetation");
 
 await mkdir(OUT, { recursive: true });
-const meta: Record<string, { aspect: number }> = {};
+// ONLY=name,name prepares just those and keeps the others' entries
+const only = process.env.ONLY?.split(",");
+const meta: Record<string, { aspect: number }> = only ? JSON.parse(await readFile(path.join(ROOT, "data/vegetation.json"), "utf8")) : {};
 for (const [name, [file, px]] of Object.entries(SOURCES)) {
+  if (only && !only.includes(name)) continue;
   const src = path.join(OUT, `${name}.src.png`), dst = path.join(OUT, `${name}.webp`);
   const res = await fetch(`${BASE}/${file}`);
   if (!res.ok) throw new Error(`${name}: ${res.status}`);

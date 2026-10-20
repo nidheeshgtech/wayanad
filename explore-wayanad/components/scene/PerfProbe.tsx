@@ -33,6 +33,9 @@ export default function PerfProbe() {
   const gl = useThree((s) => s.gl), frames = useRef<number[]>([]), last = useRef(0), el = useRef<HTMLDivElement | null>(null);
   useFrame(() => {
     if (!probing) return;
+    // review: window.__wayanadCamera = { from: [x, y, z], to: [x, y, z] } holds the camera there (null lets go)
+    const look = (window as unknown as { __wayanadCamera?: { from: number[]; to: number[] } | null }).__wayanadCamera;
+    if (look) { camera.position.set(look.from[0], look.from[1], look.from[2]); camera.lookAt(look.to[0], look.to[1], look.to[2]); }
     const now = performance.now();
     if (last.current) frames.current.push(now - last.current);
     last.current = now;

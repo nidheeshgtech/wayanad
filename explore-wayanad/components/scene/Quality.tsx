@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { InstancedMesh, Material, Mesh } from "three";
 import { perfStats } from "@/lib/perf";
 import { FIXED, LEVELS, quality } from "@/lib/quality";
+import { loading } from "@/lib/loading";
 
 /* Auto quality, judged on typical frames rather than the average: a frame over HITCH ms is a one-off (a shader
  * compiling the first time something appears, an upload) and is left out — counting those used to drop the quality
@@ -58,6 +59,8 @@ export default function Quality({ start = 0 }: { start?: number }) {
     // a fixed mode chosen in the settings: apply it; switching back to auto starts from the current level
     if (quality.mode !== mode.current) { mode.current = quality.mode; if (quality.mode !== "auto") apply(FIXED[quality.mode]); else Object.assign(c, { t: -WARMUP, frames: [], slow: 0, smooth: 0, trial: false }); }
     if (quality.mode !== "auto") return;
+    // loading (models decoding, textures uploading, the forest building) isn't the device's pace: wait for the warm-up
+    if (!loading.ready) { c.t = -WARMUP; c.frames = []; return; }
     c.t += dt;
     if (c.t < 0) return;
     if (dt * 1000 < HITCH) c.frames.push(dt * 1000);

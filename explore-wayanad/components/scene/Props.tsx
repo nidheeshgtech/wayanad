@@ -2,10 +2,11 @@
 import { timed } from "@/lib/perf";
 import { use, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { BufferGeometry, CatmullRomCurve3, Color, InstancedMesh, Material, Matrix4, Mesh, Quaternion, Vector3 } from "three";
+import { BufferGeometry, CatmullRomCurve3, Color, InstancedMesh, Material, Matrix4, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { SECTION, archT, height, roadDistance } from "@/lib/terrain";
 import { inTown, townPlan } from "./Town";
+import { weather } from "@/lib/weather";
 
 /* Real 3D scans from Poly Haven (CC0, scripts/fetch-models.ts), placed along the road at true scale (models are in metres,
  * the scene in 10 m units). Too detailed to draw all 12 km at once, so instances are grouped into chunks of road and only
@@ -82,7 +83,14 @@ export default function Props({ curve, density = 1, towns = true }: { curve: Cat
     return out;
   }), [curve, density, models, towns]);
 
+  // wet rock: darker and glossier as the rain soaks it (the same wetness the road and ground use), drying slowly
+  const rockMaterials = useMemo(() => [...new Set(models[0].map((p) => p.material as MeshStandardMaterial))], [models]);
   useFrame(({ camera }) => {
+    for (const m of rockMaterials) {
+      m.userData.dry ??= { color: m.color.clone(), roughness: m.roughness };
+      const dry = m.userData.dry as { color: Color; roughness: number };
+      m.color.copy(dry.color).multiplyScalar(1 - 0.38 * weather.wet); m.roughness = dry.roughness * (1 - 0.55 * weather.wet);
+    }
     for (const c of chunks) {
       const d = camera.position.distanceTo(c.centre) - c.radius, shown = d < c.view, full = d < FULL;
       c.meshes.forEach((mesh, i) => {

@@ -19,6 +19,8 @@ import Town, { townCircles } from "./Town";
 import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
+import Waterfalls from "./Waterfalls";
+import Monkeys from "./Monkeys";
 import Rain from "./Rain";
 import Traffic from "./Traffic";
 import WeatherDebug from "./WeatherDebug";
@@ -117,6 +119,8 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Suspense fallback={null}><Traffic curve={curve} small={small} /></Suspense>
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
+      <Waterfalls curve={curve} />
+      <Suspense fallback={null}><Monkeys curve={curve} /></Suspense>
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
       <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />
@@ -139,7 +143,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       )}
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
-      <Rain count={small ? 1200 : 2500} />
+      <Rain count={small ? 2000 : 4500} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar curve={curve} forest={forest?.curve ?? null} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} />

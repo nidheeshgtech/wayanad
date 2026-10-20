@@ -1,6 +1,6 @@
 /**
  * Mountain weather for the churam: a small state machine that drifts between clear, partly cloudy, overcast, mist,
- * drizzle, moderate rain and clearing, and a set of smoothly interpolated values the scene reads every frame.
+ * drizzle, moderate rain, a downpour (drive mode only) and clearing, and a set of smoothly interpolated values the scene reads every frame.
  *
  * - Nothing jumps: each value approaches its target exponentially (time constants of 20–40 s), wetness lags the rain
  *   and dries slowly afterwards.
@@ -8,12 +8,12 @@
  *   stay dry. The next state is drawn at random (weights below), a little more often misty or cloudy higher up the
  *   climb, so the same hairpin doesn't always get the same weather.
  * - Time only advances while frames render: a hidden tab (no requestAnimationFrame) pauses the weather and its effects.
- * - Development only: `?weather=clear|partly|overcast|mist|drizzle|rain|clearing` pins a state at full strength (for reviewing looks).
+ * - Development only: `?weather=clear|partly|overcast|mist|drizzle|rain|downpour|clearing` pins a state at full strength (for reviewing looks).
  *
  * No three.js here; `wetUniform` is a plain { value } object shader materials share.
  */
 
-export type WeatherName = "clear" | "partly" | "overcast" | "mist" | "drizzle" | "rain" | "clearing";
+export type WeatherName = "clear" | "partly" | "overcast" | "mist" | "drizzle" | "rain" | "downpour" | "clearing";
 type Target = { cloud: number; mist: number; rain: number };
 
 const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Partial<Record<WeatherName, number>> }> = {
@@ -24,6 +24,8 @@ const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Parti
   mist: { cloud: 0.6, mist: 0.75, rain: 0, hold: [25, 50], next: { partly: 3, clearing: 2, overcast: 1 } },
   drizzle: { cloud: 0.9, mist: 0.4, rain: 0.65, hold: [25, 45], next: { clearing: 4, rain: 1 } },
   rain: { cloud: 1, mist: 0.55, rain: 1, hold: [20, 40], next: { clearing: 1 } },
+  // the monsoon at its heaviest: drive mode only (setDriveWeather leads here); sheets of rain, low cloud, near dark
+  downpour: { cloud: 1, mist: 0.75, rain: 1.4, hold: [20, 35], next: { rain: 2, clearing: 1 } },
   clearing: { cloud: 0.25, mist: 0.12, rain: 0, hold: [40, 80], next: { clear: 4, partly: 1 } },
 };
 const TAU = { cloud: 30, mist: 25, rain: 15, wetUp: 18, wetDown: 70 }; // s: time constants
@@ -40,9 +42,10 @@ export function setDriveWeather() {
   Object.assign(STATES.partly.next, { overcast: 3, drizzle: 1, clear: 2 });
   Object.assign(STATES.overcast.next, { drizzle: 3, rain: 2, partly: 1 });
   Object.assign(STATES.drizzle.next, { rain: 2, clearing: 2 });
+  Object.assign(STATES.rain.next, { downpour: 2, clearing: 2 });
   STATES.clear.hold = [40, 80]; STATES.partly.hold = [30, 60];
   // the first shower comes for sure: clouds build ~30 s in, drizzle, a proper downpour, then it clears
-  script.push(["overcast", 18], ["drizzle", 16], ["rain", 40], ["clearing", 45]);
+  script.push(["overcast", 18], ["drizzle", 16], ["rain", 22], ["downpour", 28], ["rain", 14], ["clearing", 45]);
   if (started) until = Math.min(until, clock + 30);
 }
 
@@ -117,7 +120,7 @@ export function stepWeather(dt: number, progress: number) {
   const cover = weather.cloud + (passing - 0.5) * 0.35 * 4 * weather.cloud * (1 - weather.cloud);
   weather.sun = 1 - smooth(0.15, 0.9, cover);
   // how dark the day gets (drive mode only): heavy cloud and rain, like a monsoon shower on the ghat
-  weather.gloom = showery ? Math.min(1, weather.cloud * 0.55 + weather.rain * 0.6) : 0;
+  weather.gloom = showery ? Math.min(1, weather.cloud * 0.5 + weather.rain * 0.5) : 0;
   wetUniform.value = weather.wet;
   cloudShadowUniforms.uCloudCover.value = 0.55 * Math.min(1, 4 * weather.cloud * (1 - weather.cloud) * 1.2);
   cloudShadowUniforms.uWeatherTime.value = clock;

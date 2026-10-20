@@ -40,6 +40,9 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
 
 People inside the vehicles (lib/occupants.ts) are simple shapes made in code for this project.
 
+- `../wildlife/macaque.glb` (the monkeys at the hairpins): **Realsitic Monkey** by TdoubleU8 (https://sketchfab.com/TdoubleU8), CC BY 4.0.
+  https://sketchfab.com/3d-models/realsitic-monkey-50e4b1da03494429b1265fc095f2c530 — simplified to 25 %, textures 512 px.
+
 All of the above: materials converted to metal-rough, compressed (meshopt, WebP); rebuild with `scripts/fetch-vehicles.sh`.
 Shapes follow real makes; no maker or operator endorsement implied.
 

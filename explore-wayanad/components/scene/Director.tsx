@@ -9,6 +9,7 @@ import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
 import { game } from "@/lib/game";
 import { frameTimed } from "@/lib/perf";
+import { thunder } from "@/lib/water";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -70,6 +71,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
   const length = useMemo(() => curve.getLength(), [curve]);
   const forestLength = useMemo(() => forest?.getLength() ?? 1, [forest]);
   const lastRoad = useRef<CatmullRomCurve3 | null>(null);
+  const exposure = useRef(1.15), lightning = useRef({ t: 1, next: 6 });
   const { spots, end } = useMemo(() => {
     const end = curve.getPointAt(1);
     const onGround = ([x, y, z]: number[]) => { const wx = x + end.x, wz = z - PROTO_END_Z + end.z; return [wx, height(wx, wz) + y, wz]; };
@@ -163,6 +165,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       // weather: banks of mist along the road (some stretches clear), thicker overall in mist and drizzle; capped so the
       // road ahead stays readable (0.045 → the road 15 m ahead is ~95 % visible, 150 m ahead mostly hidden)
       fogDensity += weather.mist * (0.35 + 0.65 * mistPatch(t)) * 0.04 + weather.cloud * 0.003;
+      fogDensity += Math.max(0, weather.rain - 0.6) * 0.022; // heavy rain closes the view down the road
       mist = Math.max(mist, weather.mist * 0.55);
       sky = tmpSky.current.copy(SKY_CLEAR).lerp(SKY_CLOUD, weather.cloud).lerp(SKY_STORM, weather.gloom);
       fogTint = tmpFog.current.copy(FOG_CLEAR).lerp(FOG_CLOUD, weather.cloud).lerp(FOG_MIST, weather.mist * 0.6).lerp(FOG_STORM, weather.gloom * 0.8);
@@ -172,8 +175,17 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog), 0.05);
     (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky), 0.05);
     // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
-    // drive mode's showers go properly dark (weather.gloom)
-    gl.toneMappingExposure += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom - gl.toneMappingExposure) * 0.05;
+    // drive mode's showers go properly dark (weather.gloom); in a downpour, now and then, lightning
+    exposure.current += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom - exposure.current) * 0.05;
+    const L = lightning.current;
+    if (game.active && !game.paused && weather.rain > 1.15) {
+      L.next -= delta;
+      if (L.next <= 0) { L.t = 0; L.next = 12 + Math.random() * 18; thunder(1.2 + Math.random() * 2.5); }
+    }
+    if (L.t < 1) L.t += delta / 0.45;
+    // a flash, a dip, a second flicker
+    const flash = L.t < 1 ? Math.max(0, Math.sin(L.t * Math.PI * 3)) * (1 - L.t) : 0;
+    gl.toneMappingExposure = exposure.current + flash * 0.9;
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white

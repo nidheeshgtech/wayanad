@@ -18,3 +18,4 @@ f f6495bfbffe443e89c499a2ba8766c88 enfield-real --ratio 0.06 --size 512 --turn
 f accbf2048c9344718791588b70d2ebf8 pulsar-real --turn
 f 1a5cbddc8acb457e9d896d7345fd07d8 brezza-player --ratio 0.08 --error 0.01 --keep-parts --turn --size 512  # the car you drive
 f 14d9f8a913eb4fd9b92c32b6fb0fabae tourbus-real --ratio 0.15 --error 0.008
+f 50e4b1da03494429b1265fc095f2c530 macaque --ratio 0.25 --error 0.006 --size 512 --out public/models/wildlife  # monkeys at the hairpins
