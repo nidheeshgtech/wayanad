@@ -22,6 +22,7 @@ const fresh = () => ({
   phase: "drive" as "drive" | "between" | "finished",
   odometer: 0, clock: 0,                      // units driven, seconds driving
   reset: 0,                                   // bumped to put the bus back in lane
+  view: "chase" as "chase" | "cab",           // camera: behind the bus, or the driver's seat (C)
   // for the HUD, filled in by the bus each frame
   place: "Adivaram", next: "Lakkidi gate", nextM: 0, bends: 0,
 });

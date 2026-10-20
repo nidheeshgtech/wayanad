@@ -32,6 +32,8 @@ let DRY_VISITS = 0.35; // share of visits with no drizzle at all
 /** Drive mode (/drive) wants weather you drive through: showers come round every few minutes and go again, and under
  * them the day turns properly dark (`weather.gloom`, read by the lighting). The story keeps its bright default. */
 let showery = false;
+/** States to play in order before the random drift takes over, each with its hold in seconds (drive mode's first shower). */
+const script: [WeatherName, number][] = [];
 export function setDriveWeather() {
   showery = true; RAIN_AFTER = 40; DRY_VISITS = 0;
   Object.assign(STATES.clear.next, { partly: 3, overcast: 2, clear: 1 });
@@ -39,6 +41,9 @@ export function setDriveWeather() {
   Object.assign(STATES.overcast.next, { drizzle: 3, rain: 2, partly: 1 });
   Object.assign(STATES.drizzle.next, { rain: 2, clearing: 2 });
   STATES.clear.hold = [40, 80]; STATES.partly.hold = [30, 60];
+  // the first shower comes for sure: clouds build ~30 s in, drizzle, a proper downpour, then it clears
+  script.push(["overcast", 18], ["drizzle", 16], ["rain", 40], ["clearing", 45]);
+  if (started) until = Math.min(until, clock + 30);
 }
 
 /** Current weather. `sun` (0–1) is how much direct sunlight gets through, with slow cloud shadows passing over. */
@@ -70,7 +75,7 @@ function start() {
     Object.assign(weather, { cloud, mist, rain, state: forced, wet: rain > 0 ? 1 : 0 });
   }
   dryVisit = random() < DRY_VISITS;
-  until = STATES.clear.hold[0] + random() * (STATES.clear.hold[1] - STATES.clear.hold[0]);
+  until = showery ? 30 : STATES.clear.hold[0] + random() * (STATES.clear.hold[1] - STATES.clear.hold[0]);
 }
 
 function pick(progress: number) {
@@ -93,9 +98,13 @@ export function stepWeather(dt: number, progress: number) {
   dt = Math.min(dt, 0.25); // a long frame (tab switch) doesn't fast-forward the sky
   clock += dt;
   if (!forced && clock > until) {
-    weather.state = pick(progress);
-    const h = STATES[weather.state].hold;
-    until = clock + h[0] + random() * (h[1] - h[0]);
+    const next = script.shift();
+    if (next) { weather.state = next[0]; until = clock + next[1]; }
+    else {
+      weather.state = pick(progress);
+      const h = STATES[weather.state].hold;
+      until = clock + h[0] + random() * (h[1] - h[0]);
+    }
   }
   const target = STATES[weather.state], ease = (tau: number) => 1 - Math.exp(-dt / tau);
   weather.cloud += (target.cloud - weather.cloud) * ease(TAU.cloud);

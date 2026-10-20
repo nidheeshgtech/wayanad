@@ -10,6 +10,8 @@ import { forestRoad, height, roadShapeAt } from "@/lib/terrain";
 import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
+import { buildCockpit, SEAT } from "./cockpit";
+import type { PerspectiveCamera } from "three";
 import type { ActId } from "@/data/acts";
 
 /* The chase camera, units of 10 m: behind the bus and above it, looking a little ahead of its nose. It follows the
@@ -33,7 +35,7 @@ export default function PlayerBus({ curve, forest }: { curve: CatmullRomCurve3; 
     ...(forest ? [{ curve: forest, length: forest.getLength(), widen: () => 0 }] : []),
   ], [curve, forest]);
 
-  const { root, brake, head, spot } = useMemo(() => {
+  const { root, brake, head, spot, cockpit, outside } = useMemo(() => {
     const root = new Group(), model = source.clone(true), box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), c = box.getCenter(new Vector3());
     const k = new Vector3(SPEC.width / size.x, SPEC.height / size.y, SPEC.length / size.z);
     model.scale.copy(k); model.position.set(-c.x * k.x, -box.min.y * k.y, -c.z * k.z);
@@ -51,12 +53,14 @@ export default function PlayerBus({ curve, forest }: { curve: CatmullRomCurve3; 
     spot.position.set(0, SPEC.height * 0.3, SPEC.length / 2);
     const target = new Object3D(); target.position.set(0, -0.2, 4); root.add(spot, target); spot.target = target;
     root.name = "player-bus";
-    return { root, brake, head, spot };
+    // the driver's cab for the inside view, hidden from outside
+    const cockpit = buildCockpit(); cockpit.group.visible = false; root.add(cockpit.group);
+    return { root, brake, head, spot, cockpit, outside: [model, ...root.children.filter((o) => o !== model && o.name.startsWith("board"))] };
   }, [source]);
 
   const camPos = useRef(new Vector3()), aim = useRef(new Vector3()), started = useRef(false);
   const tmp = useMemo(() => ({ p: new Vector3(), f: new Vector3(), r: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3() }), []);
-  const lastReset = useRef(game.reset);
+  const lastReset = useRef(game.reset), wipe = useRef(-Math.PI / 2);
 
   // before the director and traffic each frame (negative priority runs first and leaves rendering to R3F)
   useFrame((_, dt) => {
@@ -111,6 +115,21 @@ export default function PlayerBus({ curve, forest }: { curve: CatmullRomCurve3; 
     head.emissiveIntensity = 0.2 + dark * 2.2;
     spot.intensity = dark * 6; spot.visible = dark > 0.05;
 
+    // inside view: the driver's seat (right-hand drive), looking down the road; the outside of the bus hidden
+    const cab = game.view === "cab";
+    cockpit.group.visible = cab; for (const o of outside) o.visible = !cab;
+    const cam = camera as PerspectiveCamera, fov = cab ? 68 : 60;
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    if (cab) {
+      if (weather.rain > 0.08) wipe.current += dt * 3.2; else wipe.current = Math.ceil(wipe.current / (Math.PI * 2)) * Math.PI * 2 - Math.PI / 2;
+      cockpit.update(game.steer, Math.abs(game.speed) * 36, wipe.current);
+      root.updateMatrixWorld();
+      const sway = (game.bump + game.scrape * 0.5) * 0.004;
+      camera.position.copy(root.localToWorld(tmp.want.set(SEAT.x, SEAT.y + (Math.random() - 0.5) * sway, SEAT.z)));
+      camera.lookAt(root.localToWorld(tmp.look.set(SEAT.x + game.steer * 0.08, SEAT.y - 0.035, SEAT.z + 1)));
+      camPos.current.set(0, 0, 0); // the chase camera starts fresh when you go back outside
+      return;
+    }
     // the chase camera
     const { want, look } = tmp;
     want.copy(root.position).addScaledVector(fwd.clone().setY(0).normalize(), -CAM.back).addScaledVector(up, CAM.up);

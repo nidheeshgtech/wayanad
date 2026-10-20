@@ -8,14 +8,23 @@ import styles from "./Drive.module.scss";
 
 /**
  * Drive mode's controls and readouts. Keys: ↑/W accelerate, ↓/S or Space brake (and reverse), ←/→ or A/D steer,
- * H horn, R back on the road. Touch: steer buttons on the left, brake and accelerator on the right.
+ * H horn, R back on the road, C driver's seat / outside. Touch: steer buttons on the left, brake and accelerator on the right.
  * Readouts are written straight into the DOM each frame (no React state per frame). React state only for the
  * screens: start, the Kalpetta → Sulthan Bathery card, and the finish.
  */
+/** Outside (behind the bus) or the driver's seat; remembered for next time. */
+function toggleView() {
+  game.view = game.view === "cab" ? "chase" : "cab";
+  try { localStorage.setItem("drive-view", game.view); } catch {}
+}
+
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "between" | "finished">("start");
   const speed = useRef<HTMLElement>(null), place = useRef<HTMLDivElement>(null), next = useRef<HTMLDivElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0 });
+
+  // the view you used last time
+  useEffect(() => { try { const v = localStorage.getItem("drive-view"); if (v === "cab" || v === "chase") game.view = v; } catch {} }, []);
 
   // keyboard
   useEffect(() => {
@@ -31,6 +40,7 @@ export default function DriveHud() {
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
       if (k === "h" && !e.repeat) honk();
       if (k === "r" && !e.repeat) resetBus();
+      if ((k === "c" || k === "v") && !e.repeat) toggleView();
       held.add(k); apply();
     };
     const up = (e: KeyboardEvent) => { held.delete(e.key.toLowerCase()); apply(); };
@@ -78,6 +88,7 @@ export default function DriveHud() {
       <div className={styles.buttons}>
         <button type="button" onClick={() => honk()} title="Horn (H)">Horn</button>
         <button type="button" onClick={() => resetBus()} title="Back on the road (R)">Reset</button>
+        <button type="button" onClick={toggleView} title="Driver's seat or behind the bus (C)">View</button>
       </div>
       <Sound />
 
@@ -103,6 +114,7 @@ export default function DriveHud() {
             <li><kbd>←</kbd><kbd>→</kbd> steer</li>
             <li><kbd>H</kbd> horn: a slow vehicle ahead gives way where it&apos;s safe</li>
             <li><kbd>R</kbd> back on the road</li>
+            <li><kbd>C</kbd> driver&apos;s seat or behind the bus</li>
           </ul>
           <p className={styles.small}>Keep left. Overtake on the right when the road is clear; oncoming traffic slows for you, but not on the hairpins. Showers come and go.</p>
           <button type="button" className={styles.go} onClick={start}>Start the bus</button>
