@@ -27,11 +27,22 @@ const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Parti
   clearing: { cloud: 0.25, mist: 0.12, rain: 0, hold: [40, 80], next: { clear: 4, partly: 1 } },
 };
 const TAU = { cloud: 30, mist: 25, rain: 15, wetUp: 18, wetDown: 70 }; // s: time constants
-const RAIN_AFTER = 90; // s of a visit before drizzle is allowed
-const DRY_VISITS = 0.35; // share of visits with no drizzle at all
+let RAIN_AFTER = 90; // s of a visit before drizzle is allowed
+let DRY_VISITS = 0.35; // share of visits with no drizzle at all
+/** Drive mode (/drive) wants weather you drive through: showers come round every few minutes and go again, and under
+ * them the day turns properly dark (`weather.gloom`, read by the lighting). The story keeps its bright default. */
+let showery = false;
+export function setDriveWeather() {
+  showery = true; RAIN_AFTER = 40; DRY_VISITS = 0;
+  Object.assign(STATES.clear.next, { partly: 3, overcast: 2, clear: 1 });
+  Object.assign(STATES.partly.next, { overcast: 3, drizzle: 1, clear: 2 });
+  Object.assign(STATES.overcast.next, { drizzle: 3, rain: 2, partly: 1 });
+  Object.assign(STATES.drizzle.next, { rain: 2, clearing: 2 });
+  STATES.clear.hold = [40, 80]; STATES.partly.hold = [30, 60];
+}
 
 /** Current weather. `sun` (0–1) is how much direct sunlight gets through, with slow cloud shadows passing over. */
-export const weather = { cloud: 0.06, mist: 0, rain: 0, wet: 0, sun: 1, state: "clear" as WeatherName };
+export const weather = { cloud: 0.06, mist: 0, rain: 0, wet: 0, sun: 1, gloom: 0, state: "clear" as WeatherName };
 export const wetUniform = { value: 0 };
 /** Cloud shadows sliding over the land: `uCloudCover` is how broken the cloud is (0 clear or full, 1 half-covered),
  * `uWeatherTime` drives the drift. Used by CLOUD_SHADOW_GLSL in the ground, road and plant shaders. */
@@ -96,6 +107,8 @@ export function stepWeather(dt: number, progress: number) {
   // (the moving shadows on the land come from CLOUD_SHADOW_GLSL; here only a gentle swell in the overall sunlight)
   const cover = weather.cloud + (passing - 0.5) * 0.35 * 4 * weather.cloud * (1 - weather.cloud);
   weather.sun = 1 - smooth(0.15, 0.9, cover);
+  // how dark the day gets (drive mode only): heavy cloud and rain, like a monsoon shower on the ghat
+  weather.gloom = showery ? Math.min(1, weather.cloud * 0.55 + weather.rain * 0.6) : 0;
   wetUniform.value = weather.wet;
   cloudShadowUniforms.uCloudCover.value = 0.55 * Math.min(1, 4 * weather.cloud * (1 - weather.cloud) * 1.2);
   cloudShadowUniforms.uWeatherTime.value = clock;

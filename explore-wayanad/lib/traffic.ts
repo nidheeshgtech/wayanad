@@ -18,7 +18,8 @@ export type Mode = 'cruise' | 'follow' | 'yield' | 'passed' | 'caution';
 export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number; mode?: Mode; shift?: number; wait?: number };
 /** Shared with the dev review panel (WeatherDebug): pause/rate, what's nearby, and the viewer's seat and give-way state.
  * stage*: dev-only hooks that put a vehicle just ahead of the seat to review a catch-up or an overtake. */
-export const trafficControl = { paused: false, rate: 1, count: 0, seat: -1, overtaking: false, following: false, held: null as string | null, horn: false, stageAhead: 0, stageMode: 'cruise' as Mode, staged: -1, stagedInfo: '' }; // stageAhead: dev review only
+export const trafficControl = { paused: false, rate: 1, count: 0, seat: -1, overtaking: false, following: false, held: null as string | null, horn: false, stageAhead: 0, stageMode: 'cruise' as Mode, staged: -1, stagedInfo: '',
+  fleet: [] as Vehicle[], curve: null as CatmullRomCurve3 | null }; // stageAhead: dev review only
 const up = new Vector3(0, 1, 0);
 export function lanePoint(curve: CatmullRomCurve3, distance: number, direction: number, widen: (t: number) => number, out = new Vector3(), edge = 0) {
   const t = Math.max(0, Math.min(1, distance / curve.getLength()));
@@ -43,7 +44,9 @@ export function createFleet(length: number): Vehicle[] {
   return Array.from({ length: n }, (_, id) => ({ id, kind: [0,1,2,3,1,4,5,7,1,6,3,2][id % 12], direction: id % 2 ? -1 : 1, distance: 2 + (length - 4) * (id + .5) / n, speed: 0 }));
 }
 /** Snapshot-based car following: all movement uses the same previous frame, never update-order overtaking. */
-export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number) {
+/** Something on the road traffic must not drive into: the player's bus in drive mode. `lanes`: the lanes it covers. */
+export type Obstacle = { distance: number; length: number; lanes: (1 | -1)[] };
+export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = []) {
   const length = curve.getLength(), span = length - 4;
   dt = Math.min(.05, Math.max(0, dt));
   // the viewer rides up the road (direction 1) like a bus: it holds narrow bends against oncoming traffic too
@@ -62,6 +65,10 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
       const clearance = gap - (spec.length + VEHICLES[other.kind].length) / 2;
       const safe = .65 + v.speed * (2 + rain * 2);
       room = Math.min(room, clearance - safe);
+    }
+    for (const o of obstacles) if (o.lanes.includes(v.direction)) {
+      const gap = (o.distance - v.distance) * v.direction;
+      if (gap > 0) room = Math.min(room, gap - (spec.length + o.length) / 2 - (.65 + v.speed * (2 + rain * 2)));
     }
     desired = Math.min(desired, Math.max(0, room * .5));
     const speed = Math.max(0, Math.min(desired, v.speed + dt * .12));
@@ -151,6 +158,70 @@ export function interactWithViewer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
   const k = 1 - Math.exp(-dt / DRIVE.ease);
   for (const v of fleet) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k;
   return { overtaking, following: !!lead && lead.mode === 'follow', held };
+}
+
+/* ---- drive mode: the player's bus among the traffic ---- */
+export type Player = { s: number; lat: number; speed: number; halfL: number; halfW: number };
+/** The lanes the player's bus covers: its own (left, 1) and/or the oncoming one (right, −1). */
+export const playerLanes = (p: Player): (1 | -1)[] => [...(p.lat + p.halfW > 0.02 ? [1 as const] : []), ...(p.lat - p.halfW < -0.02 ? [-1 as const] : [])];
+/** A vehicle's centre, units left of the road's centre line (oncoming traffic: negative). */
+export const vehicleLat = (v: Vehicle, widen: (t: number) => number, length: number) =>
+  v.direction * ((.4 + widen(Math.min(1, Math.max(0, v.distance / length)))) * .5 + (v.shift ?? 0) * edgeRoom(v.kind));
+
+/**
+ * Traffic and the player's bus (drive mode). Same states as with the viewer's seat, but the bus is real:
+ * - a slower vehicle ahead in your lane: after a while behind it, or at once on the horn, it gives way where it's safe
+ *   (eases left, slows) so you can pass; on bends and hairpins it doesn't;
+ * - pull out into the oncoming lane and the oncoming vehicles ahead take care: slow and keep to their edge, and car
+ *   following (advanceTraffic's obstacles) stops them short of you rather than through you;
+ * - nobody is moved about: you brake, they brake.
+ */
+export function interactWithPlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: (t: number) => number, zones: PassingZone[],
+  p: Player, dt: number, horn: boolean, fits: (v: Vehicle) => boolean = () => true) {
+  const length = curve.getLength(), lanes = playerLanes(p), half = (v: Vehicle) => VEHICLES[v.kind].length / 2;
+  const mine = fleet.filter(v => v.direction === 1), passing = (v: Vehicle) => v.mode === 'yield' || v.mode === 'passed';
+  for (const v of mine) if (passing(v)) {
+    const g = v.distance - p.s;
+    if (g + half(v) < -p.halfL - DRIVE.behind || g - half(v) > DRIVE.approach + 1) v.mode = 'cruise';
+    else if (v.mode === 'yield' && g + half(v) < -p.halfL) v.mode = 'passed';
+  }
+  // the vehicle you're stuck behind: nearest ahead in your lane, close, and not faster than you
+  const lead = lanes.includes(1) ? mine.filter(v => !passing(v) && v.distance - p.s > 0).sort((a, b) => a.distance - b.distance)[0] : undefined;
+  let held: string | null = null;
+  for (const v of mine) if (v !== lead) { v.wait = 0; if (v.mode === 'follow') v.mode = 'cruise'; }
+  if (lead && lead.distance - half(lead) - (p.s + p.halfL) < DRIVE.approach) {
+    if (p.speed > .05 || horn) lead.wait = (lead.wait ?? 0) + dt;
+    const asked = horn || (lead.wait ?? 0) > DRIVE.autoYield;
+    held = !asked ? 'waiting' : !safeToPass(curve, widen, zones, fleet, p.s) ? 'not safe here' : !fits(lead) ? 'no room at the edge' : null;
+    if (!held) { lead.mode = 'yield'; lead.wait = 0; } else lead.mode = 'follow';
+  }
+  // oncoming: take care while you're out in their lane, or alongside someone you're overtaking
+  const alongside = mine.some(v => passing(v) && Math.abs(v.distance - p.s) < half(v) + p.halfL + 1);
+  const out = lanes.includes(-1);
+  for (const v of fleet) if (v.direction === -1) {
+    const g = v.distance - p.s;
+    if ((out && g > -p.halfL && g < 8) || (alongside && g > -1 && g < 6)) v.mode = 'caution'; else if (v.mode === 'caution') v.mode = 'cruise';
+  }
+  const k = 1 - Math.exp(-dt / DRIVE.ease);
+  for (const v of fleet) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k;
+  return { overtaking: out || alongside, following: !!lead && lead.mode === 'follow', held };
+}
+
+/** Keep the player's bus out of the vehicles: where footprints overlap (along the road and across it), the bus is put
+ * back at the contact and slowed to the other vehicle's pace (head-on: stopped). Returns the knock (0 = none). */
+export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: (t: number) => number, p: Player) {
+  const length = curve.getLength();
+  let knock = 0;
+  for (const v of fleet) {
+    const spec = VEHICLES[v.kind], reach = spec.length / 2 + p.halfL, g = v.distance - p.s;
+    if (Math.abs(g) >= reach) continue;
+    if (Math.abs(vehicleLat(v, widen, length) - p.lat) >= spec.width / 2 + p.halfW) continue;
+    const theirs = v.direction * v.speed; // their speed along the road, in your direction
+    knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
+    if (g > 0) { p.s = v.distance - reach - .01; p.speed = Math.min(p.speed, Math.max(0, theirs)); }
+    else { p.s = v.distance + reach + .01; p.speed = Math.max(p.speed, theirs); }
+  }
+  return knock;
 }
 
 export type PassingZone = { from: number; to: number; owner: 1 | -1 | null };

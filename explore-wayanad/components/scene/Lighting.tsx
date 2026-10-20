@@ -55,10 +55,10 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
   useFrame((_, dt) => {
     stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1);
     // clouds over the sun: direct light fades to a quarter (shadows soften with it); sky light dims a little
-    scene.environmentIntensity = 1.1 - 0.35 * weather.cloud;
+    scene.environmentIntensity = (1.1 - 0.35 * weather.cloud) * (1 - 0.45 * weather.gloom);
     const sun = sunRef.current;
     if (!sun) return;
-    sun.intensity = (0.8 + 3.0 * weather.sun) * (1 - 0.2 * weather.mist);
+    sun.intensity = (0.8 + 3.0 * weather.sun) * (1 - 0.2 * weather.mist) * (1 - 0.6 * weather.gloom);
     target.position.copy(camera.position);
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, SHADOW.distance);
     target.updateMatrixWorld();

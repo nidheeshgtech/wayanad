@@ -2,6 +2,7 @@
 .go .stamps span { animation: in .8s forwards; &:nth-child(2) { animation-delay: 1s } &:nth-child(3) { animation-delay: 2s } }
 .stamps { display: grid; gap: 12px; font-family: var(--font-serif), Georgia, serif; font-size: clamp(22px, 6vw, 34px); font-weight: 300; span { opacity: 0; } }
 .hint { font-size: 12px; color: var(--mute); }
+.drive { font-size: 13px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); padding: 6px 0; &:hover { border-color: var(--amber); } &:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; } }
 .preroll button { min-height: 48px; padding: 0 26px; border-radius: 999px; border: 0; background: var(--amber); color: #0e1f1a; font-weight: 500; &:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; } }
 @keyframes in { to { opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .stamps span { opacity: 1; animation: none; } }

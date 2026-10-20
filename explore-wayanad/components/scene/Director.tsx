@@ -7,6 +7,7 @@ import { driveT, driveT2, driveT7, driveT8 } from "@/lib/drive";
 import { mistPatch, weather } from "@/lib/weather";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
+import { game } from "@/lib/game";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -40,7 +41,7 @@ const HUB = { from: 0.84, rise: 9, ahead: 10 };
 /* Act 8: once the drive has stopped at the barrier (FOREST.arrive), the camera turns 180° over this act progress. */
 const TURN_BACK = [0.58, 0.92, 25] as const; // act progress from, to; and units back along the road to look at
 /* Churam sky and haze colours for clear and full cloud (lib/weather blends between them), and for thick mist. */
-const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2);
+const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2), SKY_STORM = new Color(0x48525a), FOG_STORM = new Color(0x7f888d);
 const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST = new Color(0xd9dee0);
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
@@ -86,7 +87,10 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     /* ---- camera ---- */
     const onForest = !!forest && (act === "forest" || act === "border");
     const driving = act === "churam" || act === "kalpetta" || onForest;
-    if (driving) {
+    // drive mode (/drive): the chase camera behind the player's bus places the camera; the mood below still runs
+    if (game.active) {
+      // nothing: components/drive/PlayerBus.tsx
+    } else if (driving) {
       const road = onForest ? forest! : curve, roadLength = onForest ? forestLength : length;
       const t = act === "churam" ? driveT(p) : act === "kalpetta" ? driveT2(p) : act === "forest" ? driveT7(p) : driveT8(p);
       const pt = road.getPointAt(t), ahead = road.getPointAt(Math.min(0.999, t + BUS.ahead / roadLength));
@@ -141,10 +145,12 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       }
     }
     // ease the aim too, so the view never snaps to a new target (hairpins, act changes)
-    if (aim.current.lengthSq() === 0) aim.current.copy(look.current);
-    if (!driving) aim.current.lerp(look.current, 0.06);
-    camera.lookAt(aim.current);
-    if (driving) camera.rotateZ(roll.current);
+    if (!game.active) {
+      if (aim.current.lengthSq() === 0) aim.current.copy(look.current);
+      if (!driving) aim.current.lerp(look.current, 0.06);
+      camera.lookAt(aim.current);
+      if (driving) camera.rotateZ(roll.current);
+    }
 
     /* ---- mood ---- */
     let fogDensity = P.fogDensity, mist = P.mist;
@@ -157,15 +163,16 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       // road ahead stays readable (0.045 → the road 15 m ahead is ~95 % visible, 150 m ahead mostly hidden)
       fogDensity += weather.mist * (0.35 + 0.65 * mistPatch(t)) * 0.04 + weather.cloud * 0.003;
       mist = Math.max(mist, weather.mist * 0.55);
-      sky = tmpSky.current.copy(SKY_CLEAR).lerp(SKY_CLOUD, weather.cloud);
-      fogTint = tmpFog.current.copy(FOG_CLEAR).lerp(FOG_CLOUD, weather.cloud).lerp(FOG_MIST, weather.mist * 0.6);
+      sky = tmpSky.current.copy(SKY_CLEAR).lerp(SKY_CLOUD, weather.cloud).lerp(SKY_STORM, weather.gloom);
+      fogTint = tmpFog.current.copy(FOG_CLEAR).lerp(FOG_CLOUD, weather.cloud).lerp(FOG_MIST, weather.mist * 0.6).lerp(FOG_STORM, weather.gloom * 0.8);
     }
     // fireflies come out through Stay, peak at Night, and fade over Plan
     const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
     fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog), 0.05);
     (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky), 0.05);
     // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
-    gl.toneMappingExposure += (1.15 - 0.2 * weather.cloud - gl.toneMappingExposure) * 0.05;
+    // drive mode's showers go properly dark (weather.gloom)
+    gl.toneMappingExposure += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom - gl.toneMappingExposure) * 0.05;
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white

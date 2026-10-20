@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { lanePoint, vehiclePose, createFleet, advanceTraffic, interactWithViewer, passingZones, VEHICLES, DRIVE } from '../lib/traffic.ts';
+import { lanePoint, vehiclePose, createFleet, advanceTraffic, interactWithViewer, interactWithPlayer, collidePlayer, playerLanes, vehicleLat, passingZones, VEHICLES, DRIVE } from '../lib/traffic.ts';
 import { setHeightmaps, buildRoadCurve, roadShapeAt, roadDistance, height, bendTs } from '../lib/terrain.ts';
 import { decodePng16 } from '../lib/heightmap.ts';
 import { weather, stepWeather, setWeatherForReview } from '../lib/weather.ts';
@@ -100,6 +100,30 @@ for (const useHorn of [false, true]) {
  assert(overtakes>3,'slower vehicles give way, the viewer is not stuck behind them');
  assert(unsafeYield===0,'nobody gives way on a hairpin');
  assert(worstSpacing>-1e-6,'clearing the seat never overlaps vehicles');
+}
+// Drive mode: a player's bus (kinematic here) drives up at bus pace, honks when held up, and pulls out toward the centre
+// line to pass once the vehicle ahead gives way (only with the oncoming lane clear ahead). Oncoming traffic must never
+// run into the bus; overtakes must happen; the bus never ends up inside a vehicle.
+{
+ const riders=createFleet(L), zones3=passingZones(curve,widen), P={s:3,lat:.2,speed:0,halfL:.47,halfW:.1125};
+ let headOn=0, overtakes=0, inside=0, wasOut=false;
+ for(let frame=0;frame<15000 && P.s<L*.98;frame++){
+  const dt=1/30, lead=riders.filter(v=>v.direction===1&&v.distance>P.s&&v.distance-P.s<2.5).sort((a,b)=>a.distance-b.distance)[0];
+  const clearAhead=!riders.some(v=>v.direction===-1&&v.distance>P.s-1&&v.distance<P.s+6);
+  const passing=lead&&lead.mode==='yield'&&clearAhead;
+  const targetLat=passing?-.02:.2; P.lat+=(targetLat-P.lat)*Math.min(1,dt*2);
+  P.speed=Math.min(1.2,P.speed+.3*dt); P.s+=P.speed*dt;
+  advanceTraffic(riders,curve,dt,0,zones3,P.s,[{distance:P.s,length:.94,lanes:playerLanes(P)}]);
+  interactWithPlayer(riders,curve,widen,zones3,P,dt,frame%45<3);
+  collidePlayer(riders,curve,widen,P);
+  for(const v of riders){ const spec=VEHICLES[v.kind];
+   if(Math.abs(v.distance-P.s)<spec.length/2+P.halfL-.02 && Math.abs(vehicleLat(v,widen,L)-P.lat)<spec.width/2+P.halfW-.02){ inside++; if(v.direction===-1)headOn++; } }
+  const out=P.lat<.1; if(wasOut&&!out)overtakes++; wasOut=out;
+ }
+ console.log('player drive',{s:P.s.toFixed(0),overtakes,headOn,inside});
+ assert(overtakes>2,'the player gets past slower traffic');
+ assert(headOn===0,'oncoming traffic never drives into the player');
+ assert(inside===0,'the bus never ends up inside a vehicle');
 }
 stepWeather(1/60,0);assert(weather.rain===0,'sunny start');
 setWeatherForReview('rain');for(let i=0;i<600;i++)stepWeather(.25,.5);

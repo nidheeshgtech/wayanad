@@ -33,6 +33,7 @@ import ShowIn, { FOREST_ACTS } from "./ShowIn";
 import Elephant from "./Elephant";
 import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
+import PlayerBus from "../drive/PlayerBus";
 
 patchAtmosphere(); // before any material compiles
 
@@ -57,7 +58,8 @@ const loadTerrain = () =>
     })
     .catch((err) => console.warn("Heightmap unavailable, using procedural terrain:", err)));
 
-export default function Scene({ tier }: { tier: Tier }) {
+/** `mode`: "story" (the scroll-driven page) or "drive" (/drive: you drive the bus; components/drive). */
+export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "story" | "drive" }) {
   const small = tier === "lite";
   return (
     <Canvas
@@ -69,14 +71,14 @@ export default function Scene({ tier }: { tier: Tier }) {
       style={{ position: "fixed", inset: 0, zIndex: 0 }}
     >
       <Suspense fallback={null}>
-        <World small={small} />
+        <World small={small} mode={mode} />
       </Suspense>
     </Canvas>
   );
 }
 
 /** Everything that samples the ground. Renders once the heightmap has loaded (or failed). */
-function World({ small }: { small: boolean }) {
+function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
   use(loadTerrain());
   const curve = useMemo(() => buildRoadCurve(), []);
   useMemo(() => {
@@ -136,6 +138,7 @@ function World({ small }: { small: boolean }) {
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 1200 : 2500} />
+      {mode === "drive" && <Suspense fallback={null}><PlayerBus curve={curve} forest={forest?.curve ?? null} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} />
       {process.env.NODE_ENV !== "production" && <WeatherDebug />}

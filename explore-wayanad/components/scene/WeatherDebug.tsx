@@ -9,7 +9,7 @@ export default function WeatherDebug() {
   const { scene, gl, camera } = useThree();
   useEffect(() => {
     if (process.env.NODE_ENV === 'production' || !new URLSearchParams(location.search).has('sceneDebug')) return;
-    const api = { weather: setWeatherForReview, traffic: trafficControl, snapshot: () => ({ weather: {...weather}, traffic: {...trafficControl}, camera: camera.position.toArray(), render: {...gl.info.render}, vehicles: scene.getObjectByName('mountain-traffic')?.children.map(o => ({name:o.name,mode:o.userData.mode,visible:o.visible,position:o.position.toArray(), projected:o.position.clone().project(camera).toArray(), size:new Box3().setFromObject(o).getSize(new Vector3()).toArray(), children:o.children.length, parentVisible:o.parent?.parent?.visible})) }) };
+    const api = { weather: setWeatherForReview, traffic: trafficControl, snapshot: () => ({ weather: {...weather}, traffic: {...trafficControl, fleet: undefined, curve: undefined}, camera: camera.position.toArray(), render: {...gl.info.render}, vehicles: scene.getObjectByName('mountain-traffic')?.children.map(o => ({name:o.name,mode:o.userData.mode,visible:o.visible,position:o.position.toArray(), projected:o.position.clone().project(camera).toArray(), size:new Box3().setFromObject(o).getSize(new Vector3()).toArray(), children:o.children.length, parentVisible:o.parent?.parent?.visible})) }) };
     const target = window as typeof window & { wayanadReview?: typeof api }; target.wayanadReview = api;
     const panel = document.createElement('aside');
     panel.style.cssText = 'position:fixed;right:12px;top:80px;z-index:9999;background:#10251eed;color:#fff;padding:12px;font:12px system-ui;border-radius:8px;display:grid;gap:8px';
