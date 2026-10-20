@@ -11,10 +11,11 @@ import { driveT, driveT2 } from '@/lib/drive';
 import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
 import { frameTimed } from '@/lib/perf';
+import { hasOccupants, occupantMaterial, occupantsFor } from '@/lib/occupants';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 const cache = new Map<string, Promise<Group | null>>();
 function load(name: string) {
-  if (!cache.has(name)) cache.set(name, loadVehicle(`/models/traffic/${name}.glb`).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
+  if (!cache.has(name)) cache.set(name, loadVehicle(`/models/traffic/${name}.glb`, { merged: true }).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
   return cache.get(name)!;
 }
 let assets: Promise<(Group | null)[]> | null = null;
@@ -35,14 +36,21 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   const fitsAtEdge = useMemo(() => (v: Vehicle) => edgeRoom(v.kind) > 0 && [0, .8, 1.6].every(d => footprintOk(curve, { ...v, distance: v.distance + d, shift: 1 })), [curve]);
   const zones = useMemo(() => passingZones(curve,widen),[curve]);
   const fleet = useMemo(() => {
-    const result=createFleet(curve.getLength());
+    // busier by the towns (Lakkidi, Vythiri, Kalpetta…), thinner on the hairpins
+    const L = curve.getLength(), bends = scrollState.bends.map(t => t * L), towns = [scrollState.arch, ...scrollState.places.map(p => p.t)].map(t => t * L);
+    const result=createFleet(L, d => {
+      let k = 1;
+      for (const b of bends) k *= 1 - .55 * Math.exp(-(((d - b) / 2.5) ** 2));
+      for (const t of towns) k += 1.2 * Math.exp(-(((d - t) / 12) ** 2));
+      return k;
+    });
     // Start outside reservation zones, so no initial opposing occupant can be trapped.
     for(const v of result)for(const z of zones)if(v.distance>z.from && v.distance<z.to)v.distance=v.direction===1?z.from-1:z.to+1;
     return result;
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[] };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
     model.scale.set(spec.width / size.x, spec.height / size.y, scale); model.position.set(-center.x * spec.width / size.x, -bounds.min.y * spec.height / size.y, -center.z * scale);
@@ -71,8 +79,14 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if ((board.material as MeshStandardMaterial).emissiveMap) { board.material.userData.board = true; lights.push(board.material as MeshStandardMaterial); }
       root.add(board);
     }
+    // the people inside (one merged mesh; drawn only near the camera, where the glass lets you see them)
+    let people: Mesh | null = null;
+    if (hasOccupants(spec.name)) {
+      const geo = occupantsFor(spec.name, spec.length, v.id);
+      if (geo) { people = new Mesh(geo, occupantMaterial); people.castShadow = false; people.receiveShadow = true; people.name = 'occupants'; root.add(people); }
+    }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
-    return { root, lights, owned };
+    return { root, lights, owned, people };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useFrame(({ camera }, dt) => frameTimed('traffic', () => {
@@ -108,7 +122,9 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       const v = fleet[i], o = objects[i], pose = vehiclePose(curve, v, widen);
       o.root.position.copy(pose.position); o.root.quaternion.copy(pose.rotation);
       o.root.userData.mode = v.mode ?? 'cruise'; // read by the dev review snapshot
-      o.root.visible = camera.position.distanceToSquared(pose.position) < (small ? 28 : 50) ** 2 && v.distance > 3 && v.distance < curve.getLength() - 3;
+      const far2 = camera.position.distanceToSquared(pose.position);
+      o.root.visible = far2 < (small ? 28 : 50) ** 2 && v.distance > 3 && v.distance < curve.getLength() - 3;
+      if (o.people) o.people.visible = far2 < 14 ** 2; // people inside only where you could see them
       // Existing baked terrain has isolated cut mismatches: conservatively omit unsafe footprints.
       if (o.root.visible && !footprintOk(curve, v)) o.root.visible = false;
       if (o.root.visible) visible++;

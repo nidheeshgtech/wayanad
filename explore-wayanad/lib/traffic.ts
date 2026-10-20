@@ -12,6 +12,7 @@ export const VEHICLES = [
   { name: 'auto-real', height: .17, length: .265, width: .146, speed: .55 },
   { name: 'omni-real', height: .171, length: .34, width: .174, speed: .65 },
   { name: 'privatebus-real', height: .262, length: .94, width: .225, speed: .66 },
+  { name: 'tourbus-real', height: .288, length: .94, width: .225, speed: .64 },
 ] as const;
 /** How a vehicle is behaving toward the viewer: see interactWithViewer. `shift` (0–1) eases it toward its own road edge. */
 export type Mode = 'cruise' | 'follow' | 'yield' | 'passed' | 'caution';
@@ -39,9 +40,17 @@ export function vehiclePose(curve: CatmullRomCurve3, v: Vehicle, widen: (t: numb
   const normal = forward.clone().cross(right).normalize();
   return { position: front.add(rear).multiplyScalar(.5).addScaledVector(normal, .003), rotation: new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(right, normal, forward)) };
 }
-export function createFleet(length: number): Vehicle[] {
-  const n = Math.max(4, Math.min(160, Math.floor(length / 12)));
-  return Array.from({ length: n }, (_, id) => ({ id, kind: [0,1,2,3,1,4,5,7,1,6,3,2][id % 12], direction: id % 2 ? -1 : 1, distance: 2 + (length - 4) * (id + .5) / n, speed: 0 }));
+/** The mix, in the order vehicles are handed out: cars and two-wheelers most, then buses (state, private, tourist),
+ * lorries, autos and vans — about one bus in five. */
+const MIX = [0, 1, 2, 3, 1, 4, 5, 7, 1, 6, 3, 2, 8, 1, 2, 3];
+/** Up to 240 vehicles, half each way, spread by `density` (relative, along the road: more by the towns, fewer on the
+ * hairpins) — placed at equal steps of the density's running total, so busy stretches get more of them. */
+export function createFleet(length: number, density: (d: number) => number = () => 1): Vehicle[] {
+  const n = Math.max(4, Math.min(240, Math.floor(length / 11.5)));
+  const steps = 2000, cum = new Float64Array(steps + 1);
+  for (let i = 0; i < steps; i++) cum[i + 1] = cum[i] + Math.max(0.05, density(2 + ((length - 4) * (i + 0.5)) / steps));
+  const at = (u: number) => { let lo = 0, hi = steps; const x = u * cum[steps]; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= x) lo = mid; else hi = mid; } return 2 + ((length - 4) * (lo + (x - cum[lo]) / Math.max(1e-9, cum[hi] - cum[lo]))) / steps; };
+  return Array.from({ length: n }, (_, id) => ({ id, kind: MIX[id % MIX.length], direction: id % 2 ? -1 : 1, distance: at((id + 0.5) / n), speed: 0 }));
 }
 /** Snapshot-based car following: all movement uses the same previous frame, never update-order overtaking. */
 /** Something on the road traffic must not drive into: the player's bus in drive mode. `lanes`: the lanes it covers. */

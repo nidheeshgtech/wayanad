@@ -5,11 +5,10 @@ import {
   Box3, BufferAttribute, BufferGeometry, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
   Object3D, Quaternion, SphereGeometry, SpotLight, Vector3, type PerspectiveCamera,
 } from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { CAR, game } from "@/lib/game";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
-import { loadVehicle } from "@/lib/vehicleAssets";
+import { loadVehicle, mergeInto } from "@/lib/vehicleAssets";
 import { forestRoad, height, roadShapeAt } from "@/lib/terrain";
 import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
@@ -34,42 +33,6 @@ function progressFor(fn: (q: number) => number, t: number) {
   let lo = 0, hi = 1;
   for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (fn(mid) < t) lo = mid; else hi = mid; }
   return (lo + hi) / 2;
-}
-
-/** A copy of `g` with plain float position / normal / uv (the model's are quantized), moved by `m`. */
-function plain(g: BufferGeometry, m: Matrix4) {
-  const out = new BufferGeometry();
-  for (const name of ["position", "normal", "uv"]) {
-    const a = g.getAttribute(name) as BufferAttribute | undefined;
-    if (!a) continue;
-    const f = new Float32Array(a.count * a.itemSize);
-    for (let i = 0; i < a.count; i++) for (let k = 0; k < a.itemSize; k++) f[i * a.itemSize + k] = a.getComponent(i, k);
-    out.setAttribute(name, new BufferAttribute(f, a.itemSize));
-  }
-  if (g.index) out.setIndex(Array.from(g.index.array as ArrayLike<number>));
-  out.applyMatrix4(m);
-  if (m.determinant() < 0 && out.index) { const ix = out.index.array as number[] | Uint32Array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i]; ix[i] = ix[i + 2]; ix[i + 2] = t; } }
-  return out;
-}
-
-/** Merge meshes into one mesh per material (and per attribute set), in the frame `into` (its world matrix inverted). */
-function mergeInto(meshes: Mesh[], into: Object3D) {
-  into.updateMatrixWorld(true);
-  const inv = new Matrix4().copy(into.matrixWorld).invert(), groups = new Map<string, { material: Material; parts: BufferGeometry[] }>();
-  for (const mesh of meshes) {
-    const material = mesh.material as Material, g = plain(mesh.geometry, new Matrix4().multiplyMatrices(inv, mesh.matrixWorld));
-    const key = `${material.uuid}|${Object.keys(g.attributes).sort().join(",")}|${g.index ? 1 : 0}`;
-    (groups.get(key) ?? groups.set(key, { material, parts: [] }).get(key)!).parts.push(g);
-  }
-  const out: Mesh[] = [];
-  for (const { material, parts } of groups.values()) {
-    const geometry = parts.length > 1 ? mergeGeometries(parts, false) : parts[0];
-    if (!geometry) continue;
-    const mesh = new Mesh(geometry, material);
-    mesh.castShadow = !(material as { transparent?: boolean }).transparent; mesh.receiveShadow = true;
-    into.add(mesh); out.push(mesh);
-  }
-  return out;
 }
 
 /** The plane of a set of points (the steering wheel's rim): its centre and normal, from the points' covariance. */

@@ -4,6 +4,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, View } from "@react-three/drei";
 import { Box3, CircleGeometry, Group, PMREMGenerator, Sphere, Texture, Vector3 } from "three";
 import { destinationBoard, hasBoard, loadVehicle } from "@/lib/vehicleAssets";
+import { hasOccupants, occupantMaterial, occupantsFor } from "@/lib/occupants";
+import { Mesh } from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { VEHICLE_REGISTRY, type VehicleEntry } from "@/data/vehicles";
 import { BUILDERS } from "@/lib/keralaVehicles";
@@ -11,7 +13,7 @@ import styles from "./Garage.module.scss";
 
 /** The vehicle as a Group in metres: a GLB scaled to its registry size, or a built one as built. */
 function useVehicle(v: VehicleEntry) {
-  const loaded = v.kind === "model" ? use(loadVehicle(v.source)) : null;
+  const loaded = v.kind === "model" ? use(loadVehicle(v.source, { merged: !v.source.includes("player") })) : null;
   return useMemo(() => {
     const g = loaded ? loaded.clone(true) : BUILDERS[v.source]();
     if (loaded) {
@@ -24,6 +26,7 @@ function useVehicle(v: VehicleEntry) {
       const out = new Group(); out.add(wrap);
       const name = v.source.split("/").pop()!.replace(".glb", "");
       if (hasBoard(name)) out.add(destinationBoard(name, "both", v.size, wrap));
+      if (hasOccupants(name)) { const geo = occupantsFor(name, v.size.length, 7); if (geo) out.add(new Mesh(geo, occupantMaterial)); }
       return out;
     }
     return g;

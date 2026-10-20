@@ -19,7 +19,7 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
 - `wagonr-real.glb`: **2013 Suzuki WagonR** by BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0.
   https://sketchfab.com/3d-models/2013-suzuki-wagonr-71112627f42342099ff95b59e7532663 — simplified to 15%, turned to face +Z.
 - `innova-real.glb`: **Toyota Innova 2008** by Hoàng Huy (https://sketchfab.com/danghoanghuy69), CC BY 4.0.
-  https://sketchfab.com/3d-models/toyota-innova-2008-d8f1cb78c9444f4e9bc467ea208b1b63 — turned to face +Z.
+  https://sketchfab.com/3d-models/toyota-innova-2008-d8f1cb78c9444f4e9bc467ea208b1b63 — simplified to 25 %, turned to face +Z.
 - `lorry-real.glb`: **Indian Truck** by AFJAL ANSARI (https://sketchfab.com/afjalymail78692), CC BY 4.0.
   https://sketchfab.com/3d-models/indian-truck-8c7650b96d6846de8cc54391ab16cf20 — simplified to 25%, textures 256 px, normal maps removed.
 - `rider-bike-real.glb`: **Motorcycle with rider** by sohanmajhi749 (https://sketchfab.com/sohanmajhi749), CC BY 4.0.
@@ -32,6 +32,13 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
   https://sketchfab.com/3d-models/royal-enfield-classic-350-f6495bfbffe443e89c499a2ba8766c88 — simplified to 6%, turned. Vehicles page only (no rider).
 - `pulsar-real.glb`: **Pulsar 135 Ls 2** by e-restrepo1114 (https://sketchfab.com/EmanuelRestrepoVelez), CC BY 4.0.
   https://sketchfab.com/3d-models/pulsar-135-ls-2-accbf2048c9344718791588b70d2ebf8 — turned. Vehicles page only (no rider).
+
+- `tourbus-real.glb`: **PRAKASH ZEDONE TOURIST BUS ASHOK LEYLAND BS3** by dkdatta1983 (https://sketchfab.com/dkdatta1983), CC BY 4.0.
+  https://sketchfab.com/3d-models/prakash-zedone-tourist-bus-ashok-leyland-bs3-14d9f8a913eb4fd9b92c32b6fb0fabae — simplified to 15 %; glass made see-through.
+- `brezza-player.glb` (the car you drive on /drive): **2022 Maruti Suzuki Vitara Brezza** by BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0.
+  https://sketchfab.com/3d-models/2022-maruti-suzuki-vitara-brezza-1a5cbddc8acb457e9d896d7345fd07d8 — simplified to 8 %, textures 512 px, turned to face +Z.
+
+People inside the vehicles (lib/occupants.ts) are simple shapes made in code for this project.
 
 All of the above: materials converted to metal-rough, compressed (meshopt, WebP); rebuild with `scripts/fetch-vehicles.sh`.
 Shapes follow real makes; no maker or operator endorsement implied.
