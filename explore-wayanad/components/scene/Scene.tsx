@@ -20,6 +20,8 @@ import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
 import Rain from "./Rain";
+import Traffic from "./Traffic";
+import WeatherDebug from "./WeatherDebug";
 import ValleyClouds from "./ValleyClouds";
 import Particles from "./Particles";
 import Sky from "./Sky";
@@ -108,6 +110,7 @@ function World({ small }: { small: boolean }) {
       {grids.length ? grids.filter((g) => g.region !== "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
       <RoadBand curve={curve} spacing={small ? 0.6 : 0.4} />
       <Road curve={curve} detail={detail} />
+      <Suspense fallback={null}><Traffic curve={curve} small={small} /></Suspense>
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
@@ -135,6 +138,7 @@ function World({ small }: { small: boolean }) {
       <Rain count={small ? 1200 : 2500} />
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} />
+      {process.env.NODE_ENV !== "production" && <WeatherDebug />}
     </>
   );
 }

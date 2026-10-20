@@ -1,6 +1,6 @@
 /**
  * Mountain weather for the churam: a small state machine that drifts between clear, partly cloudy, overcast, mist,
- * drizzle and clearing, and a set of smoothly interpolated values the scene reads every frame.
+ * drizzle, moderate rain and clearing, and a set of smoothly interpolated values the scene reads every frame.
  *
  * - Nothing jumps: each value approaches its target exponentially (time constants of 20–40 s), wetness lags the rain
  *   and dries slowly afterwards.
@@ -8,12 +8,12 @@
  *   stay dry. The next state is drawn at random (weights below), a little more often misty or cloudy higher up the
  *   climb, so the same hairpin doesn't always get the same weather.
  * - Time only advances while frames render: a hidden tab (no requestAnimationFrame) pauses the weather and its effects.
- * - `?weather=clear|partly|overcast|mist|drizzle|clearing` pins a state at full strength (for reviewing looks).
+ * - Development only: `?weather=clear|partly|overcast|mist|drizzle|rain|clearing` pins a state at full strength (for reviewing looks).
  *
  * No three.js here; `wetUniform` is a plain { value } object shader materials share.
  */
 
-export type WeatherName = "clear" | "partly" | "overcast" | "mist" | "drizzle" | "clearing";
+export type WeatherName = "clear" | "partly" | "overcast" | "mist" | "drizzle" | "rain" | "clearing";
 type Target = { cloud: number; mist: number; rain: number };
 
 const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Partial<Record<WeatherName, number>> }> = {
@@ -22,7 +22,8 @@ const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Parti
   partly: { cloud: 0.32, mist: 0.08, rain: 0, hold: [50, 110], next: { clear: 4, overcast: 2, partly: 1, mist: 1 } },
   overcast: { cloud: 0.8, mist: 0.25, rain: 0, hold: [30, 60], next: { partly: 4, mist: 2, drizzle: 2 } },
   mist: { cloud: 0.6, mist: 0.75, rain: 0, hold: [25, 50], next: { partly: 3, clearing: 2, overcast: 1 } },
-  drizzle: { cloud: 0.9, mist: 0.4, rain: 0.65, hold: [25, 45], next: { clearing: 1 } },
+  drizzle: { cloud: 0.9, mist: 0.4, rain: 0.65, hold: [25, 45], next: { clearing: 4, rain: 1 } },
+  rain: { cloud: 1, mist: 0.55, rain: 1, hold: [20, 40], next: { clearing: 1 } },
   clearing: { cloud: 0.25, mist: 0.12, rain: 0, hold: [40, 80], next: { clear: 4, partly: 1 } },
 };
 const TAU = { cloud: 30, mist: 25, rain: 15, wetUp: 18, wetDown: 70 }; // s: time constants
@@ -52,9 +53,10 @@ let clock = 0, until = 0, forced: WeatherName | null = null, dryVisit = false, r
 function start() {
   started = true;
   const q = typeof location !== "undefined" ? new URLSearchParams(location.search).get("weather") : null;
-  if (q && q in STATES) {
+  if (process.env.NODE_ENV !== "production" && q && Object.hasOwn(STATES, q)) {
     forced = q as WeatherName;
-    Object.assign(weather, STATES[forced], { state: forced, wet: STATES[forced].rain > 0 ? 1 : 0 });
+    const { cloud, mist, rain } = STATES[forced];
+    Object.assign(weather, { cloud, mist, rain, state: forced, wet: rain > 0 ? 1 : 0 });
   }
   dryVisit = random() < DRY_VISITS;
   until = STATES.clear.hold[0] + random() * (STATES.clear.hold[1] - STATES.clear.hold[0]);
@@ -109,3 +111,13 @@ function smooth(a: number, b: number, x: number) {
   const k = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return k * k * (3 - 2 * k);
 }
+
+/** Development controls change targets; transitions remain smooth. Null resumes organic weather. */
+export function setWeatherForReview(name: WeatherName | null) {
+  if (process.env.NODE_ENV === "production") return;
+  if (!started) start();
+  forced = name;
+  if (name) weather.state = name;
+  else until = clock + 30;
+}
+export const weatherNames = Object.keys(STATES) as WeatherName[];

@@ -1,38 +1,25 @@
-"use client";
-import { useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
-import { BufferAttribute, BufferGeometry, LineBasicMaterial, LineSegments } from "three";
-import { weather } from "@/lib/weather";
-
-/* Light drizzle, when lib/weather brings it: short streaks falling in a box that travels with the camera (positions wrap inside it),
- * slanted a little by the wind. Faint on purpose: you notice it, it doesn't hide the road. Units of 10 m. */
-const BOX = { x: 5, y: 3, z: 5 }, FALL = 0.9, WIND = 0.08, STREAK = 0.035;
-
-export default function Rain({ count = 2500, opacity = 0.3 }: { count?: number; opacity?: number }) {
-  const { lines, seeds } = useMemo(() => {
-    const seeds = Float32Array.from({ length: count * 3 }, (_, i) => Math.random() * [BOX.x, BOX.y, BOX.z][i % 3] * 2);
-    const geo = new BufferGeometry();
-    geo.setAttribute("position", new BufferAttribute(new Float32Array(count * 6), 3));
-    const lines = new LineSegments(geo, new LineBasicMaterial({ color: 0xc9d2d6, transparent: true, opacity, depthWrite: false }));
-    lines.frustumCulled = false;
-    lines.name = "rain";
-    return { lines, seeds };
-  }, [count, opacity]);
-
-  useFrame(({ camera, clock }) => {
-    // drizzle only in rainy weather (lib/weather), fading in and out; no per-frame work while it's dry
-    (lines.material as LineBasicMaterial).opacity = opacity * Math.min(1, weather.rain * 1.5);
-    lines.visible = weather.rain > 0.02;
-    if (!lines.visible) return;
-    const p = lines.geometry.attributes.position as BufferAttribute, a = p.array as Float32Array, t = clock.elapsedTime;
-    const wrap = (v: number, size: number) => ((v % (size * 2)) + size * 2) % (size * 2) - size;
-    for (let i = 0; i < count; i++) {
-      const x = camera.position.x + wrap(seeds[i * 3] - camera.position.x + WIND * t, BOX.x);
-      const y = camera.position.y + wrap(seeds[i * 3 + 1] - t * FALL, BOX.y);
-      const z = camera.position.z + wrap(seeds[i * 3 + 2] - camera.position.z, BOX.z);
-      a.set([x, y, z, x - WIND * STREAK, y - STREAK, z], i * 6);
-    }
-    p.needsUpdate = true;
-  });
+'use client';
+import { useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { BufferAttribute, BufferGeometry, LineSegments, ShaderMaterial, Vector3 } from 'three';
+import { weather } from '@/lib/weather';
+/** Static seeds; falling streak positions are computed on the GPU, with no per-frame buffer uploads. */
+export default function Rain({ count = 2500, opacity = .3 }: { count?: number; opacity?: number }) {
+  const lines = useMemo(() => {
+    const positions = new Float32Array(count * 6), ends = new Float32Array(count * 2);
+    for(let i=0;i<count;i++) { const seed=[Math.random()*10,Math.random()*6,Math.random()*10]; positions.set(seed,i*6); positions.set(seed,i*6+3); ends[i*2+1]=1; }
+    const geo=new BufferGeometry();geo.setAttribute('position',new BufferAttribute(positions,3));geo.setAttribute('end',new BufferAttribute(ends,1));
+    const mat=new ShaderMaterial({transparent:true,depthWrite:false,uniforms:{time:{value:0},eye:{value:new Vector3()},rain:{value:0},opacity:{value:opacity}},
+      vertexShader:`attribute float end; uniform float time, rain; uniform vec3 eye;
+        void main(){vec3 box=vec3(10.,6.,10.); vec3 p=mod(position+vec3(time*.08,-time*mix(.9,1.7,rain),0.)-vec3(eye.x,0.,eye.z),box)-box*.5+eye;
+        p+=end*vec3(-.005,-mix(.035,.09,rain),0.);gl_Position=projectionMatrix*viewMatrix*vec4(p,1.);}`,
+      fragmentShader:`uniform float rain,opacity;void main(){gl_FragColor=vec4(.72,.81,.87,opacity*min(1.,rain*1.5));
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      }`});
+    const result=new LineSegments(geo,mat);result.frustumCulled=false;result.name='rain';return result;
+  },[count,opacity]);
+  useEffect(()=>()=>{lines.geometry.dispose();lines.material.dispose();},[lines]);
+  useFrame(({camera},dt)=>{ const u=lines.material.uniforms;u.time.value+=Math.min(dt,.1);u.eye.value.copy(camera.position);u.rain.value=weather.rain;lines.visible=weather.rain>.02;lines.geometry.setDrawRange(0,Math.floor(count*Math.min(1,weather.rain*1.5))*2); });
   return <primitive object={lines} />;
 }
