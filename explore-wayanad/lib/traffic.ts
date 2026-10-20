@@ -2,15 +2,16 @@ import { CatmullRomCurve3, Vector3, Quaternion, Matrix4 } from 'three';
 
 /** World units are ten metres. Models face +Z; left is tangent × world-up. */
 export const VEHICLES = [
-  // real models (Sketchfab, CC BY; see public/models/traffic/ATTRIBUTION.md). The bus keeps the 9.4 m length the
-  // passing-zone footprint assumes; width and height follow the model. The hatchback is stretched to a real Swift's size.
+  // real models (Sketchfab, CC BY; see public/models/traffic/ATTRIBUTION.md), sized to their own proportions. Both buses
+  // keep the 9.4 m length the passing-zone footprint assumes (busFootprint).
   { name: 'ksrtc-real', height: .262, length: .94, width: .225, speed: .62 },
-  { name: 'swift-real', height: .153, length: .385, width: .18, speed: .8 },
-  { name: 'suv', height: .18, length: .46, width: .19, speed: .76 },
-  { name: 'motorcycle', height: .185, length: .2, width: .07, speed: .72 },
-  { name: 'truck', height: .30, length: .72, width: .24, speed: .56 },
-  { name: 'scooter', height: .18, length: .19, width: .07, speed: .62 },
-  { name: 'van', height: .235, length: .52, width: .2, speed: .65 },
+  { name: 'wagonr-real', height: .169, length: .36, width: .171, speed: .8 },
+  { name: 'innova-real', height: .168, length: .458, width: .208, speed: .76 },
+  { name: 'rider-bike-real', height: .128, length: .21, width: .102, speed: .72 },
+  { name: 'lorry-real', height: .324, length: .78, width: .271, speed: .52 },
+  { name: 'auto-real', height: .17, length: .265, width: .146, speed: .55 },
+  { name: 'omni-real', height: .171, length: .34, width: .174, speed: .65 },
+  { name: 'privatebus-real', height: .29, length: .94, width: .269, speed: .66 },
 ] as const;
 export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number };
 export const trafficControl = { paused: false, rate: 1, count: 0 };
@@ -32,13 +33,14 @@ export function vehiclePose(curve: CatmullRomCurve3, v: Vehicle, widen: (t: numb
 }
 export function createFleet(length: number): Vehicle[] {
   const n = Math.max(4, Math.min(160, Math.floor(length / 12)));
-  return Array.from({ length: n }, (_, id) => ({ id, kind: [0,1,2,3,1,4,5,2,1,6,1,2][id % 12], direction: id % 2 ? -1 : 1, distance: 2 + (length - 4) * (id + .5) / n, speed: 0 }));
+  return Array.from({ length: n }, (_, id) => ({ id, kind: [0,1,2,3,1,4,5,7,1,6,3,2][id % 12], direction: id % 2 ? -1 : 1, distance: 2 + (length - 4) * (id + .5) / n, speed: 0 }));
 }
 /** Snapshot-based car following: all movement uses the same previous frame, never update-order overtaking. */
-export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = []) {
+export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number) {
   const length = curve.getLength(), span = length - 4;
   dt = Math.min(.05, Math.max(0, dt));
-  const stops = reservePassingZones(fleet, zones);
+  // the viewer rides up the road (direction 1) like a bus: it holds narrow bends against oncoming traffic too
+  const stops = reservePassingZones(viewer === undefined ? fleet : [...fleet, { id: -1, kind: 0, direction: 1, distance: viewer, speed: 0 }], zones);
   const moves = fleet.map(v => {
     const spec = VEHICLES[v.kind], t = v.distance / length;
     const a = curve.getTangentAt(Math.max(0, t - 1.2 / length));
@@ -57,6 +59,24 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     return { speed, move: Math.min(speed * dt, Math.max(0, room)) };
   });
   fleet.forEach((v,i) => { v.speed = moves[i].speed; v.distance = 2 + ((v.distance - 2 + v.direction * moves[i].move) % span + span) % span; });
+}
+
+/** The viewer's seat, as units along the road. Uphill traffic never shares it: vehicles ahead keep VIEWER_GAP.ahead
+ * clear in front of the seat (pulled on ahead as the scroll drives forward), vehicles behind stay VIEWER_GAP.behind
+ * back, and the ones beyond are moved on in turn so nothing overlaps. Oncoming traffic is untouched. Without this the
+ * scroll-driven seat drove through slower cars, or cars caught up under it. */
+export const VIEWER_GAP = { ahead: 1.5, behind: 1.1, spacing: .35 };
+export function keepClearOfViewer(fleet: Vehicle[], length: number, viewer: number) {
+  const span = length - 4, wrap = (d: number) => 2 + ((d - 2) % span + span) % span;
+  const mine = fleet.filter(v => v.direction === 1);
+  const signed = (v: Vehicle) => { const g = ((v.distance - viewer) % span + span) % span; return g > span / 2 ? g - span : g; };
+  const half = (v: Vehicle) => VEHICLES[v.kind].length / 2;
+  const ahead = mine.filter(v => signed(v) >= 0).sort((a, b) => signed(a) - signed(b));
+  const behind = mine.filter(v => signed(v) < 0).sort((a, b) => signed(b) - signed(a));
+  let edge = VIEWER_GAP.ahead; // nearest allowed rear bumper, units ahead of the seat
+  for (const v of ahead) { const g = signed(v); if (g - half(v) >= edge) break; v.distance = wrap(viewer + edge + half(v)); edge += 2 * half(v) + VIEWER_GAP.spacing; }
+  edge = VIEWER_GAP.behind;
+  for (const v of behind) { const g = -signed(v); if (g - half(v) >= edge) break; v.distance = wrap(viewer - edge - half(v)); v.speed = 0; edge += 2 * half(v) + VIEWER_GAP.spacing; }
 }
 
 export type PassingZone = { from: number; to: number; owner: 1 | -1 | null };

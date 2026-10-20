@@ -4,7 +4,9 @@ import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { loadVehicle } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
-import { advanceTraffic, createFleet, passingZones, trafficControl, VEHICLES, vehiclePose } from '@/lib/traffic';
+import { advanceTraffic, createFleet, keepClearOfViewer, passingZones, trafficControl, VEHICLES, vehiclePose } from '@/lib/traffic';
+import { driveT, driveT2 } from '@/lib/drive';
+import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 const cache = new Map<string, Promise<Group | null>>();
@@ -43,15 +45,21 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     });
     // Shared geometry, tiny emissive lamps: no per-vehicle shadow lights.
     const bulb = new MeshStandardMaterial({ color: 0xffefce, emissive: 0xffdca0 }); owned.push(bulb); lights.push(bulb);
-    for (const x of [-spec.width*.32, spec.width*.32]) {
-      const light=new Mesh(lampGeometry,bulb);light.position.set(x,.065,spec.length*.5+.002);root.add(light);
+    // lamps at the model's own headlamp height (about a third of its height; bikes: one lamp, higher up)
+    const bike = spec.width < .12;
+    for (const x of bike ? [0] : [-spec.width*.32, spec.width*.32]) {
+      const light=new Mesh(lampGeometry,bulb);light.position.set(x,spec.height*(bike ? .62 : .32),spec.length*.5+.002);root.add(light);
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
     return { root, lights, owned };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useFrame(({ camera }, dt) => {
-    if (!trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones);
+    // where the viewer's seat is on this road (traffic runs on the churam/Kalpetta road only)
+    const { act, progress } = scrollState, length = curve.getLength();
+    const viewer = act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
+    if (!trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, viewer);
+    if (viewer !== undefined) keepClearOfViewer(fleet, length, viewer);
     let visible = 0;
     for (let i = 0; i < fleet.length; i++) {
       const v = fleet[i], o = objects[i], pose = vehiclePose(curve, v, widen);

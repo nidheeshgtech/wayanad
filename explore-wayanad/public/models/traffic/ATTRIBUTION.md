@@ -11,10 +11,27 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
   Changes: materials converted to metal-rough; repainted from Karnataka red/grey to Kerala state-transport colours
   (red body, yellow sill line, cream roof and header); maker badge blanked; plate replaced with a made-up number
   (`scripts/retouch/ksrtc-real.sh`); compressed (meshopt, WebP). No operator endorsement implied.
-- `swift-real.glb`: **Swift 2024** by ShreyanshChaurasia_12 (https://sketchfab.com/shreyanshchaurasia13), CC BY 4.0.
-  https://sketchfab.com/3d-models/swift-2024-07cf082bab4d430a8a764a23590e35fa
-  Changes: materials converted to metal-rough; number plates blanked (`scripts/retouch/swift-real.sh`); compressed.
-  Note: textured from photographs of the production car; under review before wider use (see the vehicles page).
+- `privatebus-real.glb`: **Kerala public transport** by AG DYNAMICS (https://sketchfab.com/Agdynamics0), CC BY 4.0.
+  https://sketchfab.com/3d-models/kerala-public-transport-2d4ab65f7a7c470ab14da987a6248b5e
+- `wagonr-real.glb`: **2013 Suzuki WagonR** by BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0.
+  https://sketchfab.com/3d-models/2013-suzuki-wagonr-71112627f42342099ff95b59e7532663 — simplified to 15%, turned to face +Z.
+- `innova-real.glb`: **Toyota Innova 2008** by Hoàng Huy (https://sketchfab.com/danghoanghuy69), CC BY 4.0.
+  https://sketchfab.com/3d-models/toyota-innova-2008-d8f1cb78c9444f4e9bc467ea208b1b63 — turned to face +Z.
+- `lorry-real.glb`: **Indian Truck** by AFJAL ANSARI (https://sketchfab.com/afjalymail78692), CC BY 4.0.
+  https://sketchfab.com/3d-models/indian-truck-8c7650b96d6846de8cc54391ab16cf20 — simplified to 25%, textures 256 px, normal maps removed.
+- `rider-bike-real.glb`: **Motorcycle with rider** by sohanmajhi749 (https://sketchfab.com/sohanmajhi749), CC BY 4.0.
+  https://sketchfab.com/3d-models/motorcycle-with-rider-8d74b6b936da4905a70da602d6b003b5
+- `auto-real.glb`: **Auto Rickshaw** by rSquare (https://sketchfab.com/rSquare), CC BY 4.0.
+  https://sketchfab.com/3d-models/auto-rickshaw-44776bcb34e04c1a8b9c18a70376304e
+- `omni-real.glb`: **Maruti Suzuki Omni** by BML Palms Authority (https://sketchfab.com/arjun.sajin28), CC BY 4.0.
+  https://sketchfab.com/3d-models/maruti-suzuki-omni-4ad7ea26b90f40338802a5dac2a32a0d
+- `enfield-real.glb`: **Royal enfield classic 350** by Mansoor (https://sketchfab.com/mansoorman), CC BY 4.0.
+  https://sketchfab.com/3d-models/royal-enfield-classic-350-f6495bfbffe443e89c499a2ba8766c88 — simplified to 6%, turned. Vehicles page only (no rider).
+- `pulsar-real.glb`: **Pulsar 135 Ls 2** by e-restrepo1114 (https://sketchfab.com/EmanuelRestrepoVelez), CC BY 4.0.
+  https://sketchfab.com/3d-models/pulsar-135-ls-2-accbf2048c9344718791588b70d2ebf8 — turned. Vehicles page only (no rider).
+
+All of the above: materials converted to metal-rough, compressed (meshopt, WebP); rebuild with `scripts/fetch-vehicles.sh`.
+Shapes follow real makes; no maker or operator endorsement implied.
 
 ## Earlier models (CC0 / original)
 
