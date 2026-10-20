@@ -3,13 +3,14 @@ import { use, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, passingZones, trafficControl, VEHICLES, vehiclePose } from '@/lib/traffic';
 import { weather } from '@/lib/weather';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 const cache = new Map<string, Promise<Group | null>>();
 function load(name: string) {
-  if (!cache.has(name)) cache.set(name, new GLTFLoader().loadAsync(`/models/traffic/${name}.glb`).then(g => g.scene).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
+  if (!cache.has(name)) cache.set(name, new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`/models/traffic/${name}.glb`).then(g => g.scene).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
   return cache.get(name)!;
 }
 let assets: Promise<(Group | null)[]> | null = null;

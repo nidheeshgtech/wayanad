@@ -10,10 +10,10 @@
     &[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 .grid { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-.card { position: relative; z-index: 2; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(8, 24, 20, 0.6); }
+.card { position: relative; z-index: 2; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .viewBox { height: 240px; }
 .view { height: 100%; touch-action: none; cursor: grab; &:active { cursor: grabbing; } }
-.meta { padding: 14px 16px 16px; display: grid; gap: 8px; }
+.meta { background: rgba(8, 24, 20, 0.85); padding: 14px 16px 16px; display: grid; gap: 8px; }
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
   h2 { font-family: var(--font-serif), Georgia, serif; font-weight: 400; font-size: 22px; } }
 .live, .new { font-size: 11px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }

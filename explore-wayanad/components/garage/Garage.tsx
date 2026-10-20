@@ -1,9 +1,10 @@
 "use client";
-import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, use, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, View } from "@react-three/drei";
-import { Box3, CircleGeometry, Group, PMREMGenerator, Texture, Vector3 } from "three";
+import { Box3, CircleGeometry, Group, PMREMGenerator, Sphere, Texture, Vector3 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { VEHICLE_REGISTRY, type VehicleEntry } from "@/data/vehicles";
 import { BUILDERS } from "@/lib/keralaVehicles";
@@ -12,7 +13,7 @@ import styles from "./Garage.module.scss";
 /** The vehicle as a Group in metres: a GLB scaled to its registry size, or a built one as built. */
 const glbs = new Map<string, Promise<Group>>();
 function useVehicle(v: VehicleEntry) {
-  const loaded = v.kind === "model" ? use((glbs.get(v.source) ?? glbs.set(v.source, new GLTFLoader().loadAsync(v.source).then((g) => g.scene)).get(v.source)!)) : null;
+  const loaded = v.kind === "model" ? use((glbs.get(v.source) ?? glbs.set(v.source, new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(v.source).then((g) => g.scene)).get(v.source)!)) : null;
   return useMemo(() => {
     const g = loaded ? loaded.clone(true) : BUILDERS[v.source]();
     if (loaded) {
@@ -26,20 +27,26 @@ function useVehicle(v: VehicleEntry) {
   }, [loaded, v]);
 }
 
+const FOV = 35, LOOK = new Vector3(0.78, 0.32, 0.92).normalize(); // three-quarter front, a little above
+
 function Turntable({ v, spin }: { v: VehicleEntry; spin: boolean }) {
-  const vehicle = useVehicle(v), turn = useRef<Group>(null);
+  const vehicle = useVehicle(v), turn = useRef<Group>(null), camera = useThree((s) => s.camera);
   useFrame((_, dt) => { if (spin && turn.current) turn.current.rotation.y += dt * 0.35; });
-  const reach = Math.max(v.size.length, v.size.height * 2);
-  const floor = useMemo(() => new CircleGeometry(reach * 0.75, 48), [reach]);
+  // frame every vehicle the same way: the camera backs off until the model's bounding sphere fills the view
+  const sphere = useMemo(() => new Box3().setFromObject(vehicle).getBoundingSphere(new Sphere()), [vehicle]);
+  const reach = sphere.radius, dist = reach / Math.sin((FOV * Math.PI) / 360) * 1.02;
+  useLayoutEffect(() => { camera.position.copy(LOOK).multiplyScalar(dist).add(sphere.center); camera.lookAt(sphere.center); }, [camera, dist, sphere]);
+  const floor = useMemo(() => new CircleGeometry(reach * 1.15, 64), [reach]);
   return (
     <>
       <group ref={turn}><primitive object={vehicle} /></group>
       <mesh rotation-x={-Math.PI / 2} receiveShadow geometry={floor}>
-        <meshStandardMaterial color={0x2a332e} roughness={0.9} />
+        <meshStandardMaterial color={0x56645d} roughness={0.95} />
       </mesh>
-      <directionalLight position={[reach, reach * 1.6, reach]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
-      <hemisphereLight args={[0xdfe8ee, 0x26302a, 0.6]} />
-      <OrbitControls makeDefault enablePan={false} minDistance={reach * 0.6} maxDistance={reach * 3} target={[0, v.size.height * 0.45, 0]} />
+      <directionalLight position={[reach * 1.2, reach * 2.4, reach * 1.6]} intensity={2.6} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
+        shadow-camera-left={-reach * 1.4} shadow-camera-right={reach * 1.4} shadow-camera-top={reach * 1.4} shadow-camera-bottom={-reach * 1.4} shadow-camera-far={reach * 8} />
+      <hemisphereLight args={[0xeef3f6, 0x3a443e, 1.1]} />
+      <OrbitControls makeDefault enablePan={false} minDistance={dist * 0.45} maxDistance={dist * 2.2} target={sphere.center.toArray()} />
     </>
   );
 }
@@ -50,21 +57,20 @@ function Studio() {
   const { gl, scene } = useThree();
   useEffect(() => {
     studio ??= new PMREMGenerator(gl).fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environment = studio; scene.environmentIntensity = 0.7;
+    scene.environment = studio; scene.environmentIntensity = 1.1;
   }, [gl, scene]);
   return null;
 }
 
 function Card({ v }: { v: VehicleEntry }) {
   const [spin, setSpin] = useState(true);
-  const reach = Math.max(v.size.length, v.size.height * 2);
   return (
     <article className={styles.card}>
       {/* the view is drawn into this box; grabbing it stops the turntable so you can look around */}
       <div className={styles.viewBox} onPointerDown={() => setSpin(false)}>
       <View className={styles.view}>
-        <color attach="background" args={["#16241f"]} />
-        <PerspectiveCamera makeDefault fov={35} position={[reach * 0.9, reach * 0.45, reach * 1.05]} />
+        <color attach="background" args={["#3b4a44"]} />
+        <PerspectiveCamera makeDefault fov={FOV} near={0.05} far={200} />
         <Studio />
         <Suspense fallback={null}>
           <Turntable v={v} spin={spin} />
