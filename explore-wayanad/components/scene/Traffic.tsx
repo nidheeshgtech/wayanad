@@ -2,15 +2,14 @@
 import { use, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { loadVehicle } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, passingZones, trafficControl, VEHICLES, vehiclePose } from '@/lib/traffic';
 import { weather } from '@/lib/weather';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 const cache = new Map<string, Promise<Group | null>>();
 function load(name: string) {
-  if (!cache.has(name)) cache.set(name, new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`/models/traffic/${name}.glb`).then(g => g.scene).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
+  if (!cache.has(name)) cache.set(name, loadVehicle(`/models/traffic/${name}.glb`).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
   return cache.get(name)!;
 }
 let assets: Promise<(Group | null)[]> | null = null;
@@ -34,10 +33,9 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const lights: MeshStandardMaterial[] = [], owned: MeshStandardMaterial[] = [];
     model.traverse(o => { if (!(o instanceof Mesh)) return; o.castShadow = !small; o.receiveShadow = true;
       const adapt = (m: MeshStandardMaterial) => {
-        if (m.name === 'headlights' || (spec.name === 'bus' && (m.name === 'body' || m.name === 'livery'))) {
+        if (m.name === 'headlights') {
           const copy = m.clone(); owned.push(copy);
-          if (m.name === 'headlights') { copy.emissive.set(0xffe6a6); lights.push(copy); }
-          else if (Math.floor(v.id / 12) % 3 === 1) copy.color.set(m.name === 'body' ? 0x426e54 : 0xe4ddbd);
+          copy.emissive.set(0xffe6a6); lights.push(copy);
           return copy;
         } return m;
       };

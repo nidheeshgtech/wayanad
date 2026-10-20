@@ -3,25 +3,25 @@ import { Suspense, use, useEffect, useLayoutEffect, useMemo, useRef, useState } 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, View } from "@react-three/drei";
 import { Box3, CircleGeometry, Group, PMREMGenerator, Sphere, Texture, Vector3 } from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { loadVehicle } from "@/lib/vehicleAssets";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { VEHICLE_REGISTRY, type VehicleEntry } from "@/data/vehicles";
 import { BUILDERS } from "@/lib/keralaVehicles";
 import styles from "./Garage.module.scss";
 
 /** The vehicle as a Group in metres: a GLB scaled to its registry size, or a built one as built. */
-const glbs = new Map<string, Promise<Group>>();
 function useVehicle(v: VehicleEntry) {
-  const loaded = v.kind === "model" ? use((glbs.get(v.source) ?? glbs.set(v.source, new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(v.source).then((g) => g.scene)).get(v.source)!)) : null;
+  const loaded = v.kind === "model" ? use(loadVehicle(v.source)) : null;
   return useMemo(() => {
     const g = loaded ? loaded.clone(true) : BUILDERS[v.source]();
     if (loaded) {
-      // same normalisation as the traffic: stretch the model's box to the vehicle's size
-      const b = new Box3().setFromObject(g), s = b.getSize(new Vector3()), c = b.getCenter(new Vector3());
-      const k = new Vector3(v.size.width / s.x, v.size.height / s.y, v.size.length / s.z);
-      g.scale.copy(k); g.position.set(-c.x * k.x, -b.min.y * k.y, -c.z * k.z);
-      const wrap = new Group(); wrap.add(g); return wrap;
+      const turn = new Group(); turn.rotation.y = v.yaw ?? 0; turn.add(g); turn.updateMatrixWorld(true);
+      // same normalisation as the traffic: stretch the model's box to the vehicle's size (real models: even scale by length)
+      const b = new Box3().setFromObject(turn), s = b.getSize(new Vector3()), c = b.getCenter(new Vector3());
+      const k = v.fit === "uniform" ? new Vector3().setScalar(v.size.length / s.z) : new Vector3(v.size.width / s.x, v.size.height / s.y, v.size.length / s.z);
+      const wrap = new Group(); wrap.add(turn);
+      wrap.scale.copy(k); wrap.position.set(-c.x * k.x, -b.min.y * k.y, -c.z * k.z);
+      const out = new Group(); out.add(wrap); return out;
     }
     return g;
   }, [loaded, v]);
@@ -62,8 +62,8 @@ function Studio() {
   return null;
 }
 
-function Card({ v }: { v: VehicleEntry }) {
-  const [spin, setSpin] = useState(true);
+function Card({ v, still }: { v: VehicleEntry; still: boolean }) {
+  const [spin, setSpin] = useState(!still);
   return (
     <article className={styles.card}>
       {/* the view is drawn into this box; grabbing it stops the turntable so you can look around */}
@@ -98,7 +98,13 @@ function Card({ v }: { v: VehicleEntry }) {
 export default function Garage() {
   const root = useRef<HTMLDivElement>(null!);
   const [filter, setFilter] = useState<"all" | "traffic" | "new">("all");
-  const list = VEHICLE_REGISTRY.filter((v) => filter === "all" || (filter === "traffic" ? v.inTraffic : !v.inTraffic));
+  // ?only=id,id shows just those vehicles; ?still starts with the turntables stopped (for comparing or screenshots)
+  const [view, setView] = useState<{ only: string[] | null; still: boolean }>({ only: null, still: false });
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    setView({ only: q.get("only")?.split(",") ?? null, still: q.has("still") });
+  }, []);
+  const list = VEHICLE_REGISTRY.filter((v) => (!view.only || view.only.includes(v.id)) && (filter === "all" || (filter === "traffic" ? v.inTraffic : !v.inTraffic)));
   return (
     <div ref={root} className={styles.page}>
       <header className={styles.header}>
@@ -113,7 +119,7 @@ export default function Garage() {
           ))}
         </div>
       </header>
-      <main className={styles.grid}>{list.map((v) => <Card key={v.id} v={v} />)}</main>
+      <main className={styles.grid}>{list.map((v) => <Card key={`${v.id}-${view.still}`} v={v} still={view.still} />)}</main>
       <Canvas eventSource={root} className={styles.canvas} shadows dpr={[1, 2]}>
         <View.Port />
       </Canvas>

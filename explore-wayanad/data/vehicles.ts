@@ -15,17 +15,24 @@ export type VehicleEntry = {
   inTraffic: boolean;
   credit: string;
   note: string;
+  /** real models keep their proportions: scaled evenly so the length matches (others are stretched to the size box) */
+  fit?: "uniform";
+  /** radians about the vertical, applied before fitting, so the model's front faces +Z */
+  yaw?: number;
 };
 
 export const VEHICLE_REGISTRY: VehicleEntry[] = [
   // in traffic now (added with Codex, 2026-10-19)
-  { id: "bus", label: "Bus (simple)", kind: "model", source: "/models/traffic/bus.glb", size: { length: 9.4, width: 2.8, height: 3.1 }, speed: 0.62, inTraffic: true, credit: "Script-generated for this project (scripts/bake-traffic.mjs)", note: "Low-poly box bus, red/yellow and green/cream." },
-  { id: "sedan", label: "Sedan", kind: "model", source: "/models/traffic/sedan.glb", size: { length: 4.4, width: 1.8, height: 1.45 }, speed: 0.8, inTraffic: true, credit: "Car by Quaternius, CC0 (poly.pizza)", note: "Generic low-poly car." },
+  { id: "bus", label: "Bus (simple)", kind: "model", source: "/models/traffic/bus.glb", size: { length: 9.4, width: 2.8, height: 3.1 }, speed: 0.62, inTraffic: false, credit: "Script-generated for this project (scripts/bake-traffic.mjs)", note: "Low-poly box bus, red/yellow and green/cream." },
+  { id: "sedan", label: "Sedan", kind: "model", source: "/models/traffic/sedan.glb", size: { length: 4.4, width: 1.8, height: 1.45 }, speed: 0.8, inTraffic: false, credit: "Car by Quaternius, CC0 (poly.pizza)", note: "Generic low-poly car." },
   { id: "suv", label: "SUV", kind: "model", source: "/models/traffic/suv.glb", size: { length: 4.6, width: 1.9, height: 1.8 }, speed: 0.76, inTraffic: true, credit: "SUV by Quaternius, CC0 (poly.pizza)", note: "Generic low-poly SUV." },
   { id: "motorcycle", label: "Motorcycle (simple)", kind: "model", source: "/models/traffic/motorcycle.glb", size: { length: 2.0, width: 0.7, height: 1.85 }, speed: 0.72, inTraffic: true, credit: "Script-generated for this project", note: "Simple bike with a helmeted rider." },
   { id: "truck", label: "Truck", kind: "model", source: "/models/traffic/truck.glb", size: { length: 7.2, width: 2.4, height: 3.0 }, speed: 0.56, inTraffic: true, credit: "Car Kit by Kenney, CC0", note: "Stylised toy-like truck." },
   { id: "scooter", label: "Scooter (simple)", kind: "model", source: "/models/traffic/scooter.glb", size: { length: 1.9, width: 0.7, height: 1.8 }, speed: 0.62, inTraffic: true, credit: "Script-generated for this project", note: "Simple scooter with a rider." },
   { id: "van", label: "Van", kind: "model", source: "/models/traffic/van.glb", size: { length: 5.2, width: 2.0, height: 2.35 }, speed: 0.65, inTraffic: true, credit: "Car Kit by Kenney, CC0", note: "Stylised toy-like van." },
+  // realistic models from Sketchfab, CC BY (2026-10-20): in traffic in place of the simple bus and sedan, for approval
+  { id: "ksrtc-real", label: "KSRTC bus (real model)", kind: "model", source: "/models/traffic/ksrtc-real.glb", size: { length: 9.4, width: 2.25, height: 2.62 }, speed: 0.62, inTraffic: true, credit: "“KSRTC Bus 2011” by BML Palms Authority, CC BY 4.0 (Sketchfab); repainted", note: "Ashok Leyland-style ordinary bus with photo textures, repainted to Kerala state transport colours: red body, yellow sill line, cream roof. Badge removed; made-up Kerala plate." },
+  { id: "swift-real", label: "Hatchback (real model)", kind: "model", source: "/models/traffic/swift-real.glb", size: { length: 3.85, width: 1.8, height: 1.53 }, speed: 0.8, inTraffic: true, credit: "“Swift 2024” by ShreyanshChaurasia_12, CC BY 4.0 (Sketchfab)", note: "Swift-style hatchback, red, sized to the real car. Number plates blanked." },
   // new Kerala vehicles, built in code (2026-10-20) — not in traffic until chosen
   { id: "ksrtc-bus", label: "State transport bus", kind: "built", source: "ksrtc-bus", size: { length: 11, width: 2.5, height: 3.4 }, speed: 0.6, inTraffic: false, credit: "Built in code for this project", note: "Kerala state-transport style fast passenger: red with a yellow band, destination board, roof rails. Generic livery, no operator marks." },
   { id: "private-bus", label: "Private bus", kind: "built", source: "private-bus", size: { length: 11, width: 2.5, height: 3.4 }, speed: 0.64, inTraffic: false, credit: "Built in code for this project", note: "Brightly painted private bus, white with sea-green and orange." },

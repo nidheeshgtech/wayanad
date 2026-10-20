@@ -2,8 +2,10 @@ import { CatmullRomCurve3, Vector3, Quaternion, Matrix4 } from 'three';
 
 /** World units are ten metres. Models face +Z; left is tangent × world-up. */
 export const VEHICLES = [
-  { name: 'bus', height: .31, length: .94, width: .28, speed: .62 },
-  { name: 'sedan', height: .145, length: .44, width: .18, speed: .8 },
+  // real models (Sketchfab, CC BY; see public/models/traffic/ATTRIBUTION.md). The bus keeps the 9.4 m length the
+  // passing-zone footprint assumes; width and height follow the model. The hatchback is stretched to a real Swift's size.
+  { name: 'ksrtc-real', height: .262, length: .94, width: .225, speed: .62 },
+  { name: 'swift-real', height: .153, length: .385, width: .18, speed: .8 },
   { name: 'suv', height: .18, length: .46, width: .19, speed: .76 },
   { name: 'motorcycle', height: .185, length: .2, width: .07, speed: .72 },
   { name: 'truck', height: .30, length: .72, width: .24, speed: .56 },
