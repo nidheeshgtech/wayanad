@@ -1,0 +1,25 @@
+.page { position: relative; min-height: 100svh; background: var(--bg); color: var(--ink); padding: 24px 20px 64px; }
+.canvas { position: fixed !important; inset: 0; pointer-events: none; z-index: 1; }
+.header { max-width: 1100px; margin: 0 auto 28px; display: grid; gap: 12px;
+  h1 { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(36px, 7vw, 64px); line-height: 1; letter-spacing: -0.02em; }
+  p { color: var(--mute); max-width: 62ch; }
+  strong { color: var(--ink); font-weight: 500; } }
+.back { color: var(--dim); text-decoration: none; font-size: 13px; &:hover { color: var(--ink); } }
+.filters { display: flex; gap: 8px; flex-wrap: wrap;
+  button { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--mute); cursor: pointer;
+    &[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
+.grid { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.card { position: relative; z-index: 2; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(8, 24, 20, 0.6); }
+.viewBox { height: 240px; }
+.view { height: 100%; touch-action: none; cursor: grab; &:active { cursor: grabbing; } }
+.meta { padding: 14px 16px 16px; display: grid; gap: 8px; }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  h2 { font-family: var(--font-serif), Georgia, serif; font-weight: 400; font-size: 22px; } }
+.live, .new { font-size: 11px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.live { background: rgba(217, 164, 65, 0.15); color: var(--amber); border: 1px solid rgba(217, 164, 65, 0.5); }
+.new { color: var(--mute); border: 1px solid var(--line); }
+.note { font-size: 14px; color: #d6e0db; }
+.facts { display: grid; gap: 2px; font-size: 12px; margin: 0;
+  div { display: flex; gap: 8px; } dt { color: var(--dim); min-width: 52px; } dd { margin: 0; color: var(--mute); }
+  code { font-size: 11px; } }
