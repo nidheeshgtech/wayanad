@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 f() { node scripts/fetch-sketchfab.mjs "$@" "${EXTRA[@]}"; }
 EXTRA=("$@")
 f 707cc16fe65f4525b1bc8e6244ad0860 ksrtc-real                                                # + scripts/retouch/ksrtc-real.sh
-f 2d4ab65f7a7c470ab14da987a6248b5e privatebus-real
+f 707cc16fe65f4525b1bc8e6244ad0860 privatebus-real                                           # + scripts/retouch/privatebus-real.sh
 f 71112627f42342099ff95b59e7532663 wagonr-real --ratio 0.15 --error 0.008 --size 512 --turn
 f d8f1cb78c9444f4e9bc467ea208b1b63 innova-real --turn
 f 8c7650b96d6846de8cc54391ab16cf20 lorry-real --ratio 0.25 --error 0.01 --size 256 --no-normal-maps

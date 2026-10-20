@@ -2,12 +2,13 @@
 import { createContext, useContext, useMemo, useRef } from "react";
 import styles from "./Hud.module.scss";
 import Sound from "./Sound";
+import Horn from "./Horn";
 
 type HudApi = { setCounter: (n: number) => void; showCounter: (on: boolean) => void; setScene: (s: string) => void; setStatus: (s: string) => void; setGrade: (c: string | null) => void };
 const Ctx = createContext<HudApi | null>(null);
 export const useHud = () => { const c = useContext(Ctx); if (!c) throw new Error("useHud outside <Hud>"); return c; };
 
-/** Fixed chrome: brand, status chip, hairpin counter, scene label, per-act grade, sound. Updated imperatively to avoid re-renders during scrub. */
+/** Fixed chrome: brand, status chip, hairpin counter, scene label, per-act grade, sound, horn. Updated imperatively to avoid re-renders during scrub. */
 export default function Hud({ children }: { children: React.ReactNode }) {
   const counter = useRef<HTMLElement>(null), counterBox = useRef<HTMLDivElement>(null), scene = useRef<HTMLDivElement>(null), status = useRef<HTMLDivElement>(null), grade = useRef<HTMLDivElement>(null);
   const api = useMemo<HudApi>(() => ({
@@ -26,6 +27,7 @@ export default function Hud({ children }: { children: React.ReactNode }) {
       </div>
       <div ref={scene} className={styles.scene} aria-hidden>Adivaram</div>
       <div className={styles.grain} aria-hidden /><div className={styles.vignette} aria-hidden />
+      <Horn />
       <Sound />
       {children}
     </Ctx.Provider>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { lanePoint, vehiclePose, createFleet, advanceTraffic, keepClearOfViewer, passingZones, VEHICLES, VIEWER_GAP } from '../lib/traffic.ts';
+import { lanePoint, vehiclePose, createFleet, advanceTraffic, interactWithViewer, passingZones, VEHICLES, DRIVE } from '../lib/traffic.ts';
 import { setHeightmaps, buildRoadCurve, roadShapeAt, roadDistance, height, bendTs } from '../lib/terrain.ts';
 import { decodePng16 } from '../lib/heightmap.ts';
 import { weather, stepWeather, setWeatherForReview } from '../lib/weather.ts';
@@ -76,22 +76,30 @@ for(let frame=0;frame<3600;frame++){
  }
 }
 assert(minGap>.6,'no overlap over two minutes dry/rain simulation');
-// The viewer's seat drives up the whole road at scroll pace (sometimes fast, sometimes stopped, once backwards):
-// no uphill vehicle may sit inside its gap, and keeping it clear must not stack vehicles on each other.
-{
- const riders=createFleet(L), zones2=passingZones(curve,widen); let seat=3, worst=Infinity, worstSpacing=Infinity;
- for(let frame=0;frame<9000 && seat<L-3;frame++){
-  const pace=frame%900<300?.9:frame%900<600?0:frame%900<620?-.6:3.5;
-  seat=Math.max(3,Math.min(L-3,seat+pace/30));
-  advanceTraffic(riders,curve,1/30,0,zones2,seat); keepClearOfViewer(riders,L,seat);
+// The viewer's seat drives up the road at scroll pace (fast, stopped, briefly backwards, then quick), with and without the
+// horn. Nobody may be alongside or just ahead of the seat unless giving way; vehicles do give way (so the viewer is
+// never stuck for good); giving way only happens where it's safe; nothing overlaps.
+for (const useHorn of [false, true]) {
+ const riders=createFleet(L), zones2=passingZones(curve,widen); let seat=3, worst=Infinity, worstSpacing=Infinity, overtakes=0, unsafeYield=0;
+ const passingNow=new Set<number>();
+ for(let frame=0;frame<12000 && seat<L-3;frame++){
+  const pace=frame%900<300?.9:frame%900<600?0:frame%900<620?-.6:2.5;
+  const before=seat; seat=Math.max(3,Math.min(L-3,seat+pace/30));
+  advanceTraffic(riders,curve,1/30,0,zones2,seat);
+  interactWithViewer(riders,curve,widen,zones2,seat,(seat-before)*30,1/30,useHorn && frame%60<5);
   for(const v of riders)if(v.direction===1){
-   const g=v.distance-seat, half=VEHICLES[v.kind].length/2;
-   if(g>=0)worst=Math.min(worst,g-half-VIEWER_GAP.ahead); else worst=Math.min(worst,-g-half-VIEWER_GAP.behind);
-   for(const o of riders)if(o!==v&&o.direction===1){const d=Math.abs(o.distance-v.distance)-(half+VEHICLES[o.kind].length/2);if(Math.abs(o.distance-v.distance)<L/2)worstSpacing=Math.min(worstSpacing,d);}
+   const g=v.distance-seat, half=VEHICLES[v.kind].length/2, giving=v.mode==='yield'||v.mode==='passed';
+   if(giving){ if(!passingNow.has(v.id) && v.mode==='yield'){passingNow.add(v.id); const t=v.distance/L; if(roadShapeAt(t).widen>.02)unsafeYield++;} }
+   else { passingNow.delete(v.id); if(g>=-half) worst=Math.min(worst,g-half-DRIVE.ahead); else worst=Math.min(worst,-g-half-DRIVE.behind); }
+   if(v.mode==='passed' && g+half<0 && passingNow.has(v.id)){ overtakes++; passingNow.delete(v.id); }
+   for(const o of riders)if(o!==v&&o.direction===1&&Math.abs(o.distance-v.distance)<L/2)worstSpacing=Math.min(worstSpacing,Math.abs(o.distance-v.distance)-(half+VEHICLES[o.kind].length/2));
   }
  }
- assert(worst>-1e-6,'no uphill vehicle inside the viewer gap'); assert(worstSpacing>0,'clearing the seat never overlaps vehicles');
- console.log('viewer drive',{seat:seat.toFixed(1),worstGapMargin:worst.toFixed(3),worstSpacing:worstSpacing.toFixed(3)});
+ console.log('viewer drive',{horn:useHorn,seat:seat.toFixed(1),overtakes,worstGapMargin:worst.toFixed(3),worstSpacing:worstSpacing.toFixed(3),unsafeYield});
+ assert(worst>-1e-6,'only vehicles giving way are alongside or just ahead of the seat');
+ assert(overtakes>3,'slower vehicles give way, the viewer is not stuck behind them');
+ assert(unsafeYield===0,'nobody gives way on a hairpin');
+ assert(worstSpacing>-1e-6,'clearing the seat never overlaps vehicles');
 }
 stepWeather(1/60,0);assert(weather.rain===0,'sunny start');
 setWeatherForReview('rain');for(let i=0;i<600;i++)stepWeather(.25,.5);

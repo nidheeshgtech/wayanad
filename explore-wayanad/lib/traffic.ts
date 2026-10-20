@@ -11,22 +11,29 @@ export const VEHICLES = [
   { name: 'lorry-real', height: .324, length: .78, width: .271, speed: .52 },
   { name: 'auto-real', height: .17, length: .265, width: .146, speed: .55 },
   { name: 'omni-real', height: .171, length: .34, width: .174, speed: .65 },
-  { name: 'privatebus-real', height: .29, length: .94, width: .269, speed: .66 },
+  { name: 'privatebus-real', height: .262, length: .94, width: .225, speed: .66 },
 ] as const;
-export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number };
-export const trafficControl = { paused: false, rate: 1, count: 0 };
+/** How a vehicle is behaving toward the viewer: see interactWithViewer. `shift` (0–1) eases it toward its own road edge. */
+export type Mode = 'cruise' | 'follow' | 'yield' | 'passed' | 'caution';
+export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number; mode?: Mode; shift?: number; wait?: number };
+/** Shared with the dev review panel (WeatherDebug): pause/rate, what's nearby, and the viewer's seat and give-way state.
+ * stage*: dev-only hooks that put a vehicle just ahead of the seat to review a catch-up or an overtake. */
+export const trafficControl = { paused: false, rate: 1, count: 0, seat: -1, overtaking: false, following: false, held: null as string | null, horn: false, stageAhead: 0, stageMode: 'cruise' as Mode, staged: -1, stagedInfo: '' }; // stageAhead: dev review only
 const up = new Vector3(0, 1, 0);
-export function lanePoint(curve: CatmullRomCurve3, distance: number, direction: number, widen: (t: number) => number, out = new Vector3()) {
+export function lanePoint(curve: CatmullRomCurve3, distance: number, direction: number, widen: (t: number) => number, out = new Vector3(), edge = 0) {
   const t = Math.max(0, Math.min(1, distance / curve.getLength()));
   const tangent = curve.getTangentAt(t), left = new Vector3(tangent.z, 0, -tangent.x).normalize();
-  curve.getPointAt(t, out).addScaledVector(left, direction * (.4 + widen(t)) * .5);
+  curve.getPointAt(t, out).addScaledVector(left, direction * ((.4 + widen(t)) * .5 + edge));
   out.y -= .588; // exact Road.tsx ribbon bed + asphalt lift
   return out;
 }
+/** How far (units) a vehicle may ease toward its road edge: up to DRIVE.edge, less for wide ones so the outer wheels
+ * stay on the asphalt and shoulder (Traffic hides any vehicle whose corners leave it). */
+export function edgeRoom(kind: number) { return Math.max(0, Math.min(DRIVE.edge, .37 - .2 - VEHICLES[kind].width / 2)); }
 export function vehiclePose(curve: CatmullRomCurve3, v: Vehicle, widen: (t: number) => number) {
-  const spec = VEHICLES[v.kind], halfAxle = spec.length * .31;
-  const front = lanePoint(curve, v.distance + halfAxle * v.direction, v.direction, widen);
-  const rear = lanePoint(curve, v.distance - halfAxle * v.direction, v.direction, widen);
+  const spec = VEHICLES[v.kind], halfAxle = spec.length * .31, edge = (v.shift ?? 0) * edgeRoom(v.kind);
+  const front = lanePoint(curve, v.distance + halfAxle * v.direction, v.direction, widen, undefined, edge);
+  const rear = lanePoint(curve, v.distance - halfAxle * v.direction, v.direction, widen, undefined, edge);
   const forward = front.clone().sub(rear).normalize(), right = up.clone().cross(forward).normalize();
   const normal = forward.clone().cross(right).normalize();
   return { position: front.add(rear).multiplyScalar(.5).addScaledVector(normal, .003), rotation: new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(right, normal, forward)) };
@@ -46,7 +53,9 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     const a = curve.getTangentAt(Math.max(0, t - 1.2 / length));
     const b = curve.getTangentAt(Math.min(1, t + 1.2 / length));
     const bend = Math.acos(Math.max(-1, Math.min(1, a.dot(b))));
-    let desired = Math.min(spec.speed, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
+    // each vehicle its own pace (±10%), held back while it gives way or takes care (interactWithViewer)
+    const cap = v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
+    let desired = Math.min(spec.speed * pace(v.id) * cap, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
     let room = stops.get(v.id) ?? Infinity;
     for (const other of fleet) if (other !== v && other.direction === v.direction) {
       const gap = ((other.distance - v.distance) * v.direction + span) % span;
@@ -61,22 +70,87 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
   fleet.forEach((v,i) => { v.speed = moves[i].speed; v.distance = 2 + ((v.distance - 2 + v.direction * moves[i].move) % span + span) % span; });
 }
 
-/** The viewer's seat, as units along the road. Uphill traffic never shares it: vehicles ahead keep VIEWER_GAP.ahead
- * clear in front of the seat (pulled on ahead as the scroll drives forward), vehicles behind stay VIEWER_GAP.behind
- * back, and the ones beyond are moved on in turn so nothing overlaps. Oncoming traffic is untouched. Without this the
- * scroll-driven seat drove through slower cars, or cars caught up under it. */
-export const VIEWER_GAP = { ahead: 1.5, behind: 1.1, spacing: .35 };
-export function keepClearOfViewer(fleet: Vehicle[], length: number, viewer: number) {
-  const span = length - 4, wrap = (d: number) => 2 + ((d - 2) % span + span) % span;
-  const mine = fleet.filter(v => v.direction === 1);
-  const signed = (v: Vehicle) => { const g = ((v.distance - viewer) % span + span) % span; return g > span / 2 ? g - span : g; };
+const pace = (id: number) => { const x = Math.sin(id * 12.9898) * 43758.5453; return .9 + .2 * (x - Math.floor(x)); };
+
+/** Driving up the road with the viewer (units of 10 m, seconds). */
+export const DRIVE = {
+  ahead: 1.5, behind: 1.1, spacing: .35,  // clear space kept in front of / behind the seat, and between vehicles moved on
+  approach: 3,                            // a slower vehicle this close ahead (rear bumper) is being followed
+  autoYield: 2.2,                         // after this long following on a safe stretch it gives way by itself (horn: at once)
+  yieldPace: .55, cautionPace: .5,        // share of normal speed while giving way / while oncoming past an overtake
+  edge: .05, ease: .45,                   // how far toward its edge a vehicle moves (0.5 m), and how gently (time constant)
+  look: 4, maxBend: .22,                  // overtaking needs the road ahead this far to turn less than this (radians)
+};
+const tangentAt = (curve: CatmullRomCurve3, d: number) => curve.getTangentAt(Math.max(0, Math.min(1, d / curve.getLength())));
+/** Somewhere a slower vehicle can let the viewer by: the road ahead fairly straight and open (no hairpin widening, no
+ * one-at-a-time bend), and no oncoming vehicle right alongside. */
+export function safeToPass(curve: CatmullRomCurve3, widen: (t: number) => number, zones: PassingZone[], fleet: Vehicle[], seat: number) {
+  const L = curve.getLength(), t0 = tangentAt(curve, seat);
+  for (let d = 1; d <= DRIVE.look; d++) {
+    if (Math.acos(Math.max(-1, Math.min(1, t0.dot(tangentAt(curve, seat + d))))) > DRIVE.maxBend) return false;
+    if (widen(Math.min(1, (seat + d) / L)) > .015) return false;
+  }
+  if (zones.some(z => seat + DRIVE.look > z.from && seat - 1 < z.to)) return false;
+  return !fleet.some(v => v.direction === -1 && v.distance > seat - .5 && v.distance < seat + 1.2);
+}
+
+/**
+ * The viewer's seat rides up the road (direction 1) at scroll pace, on the centre line. Uphill traffic:
+ * - catching up with a slower vehicle, the viewer follows it (it's moved on ahead, keeping DRIVE.ahead clear);
+ * - on a safe stretch, after DRIVE.autoYield s of following — or at once on the horn — it gives way: eases toward the
+ *   left edge and slows, and the viewer passes on its right; once behind, it drifts back into its lane;
+ * - on bends, hairpins and one-at-a-time sections nobody gives way: traffic stays in line;
+ * - vehicles behind the seat stay DRIVE.behind back; the ones ahead are moved on in turn so nothing overlaps.
+ * Oncoming traffic carries on in its lane, except while the viewer is overtaking: those just ahead slow and keep to
+ * their edge (caution). `fits(v)` says whether a vehicle may stand at its edge here (Traffic checks the ground).
+ */
+export function interactWithViewer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: (t: number) => number, zones: PassingZone[],
+  seat: number, seatSpeed: number, dt: number, horn: boolean, fits: (v: Vehicle) => boolean = () => true) {
+  const length = curve.getLength(), span = length - 4, wrap = (d: number) => 2 + ((d - 2) % span + span) % span;
+  const signed = (v: Vehicle) => { const g = ((v.distance - seat) % span + span) % span; return g > span / 2 ? g - span : g; };
   const half = (v: Vehicle) => VEHICLES[v.kind].length / 2;
-  const ahead = mine.filter(v => signed(v) >= 0).sort((a, b) => signed(a) - signed(b));
-  const behind = mine.filter(v => signed(v) < 0).sort((a, b) => signed(b) - signed(a));
-  let edge = VIEWER_GAP.ahead; // nearest allowed rear bumper, units ahead of the seat
-  for (const v of ahead) { const g = signed(v); if (g - half(v) >= edge) break; v.distance = wrap(viewer + edge + half(v)); edge += 2 * half(v) + VIEWER_GAP.spacing; }
-  edge = VIEWER_GAP.behind;
-  for (const v of behind) { const g = -signed(v); if (g - half(v) >= edge) break; v.distance = wrap(viewer - edge - half(v)); v.speed = 0; edge += 2 * half(v) + VIEWER_GAP.spacing; }
+  const mine = fleet.filter(v => v.direction === 1);
+  // vehicles being passed: back to normal once well behind, or once they've pulled away (the viewer stopped)
+  for (const v of mine) if (v.mode === 'yield' || v.mode === 'passed') {
+    const g = signed(v);
+    if (g + half(v) < -DRIVE.behind || g - half(v) > DRIVE.approach + 1) v.mode = 'cruise';
+    else if (v.mode === 'yield' && g + half(v) < 0) v.mode = 'passed';
+  }
+  const passing = (v: Vehicle) => v.mode === 'yield' || v.mode === 'passed';
+  const ahead = mine.filter(v => signed(v) >= -half(v)).sort((a, b) => signed(a) - signed(b));
+  // the nearest vehicle ahead that isn't already giving way: is the viewer stuck behind it?
+  const lead = ahead.find(v => !passing(v));
+  let held: string | null = null; // why the vehicle ahead isn't giving way (review)
+  for (const v of mine) if (v !== lead) { v.wait = 0; if (v.mode === 'follow') v.mode = 'cruise'; }
+  if (lead && signed(lead) - half(lead) < DRIVE.approach && signed(lead) > 0) {
+    if (seatSpeed > .02) lead.wait = (lead.wait ?? 0) + dt; // only while the viewer presses on
+    const asked = horn || (lead.wait ?? 0) > DRIVE.autoYield;
+    held = !asked ? 'waiting' : !safeToPass(curve, widen, zones, fleet, seat) ? 'not safe here' : !fits(lead) ? 'no room at the edge' : null;
+    if (!held) { lead.mode = 'yield'; lead.wait = 0; } else lead.mode = 'follow';
+  }
+  // keep the seat clear: vehicles ahead (in order) moved on as needed; anyone giving way stays put and is passed
+  let edge = DRIVE.ahead;
+  for (const v of ahead) {
+    const g = signed(v);
+    if (passing(v)) { edge = Math.max(edge, g + half(v) + DRIVE.spacing); continue; }
+    if (g - half(v) < edge) v.distance = wrap(seat + edge + half(v));
+    edge = signed(v) + half(v) + DRIVE.spacing;
+  }
+  edge = DRIVE.behind;
+  for (const v of mine.filter(v => signed(v) < -half(v) && !passing(v)).sort((a, b) => signed(b) - signed(a))) {
+    const g = -signed(v); if (g - half(v) >= edge) break;
+    v.distance = wrap(seat - edge - half(v)); v.speed = 0; edge += 2 * half(v) + DRIVE.spacing;
+  }
+  // oncoming traffic takes care while the viewer is alongside a vehicle it's overtaking
+  const overtaking = mine.some(v => passing(v) && Math.abs(signed(v)) < half(v) + 1.5);
+  for (const v of fleet) if (v.direction === -1) {
+    const g = signed(v);
+    if (overtaking && g > -1 && g < 6) v.mode = 'caution'; else if (v.mode === 'caution') v.mode = 'cruise';
+  }
+  // ease toward the edge (or back into the lane) gently
+  const k = 1 - Math.exp(-dt / DRIVE.ease);
+  for (const v of fleet) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k;
+  return { overtaking, following: !!lead && lead.mode === 'follow', held };
 }
 
 export type PassingZone = { from: number; to: number; owner: 1 | -1 | null };

@@ -9,5 +9,8 @@
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 .vignette { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(5,14,12,.65) 100%); }
 .grade { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: transparent; mix-blend-mode: multiply; opacity: 0; transition: background .6s, opacity .6s; }
+.horn { position: fixed; z-index: 5; right: 112px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--mute); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; min-height: 36px; cursor: pointer; transition: color .2s, border-color .2s, background .2s;
+  &[data-on] { color: var(--bg); background: var(--amber); border-color: var(--amber); }
+  &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } }
 .mute { position: fixed; z-index: 5; right: 20px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); font-size: 12px; color: var(--mute); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; min-height: 36px; cursor: pointer;
   &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } }

@@ -9,10 +9,13 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
 - `ksrtc-real.glb`: **KSRTC Bus 2011** by BML Palms Authority (https://sketchfab.com/arjun.sajin28), CC BY 4.0.
   https://sketchfab.com/3d-models/ksrtc-bus-2011-707cc16fe65f4525b1bc8e6244ad0860
   Changes: materials converted to metal-rough; repainted from Karnataka red/grey to Kerala state-transport colours
-  (red body, yellow sill line, cream roof and header); maker badge blanked; plate replaced with a made-up number
-  (`scripts/retouch/ksrtc-real.sh`); compressed (meshopt, WebP). No operator endorsement implied.
-- `privatebus-real.glb`: **Kerala public transport** by AG DYNAMICS (https://sketchfab.com/Agdynamics0), CC BY 4.0.
-  https://sketchfab.com/3d-models/kerala-public-transport-2d4ab65f7a7c470ab14da987a6248b5e
+  (red body, yellow sill line, cream roof and header); passengers and a driver painted behind the glass
+  (`scripts/retouch/passengers.mjs`); maker badge blanked; plate replaced with a made-up number
+  (`scripts/retouch/bus-livery.sh`); compressed (meshopt, WebP). No operator endorsement implied.
+- Route boards (`boards/*.webp`): made for this project by `scripts/bake-boards.mjs`, set in Noto Sans Malayalam
+  (SIL Open Font License 1.1).
+- `privatebus-real.glb`: also **KSRTC Bus 2011** by BML Palms Authority, CC BY 4.0 (same source as above), repainted in a
+  private-bus livery (`scripts/retouch/privatebus-real.sh`).
 - `wagonr-real.glb`: **2013 Suzuki WagonR** by BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0.
   https://sketchfab.com/3d-models/2013-suzuki-wagonr-71112627f42342099ff95b59e7532663 — simplified to 15%, turned to face +Z.
 - `innova-real.glb`: **Toyota Innova 2008** by Hoàng Huy (https://sketchfab.com/danghoanghuy69), CC BY 4.0.

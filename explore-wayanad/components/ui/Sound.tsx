@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { horn } from "@/lib/horn";
 import styles from "./Hud.module.scss";
 
 /**
@@ -26,6 +27,7 @@ export default function Sound() {
     gain.gain.cancelScheduledValues(ctx.currentTime);
     gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(next ? 0.25 : 0, ctx.currentTime + 0.8);
+    horn.sound = next;
     setOn(next);
   };
 

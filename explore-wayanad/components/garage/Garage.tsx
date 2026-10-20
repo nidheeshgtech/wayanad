@@ -3,7 +3,7 @@ import { Suspense, use, useEffect, useLayoutEffect, useMemo, useRef, useState } 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, View } from "@react-three/drei";
 import { Box3, CircleGeometry, Group, PMREMGenerator, Sphere, Texture, Vector3 } from "three";
-import { loadVehicle } from "@/lib/vehicleAssets";
+import { destinationBoard, hasBoard, loadVehicle } from "@/lib/vehicleAssets";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { VEHICLE_REGISTRY, type VehicleEntry } from "@/data/vehicles";
 import { BUILDERS } from "@/lib/keralaVehicles";
@@ -21,7 +21,10 @@ function useVehicle(v: VehicleEntry) {
       const k = v.fit === "uniform" ? new Vector3().setScalar(v.size.length / s.z) : new Vector3(v.size.width / s.x, v.size.height / s.y, v.size.length / s.z);
       const wrap = new Group(); wrap.add(turn);
       wrap.scale.copy(k); wrap.position.set(-c.x * k.x, -b.min.y * k.y, -c.z * k.z);
-      const out = new Group(); out.add(wrap); return out;
+      const out = new Group(); out.add(wrap);
+      const name = v.source.split("/").pop()!.replace(".glb", "");
+      if (hasBoard(name)) out.add(destinationBoard(name, "both", v.size, wrap));
+      return out;
     }
     return g;
   }, [loaded, v]);
