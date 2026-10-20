@@ -1,7 +1,8 @@
 /**
  * The viewer's horn. `honk()` (the Horn button, or H) asks the vehicle ahead to give way for HORN_MS; traffic reads
- * `honking()`. The sound is a short two-tone "beep-beep" made with WebAudio (no file), and only plays when the
- * ambience is on (`horn.sound`, set by the Sound button) — the give-way works either way.
+ * `honking()`. The sound is a short two-tone "beep-beep" made with WebAudio (no file). On the story page it only plays
+ * when the ambience is on (`horn.sound`, set by the Sound button); in drive mode pressing the horn always sounds it
+ * (`honk({ audible: true })` — the press is the player asking for it). The give-way works either way.
  */
 const HORN_MS = 1800;
 // one object for the page, wherever this module is bundled (the HUD and the 3D scene load in different chunks)
@@ -11,9 +12,9 @@ let ctx: AudioContext | null = null;
 
 export function honking() { return typeof performance !== "undefined" && performance.now() < horn.until; }
 
-export function honk() {
+export function honk({ audible = false } = {}) {
   horn.until = performance.now() + HORN_MS;
-  if (!horn.sound) return;
+  if (!horn.sound && !audible) return;
   ctx ??= new AudioContext();
   if (ctx.state === "suspended") void ctx.resume();
   const out = ctx.createBiquadFilter(); out.type = "lowpass"; out.frequency.value = 2400; out.connect(ctx.destination);

@@ -54,7 +54,7 @@ export default function DriveHud() {
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault(); // the page never scrolls
       if (e.repeat) { held.add(k); apply(); return; }
       if (k === " " || k === "escape") { togglePause(); flash("pause"); }
-      if (k === "h") { honk(); flash("horn"); }
+      if (k === "h") { honk({ audible: true }); flash("horn"); }
       if (k === "c") { cycleView(); setView(game.view); flash("view"); }
       if (k === "r" && !game.paused) { resetCar(); flash("reset"); }
       held.add(k); apply();
@@ -105,7 +105,7 @@ export default function DriveHud() {
       <div ref={note} className={styles.note} aria-live="polite" />
 
       <div className={styles.buttons}>
-        <button type="button" ref={ref("horn")} onClick={() => { honk(); flash("horn"); }} title="Horn (H)">Horn</button>
+        <button type="button" ref={ref("horn")} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)">Horn</button>
         <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title="Camera (C)">View: {VIEW_NAME[view]}</button>
         <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)">Reset</button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause">❚❚</button>
