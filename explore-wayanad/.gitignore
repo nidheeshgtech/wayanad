@@ -5,3 +5,4 @@ out
 .DS_Store
 scripts/.cache
 /.cache
+*.swp

@@ -2,31 +2,35 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { InstancedMesh, Material, Mesh } from "three";
+import { perfStats } from "@/lib/perf";
+import { FIXED, LEVELS, quality } from "@/lib/quality";
 
-/* Quality steps, tried in order while the frame rate stays low. Each trades a little looks for speed:
- * render resolution, then forest density (fewer cards everywhere, never a gap), then shadows. */
-const LEVELS = [
-  { dpr: 2, forest: 1, shadows: true },
-  { dpr: 1.5, forest: 1, shadows: true },
-  { dpr: 1.25, forest: 0.75, shadows: true },
-  { dpr: 1, forest: 0.6, shadows: false },
-  { dpr: 0.85, forest: 0.45, shadows: false },
-];
-const WARMUP = 3; // s before measuring: shader compiles and first uploads are slow on every device
-const WINDOW = 2; // s per measurement
-const LOW_FPS = 40;
+/* Auto quality, judged on typical frames rather than the average: a frame over HITCH ms is a one-off (a shader
+ * compiling the first time something appears, an upload) and is left out — counting those used to drop the quality
+ * to its lowest for good a few seconds into every drive. */
+const WARMUP = 4;     // s after the start or a level change before judging
+const WINDOW = 2;     // s per measurement
+const HITCH = 70;     // ms: frames slower than this are one-offs, not the device's pace
+const SLOW = 19;      // ms median: below ~52 fps
+const SMOOTH = 17.6;  // ms at the 95th percentile: holding 60 fps (vsync) — room to try a step up
+const UP_AFTER = 8;   // smooth windows in a row before trying the level above (16 s)
+const HOLD_DOWN = 60; // s to stay down after a step up didn't hold
 
 /**
- * Watches the frame rate and steps quality down when it stays low. Down only: stepping back up would flicker
- * between levels. `start` lets the lite tier begin lower. Vegetation meshes are found by name ("veg-*") and keep
- * their full count in userData.full, so thinning is just drawing fewer of the (randomly ordered) instances.
+ * Applies the quality level (render resolution, forest density, shadows; lib/quality LEVELS). Fixed modes just apply
+ * their level. Auto steps down after two slow windows in a row, and tries one step up after a long smooth spell —
+ * going straight back if that doesn't hold, then not trying again for a while. `start` lets the lite tier begin lower.
+ * Vegetation meshes are found by name ("veg-*") and keep their full count in userData.full, so thinning is just
+ * drawing fewer of the (randomly ordered) instances.
  */
 export default function Quality({ start = 0 }: { start?: number }) {
   const { gl, scene, setDpr } = useThree();
-  const level = useRef(start), clock = useRef({ t: -WARMUP, frames: 0 });
+  const applied = useRef(-1), mode = useRef(quality.mode);
+  const s = useRef({ t: -WARMUP, frames: [] as number[], slow: 0, smooth: 0, trial: false, holdUntil: 0, clock: 0 });
 
   const apply = (i: number) => {
     const L = LEVELS[i];
+    applied.current = i; quality.level = i; perfStats.quality = i;
     setDpr(Math.min(window.devicePixelRatio, L.dpr));
     scene.traverse((o) => {
       if (o.name.startsWith("veg-") && (o as InstancedMesh).isInstancedMesh) {
@@ -39,27 +43,38 @@ export default function Quality({ start = 0 }: { start?: number }) {
       gl.shadowMap.enabled = L.shadows;
       scene.traverse((o) => { const m = (o as Mesh).material as Material | Material[] | undefined; if (m) (Array.isArray(m) ? m : [m]).forEach((x) => { x.needsUpdate = true; }); });
     }
+    Object.assign(s.current, { t: -WARMUP, frames: [], slow: 0, smooth: 0 });
   };
 
   useEffect(() => {
-    apply(level.current);
+    apply(quality.mode === "auto" ? start : FIXED[quality.mode]);
     // the whole scene has been built by the time this effect runs (it mounts last): how long the page took to get here
     if (process.env.NODE_ENV !== "production" || location.search.includes("debug")) console.info(`[scene] built ${Math.round(performance.now())} ms after navigation`);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame((_, dt) => {
-    const c = clock.current;
+    const c = s.current;
+    c.clock += dt;
+    // a fixed mode chosen in the settings: apply it; switching back to auto starts from the current level
+    if (quality.mode !== mode.current) { mode.current = quality.mode; if (quality.mode !== "auto") apply(FIXED[quality.mode]); else Object.assign(c, { t: -WARMUP, frames: [], slow: 0, smooth: 0, trial: false }); }
+    if (quality.mode !== "auto") return;
     c.t += dt;
     if (c.t < 0) return;
-    c.frames++;
+    if (dt * 1000 < HITCH) c.frames.push(dt * 1000);
     if (c.t < WINDOW) return;
-    const fps = c.frames / c.t;
-    c.t = 0; c.frames = 0;
-    if (fps < LOW_FPS && level.current < LEVELS.length - 1) {
-      level.current++;
-      apply(level.current);
-      console.info(`[quality] ${fps.toFixed(0)} fps → level ${level.current}`, LEVELS[level.current]);
+    const f = c.frames.sort((a, b) => a - b), p50 = f[Math.floor(f.length * 0.5)] ?? 0, p95 = f[Math.floor(f.length * 0.95)] ?? 0;
+    c.t = 0; c.frames = [];
+    if (f.length < WINDOW * 15) return; // mostly hitches (loading, a tab switch): no verdict
+    const level = applied.current;
+    if (p50 > SLOW) {
+      c.smooth = 0;
+      // a step up that doesn't hold goes straight back, and up-steps rest for a while
+      if (c.trial) { c.trial = false; c.holdUntil = c.clock + HOLD_DOWN; apply(level + 1); console.info(`[quality] step up didn't hold → level ${level + 1}`); return; }
+      if (++c.slow >= 2 && level < LEVELS.length - 1) { apply(level + 1); console.info(`[quality] ${p50.toFixed(1)} ms median → level ${level + 1}`, LEVELS[level + 1]); }
+      return;
     }
+    c.slow = 0; c.trial = false;
+    if (p95 <= SMOOTH && ++c.smooth >= UP_AFTER && level > 0 && c.clock > c.holdUntil) { c.trial = true; apply(level - 1); s.current.trial = true; console.info(`[quality] smooth → trying level ${level - 1}`); }
   });
   return null;
 }

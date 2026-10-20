@@ -29,11 +29,13 @@ import Shafts from "./Shafts";
 import BendSigns from "./BendSigns";
 import Director from "./Director";
 import Quality from "./Quality";
+import PerfProbe from "./PerfProbe";
+import Warmup from "./Warmup";
 import ShowIn, { FOREST_ACTS } from "./ShowIn";
 import Elephant from "./Elephant";
 import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
-import PlayerBus from "../drive/PlayerBus";
+import PlayerCar from "../drive/PlayerCar";
 
 patchAtmosphere(); // before any material compiles
 
@@ -138,9 +140,11 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 1200 : 2500} />
-      {mode === "drive" && <Suspense fallback={null}><PlayerBus curve={curve} forest={forest?.curve ?? null} /></Suspense>}
+      {mode === "drive" && <Suspense fallback={null}><PlayerCar curve={curve} forest={forest?.curve ?? null} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} />
+      <PerfProbe />
+      <Warmup needs={mode === "drive" ? ["mountain-traffic", "player-car"] : ["mountain-traffic"]} />
       {process.env.NODE_ENV !== "production" && <WeatherDebug />}
     </>
   );

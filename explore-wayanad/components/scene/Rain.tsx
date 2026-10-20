@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { BufferAttribute, BufferGeometry, LineSegments, ShaderMaterial, Vector3 } from 'three';
 import { weather } from '@/lib/weather';
+import { game } from '@/lib/game';
 /** Static seeds; falling streak positions are computed on the GPU, with no per-frame buffer uploads. */
 export default function Rain({ count = 2500, opacity = .3 }: { count?: number; opacity?: number }) {
   const lines = useMemo(() => {
@@ -20,6 +21,6 @@ export default function Rain({ count = 2500, opacity = .3 }: { count?: number; o
     const result=new LineSegments(geo,mat);result.frustumCulled=false;result.name='rain';return result;
   },[count,opacity]);
   useEffect(()=>()=>{lines.geometry.dispose();lines.material.dispose();},[lines]);
-  useFrame(({camera},dt)=>{ const u=lines.material.uniforms;u.time.value+=Math.min(dt,.1);u.eye.value.copy(camera.position);u.rain.value=weather.rain;lines.visible=weather.rain>.02;lines.geometry.setDrawRange(0,Math.floor(count*Math.min(1,weather.rain*1.5))*2); });
+  useFrame(({camera},dt)=>{ const u=lines.material.uniforms;if(!game.paused)u.time.value+=Math.min(dt,.1);u.eye.value.copy(camera.position);u.rain.value=weather.rain;lines.visible=weather.rain>.02;lines.geometry.setDrawRange(0,Math.floor(count*Math.min(1,weather.rain*1.5))*2); });
   return <primitive object={lines} />;
 }

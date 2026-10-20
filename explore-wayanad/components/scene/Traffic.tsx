@@ -5,11 +5,12 @@ import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial,
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, VEHICLES, vehiclePose, type Player, type Vehicle } from '@/lib/traffic';
-import { BUS, game } from '@/lib/game';
+import { CAR, game } from '@/lib/game';
 import { honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
 import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
+import { frameTimed } from '@/lib/perf';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 const cache = new Map<string, Promise<Group | null>>();
 function load(name: string) {
@@ -74,17 +75,17 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     return { root, lights, owned };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
-  useFrame(({ camera }, dt) => {
+  useFrame(({ camera }, dt) => frameTimed('traffic', () => {
     // where the viewer's seat is on this road (traffic runs on the churam/Kalpetta road only)
     const { act, progress } = scrollState, length = curve.getLength();
     trafficControl.fleet = fleet; trafficControl.curve = curve; // drive mode: the player's bus checks itself against these
     if (game.active) {
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
       const onRoad = game.leg === 0 && game.phase === 'drive';
-      const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: BUS.halfL, halfW: BUS.halfW };
-      if (!trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
-        onRoad ? [{ distance: game.s, length: BUS.halfL * 2, lanes: playerLanes(player) }] : []);
-      if (onRoad) { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(fleet, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); }
+      const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
+      if (!trafficControl.paused && !game.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
+        onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player) }] : []);
+      if (onRoad && !game.paused) { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(fleet, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); }
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
     if (!game.active && !trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, viewer);
@@ -115,6 +116,6 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist) * .35 : .1 + weather.rain * 2 + weather.mist;
     }
     trafficControl.count = visible;
-  });
+  }));
   return <group name="mountain-traffic" dispose={null}>{objects.map((o,i) => <primitive key={i} object={o.root} />)}</group>;
 }

@@ -2,6 +2,7 @@
 import { useEffect, useMemo } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { scrollState } from "@/lib/scrollState";
+import { game } from "@/lib/game";
 import { stepWeather, weather } from "@/lib/weather";
 import { BackSide, Color, DirectionalLight, Mesh, Object3D, PMREMGenerator, Scene, ShaderMaterial, SphereGeometry, Vector3 } from "three";
 
@@ -53,7 +54,7 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
   }, [scene, sunRef, target]);
 
   useFrame((_, dt) => {
-    stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1);
+    if (!game.paused) stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1); // drive mode: Space holds the weather too
     // clouds over the sun: direct light fades to a quarter (shadows soften with it); sky light dims a little
     scene.environmentIntensity = (1.1 - 0.35 * weather.cloud) * (1 - 0.45 * weather.gloom);
     const sun = sunRef.current;

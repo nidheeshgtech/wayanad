@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useCapability } from "@/hooks/useCapability";
-import { game, resetBus } from "@/lib/game";
+import { game, resetCar } from "@/lib/game";
 import { setDriveWeather } from "@/lib/weather";
 import { scrollState } from "@/lib/scrollState";
 import MiniMap from "@/components/ui/MiniMap";
@@ -11,12 +11,12 @@ import styles from "./Drive.module.scss";
 
 const Scene = dynamic(() => import("@/components/scene/Scene"), { ssr: false });
 
-/** /drive: the same world as the story, with you at the wheel of the bus (lib/game, components/drive). */
+/** /drive: the same world as the story, with you at the wheel of a car (lib/game, components/drive). */
 export default function DriveExperience() {
   const tier = useCapability();
   useEffect(() => {
-    Object.assign(game, { active: true, started: false, leg: 0, phase: "drive", odometer: 0, clock: 0 });
-    resetBus(3);
+    Object.assign(game, { active: true, started: false, paused: false, leg: 0, phase: "drive", odometer: 0, clock: 0 });
+    resetCar(3);
     scrollState.act = "churam"; scrollState.progress = 0;
     setDriveWeather();
     document.documentElement.classList.add(styles.locked);

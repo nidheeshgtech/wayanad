@@ -16,3 +16,4 @@ f 44776bcb34e04c1a8b9c18a70376304e auto-real
 f 4ad7ea26b90f40338802a5dac2a32a0d omni-real
 f f6495bfbffe443e89c499a2ba8766c88 enfield-real --ratio 0.06 --size 512 --turn
 f accbf2048c9344718791588b70d2ebf8 pulsar-real --turn
+f 1a5cbddc8acb457e9d896d7345fd07d8 brezza-player --ratio 0.08 --error 0.01 --keep-parts --turn --size 512  # the car you drive

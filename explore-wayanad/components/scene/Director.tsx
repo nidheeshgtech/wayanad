@@ -8,6 +8,7 @@ import { mistPatch, weather } from "@/lib/weather";
 import { PALETTE } from "@/data/acts";
 import { height } from "@/lib/terrain";
 import { game } from "@/lib/game";
+import { frameTimed } from "@/lib/perf";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -79,7 +80,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
   }, [curve]);
   if (!scene.fog) { scene.fog = new FogExp2(PALETTE.churam.fog, 0.02); scene.background = new Color(PALETTE.churam.sky); }
 
-  useFrame((_, delta) => {
+  useFrame((_, delta) => frameTimed("director", () => {
     const { act, progress: p, hold } = scrollState;
     const P = PALETTE[act];
     const fog = scene.fog as FogExp2;
@@ -89,7 +90,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     const driving = act === "churam" || act === "kalpetta" || onForest;
     // drive mode (/drive): the chase camera behind the player's bus places the camera; the mood below still runs
     if (game.active) {
-      // nothing: components/drive/PlayerBus.tsx
+      // nothing: components/drive/PlayerCar.tsx
     } else if (driving) {
       const road = onForest ? forest! : curve, roadLength = onForest ? forestLength : length;
       const t = act === "churam" ? driveT(p) : act === "kalpetta" ? driveT2(p) : act === "forest" ? driveT7(p) : driveT8(p);
@@ -180,6 +181,6 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     if (sunRef.current) sunRef.current.color.lerp(new Color(P.light), 0.05);
     const mm = mistRef.current?.material as { opacity: number } | undefined; if (mm) mm.opacity += (mist - mm.opacity) * 0.06;
     const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (flies - fm.opacity) * 0.04;
-  });
+  }));
   return null;
 }
