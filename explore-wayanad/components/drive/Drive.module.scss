@@ -30,7 +30,13 @@
   button { display: grid; place-items: center; width: 60px; height: 60px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); touch-action: none; backdrop-filter: blur(6px);
     svg { width: 24px; height: 24px; }
     &:active { background: rgba(238, 242, 238, .25); } } }
-.steer { left: 16px; }
+.steer { left: 16px; align-items: flex-end; }
+// the tilt wheel turns with the car's steering
+.steer .wheel { width: 72px; height: 72px; color: var(--amber); border-color: var(--amber); svg { width: 40px; height: 40px; transform: rotate(var(--turn, 0deg)); } }
+// steer by tilt / by buttons
+.steer .mode { width: 36px; height: 36px; color: var(--mute); svg { width: 18px; height: 18px; } }
+.phone { display: none; font-size: 13px; }
+@media (pointer: coarse) { .phone { display: block; } }
 .pedals { right: 16px; align-items: flex-end;
   button { border-radius: 16px; width: 52px; height: 68px; }
   .gas { color: var(--amber); border-color: var(--amber); background: rgba(217, 164, 65, .18); &:active { background: rgba(217, 164, 65, .45); } } }
