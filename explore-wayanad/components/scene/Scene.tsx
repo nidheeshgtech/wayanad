@@ -1,8 +1,9 @@
 "use client";
-import { Suspense, use, useMemo, useRef } from "react";
+import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { CatmullRomCurve3, DirectionalLight, Points } from "three";
-import { archT, bendTs, buildRoadCurve, churamEndT, forestRoad, placesT, setHeightmaps, terrainGrids } from "@/lib/terrain";
+import { addForest, archT, bendTs, buildRoadCurve, churamEndT, forestRoad, placesT, setHeightmaps, terrainGrids } from "@/lib/terrain";
+import { loading } from "@/lib/loading";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
 import { DRIVER_LINE, ROUTE, setForestPace, setPace } from "@/lib/drive";
@@ -43,25 +44,30 @@ import PlayerCar from "../drive/PlayerCar";
 patchAtmosphere(); // before any material compiles
 
 /* Fetched once, on first import of the scene chunk. Without the heightmap everything stays procedural;
- * without the road the real terrain gets the procedural road. */
+ * without the road the real terrain gets the procedural road. The forest road (Acts 7–8, far down the story; drive
+ * mode ends at Lakkidi) is fetched separately once the title screen is ready, so it isn't in the first download. */
 let terrainReady: Promise<void> | null = null;
 const loadTerrain = () =>
   (terrainReady ??= Promise.all([
     loadHeightmap(),
     loadHeightmap("/terrain/plateau").catch((err) => void console.warn("Plateau terrain unavailable:", err)),
     loadRoad().catch((err) => void console.warn("Road unavailable, using the procedural road:", err)),
-    loadHeightmap("/terrain/forest").catch((err) => void console.warn("Forest terrain unavailable:", err)),
-    loadRoad("/terrain/forest-road.json").catch((err) => void console.warn("Forest road unavailable:", err)),
   ])
-    .then(([hm, plateau, road, forestHm, forestRd]) => {
-      const tiles = [{ ...hm, region: "churam" }, ...(plateau ? [{ ...plateau, region: "plateau" }] : []), ...(forestHm && forestRd ? [{ ...forestHm, region: "forest" }] : [])];
-      setHeightmaps(tiles, road ?? null, forestHm && forestRd ? forestRd : null);
+    .then(([hm, plateau, road]) => {
+      const tiles = [{ ...hm, region: "churam" }, ...(plateau ? [{ ...plateau, region: "plateau" }] : [])];
+      setHeightmaps(tiles, road ?? null, null);
       scrollState.bends = bendTs();
       scrollState.arch = archT();
       scrollState.churamEnd = churamEndT();
       scrollState.places = placesT();
     })
     .catch((err) => console.warn("Heightmap unavailable, using procedural terrain:", err)));
+
+let forestReady: Promise<boolean> | null = null;
+const loadForest = () =>
+  (forestReady ??= Promise.all([loadHeightmap("/terrain/forest"), loadRoad("/terrain/forest-road.json")])
+    .then(([hm, rd]) => { addForest({ ...hm, region: "forest" }, rd); return true; })
+    .catch((err) => { console.warn("Forest terrain unavailable:", err); return false; }));
 
 /** `mode`: "story" (the scroll-driven page) or "drive" (/drive: you drive the bus; components/drive). */
 export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "story" | "drive" }) {
@@ -93,7 +99,17 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
     setEstateFrame(curve.getPointAt(archT()).z, townCircles(curve));
     scrollState.roadMetres = curve.getLength() * 10;
   }, [curve]);
+  // the forest road arrives after the first screen is ready (story only): then it mounts like everything else
+  const [forestIn, setForestIn] = useState(false);
+  useEffect(() => {
+    if (mode !== "story") return;
+    let raf = 0, live = true;
+    const wait = () => { if (loading.ready) void loadForest().then((ok) => { if (live && ok) setForestIn(true); }); else raf = requestAnimationFrame(wait); };
+    wait();
+    return () => { live = false; cancelAnimationFrame(raf); };
+  }, [mode]);
   const forest = useMemo(() => {
+    if (!forestIn) return null;
     const f = forestRoad();
     if (f) {
       estateUniforms.uForestX.value = Math.min(f.curve.getPointAt(0).x, f.curve.getPointAt(1).x) - 40;
@@ -101,7 +117,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       if (process.env.NODE_ENV !== "production") console.info("[drive] forest screens", screens);
     }
     return f;
-  }, []);
+  }, [forestIn]);
   const sunRef = useRef<DirectionalLight | null>(null);
   const mistRef = useRef<Points | null>(null);
   const fliesRef = useRef<Points | null>(null);

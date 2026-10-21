@@ -41,6 +41,17 @@ export function setHeightmaps(maps: Heightmap[], roadData?: RoadData | null, for
   forest = forestData ? buildRealRoad(forestData) : null;
 }
 
+/** The forest road's tile and road (Acts 7–8), added after the first screen is ready (components/scene/Scene.tsx):
+ * appended last, as setHeightmaps would have placed it. */
+export function addForest(hm: Heightmap, forestData: RoadData) {
+  if (!fields.length) return;
+  const b = hm.bounds, n = hm.size - 1, s = GEO.unitsPerMetre, { lat, lon } = GEO.origin;
+  const west = (b.west - lon) * proj.perLon * s, east = (b.east - lon) * proj.perLon * s;
+  const north = -(b.north - lat) * proj.perLat * s, south = -(b.south - lat) * proj.perLat * s;
+  fields.push({ hm, west, north, east, south, cellX: (east - west) / n, cellZ: (south - north) / n });
+  forest = buildRealRoad(forestData);
+}
+
 /** lat/lon → world x, z. */
 function toWorld(_f: Field, lat: number, lon: number) {
   return { x: (lon - GEO.origin.lon) * proj.perLon * GEO.unitsPerMetre, z: -(lat - GEO.origin.lat) * proj.perLat * GEO.unitsPerMetre };

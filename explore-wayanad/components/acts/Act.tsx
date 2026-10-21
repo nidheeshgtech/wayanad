@@ -27,17 +27,19 @@ export default function Act({ content, children, onProgress }: {
     const lines = el.querySelectorAll<HTMLElement>("[data-line]");
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isPlan = content.id === "plan";
+    if (isPlan) lines.forEach((l) => { l.style.opacity = "1"; l.style.transform = "none"; }); // long and static: shown as it is
     ScrollTrigger.create({
       trigger: el,
       start: "top top",
       end: isPlan ? "bottom bottom" : `+=${Math.round(window.innerHeight * content.length)}`,
       pin: !isPlan && !reduce,
       scrub: content.scrub ?? 0.6,
-      onToggle: (self) => { if (self.isActive) { scrollState.act = content.id; hud.setGrade(PALETTE[content.id].grade); hud.showCounter(content.id === "churam" || content.id === "border"); } },
+      // the plan is a plain page: the HUD steps aside while it's on screen (app/globals.scss)
+      onToggle: (self) => { if (isPlan) document.documentElement.toggleAttribute("data-plan", self.isActive); if (self.isActive) { scrollState.act = content.id; hud.setGrade(PALETTE[content.id].grade); hud.showCounter(content.id === "churam" || content.id === "border"); } },
       onUpdate: (self) => {
         const p = self.progress;
         scrollState.act = content.id; scrollState.progress = p;
-        if (!reduce) lines.forEach((l, i) => {
+        if (!reduce && !isPlan) lines.forEach((l, i) => {
           const from = content.reveal ?? 0, k = gsap.utils.clamp(0, 1, ((p - from) / (1 - from) - i * 0.08) * 6);
           l.style.opacity = String(k); l.style.transform = `translateY(${(1 - k) * 14}px)`;
         });

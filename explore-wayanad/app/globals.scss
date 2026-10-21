@@ -13,5 +13,5 @@ a { color: inherit; }
 button { font: inherit; }
 // while a title screen is up (components/ui/StartScreen) the page's HUD stays hidden, then fades in
 [data-hud] { transition: opacity .6s; }
-html[data-intro] [data-hud] { opacity: 0 !important; pointer-events: none; } // (over the mini-map's own inline fade)
+html[data-intro] [data-hud], html[data-plan] [data-hud] { opacity: 0 !important; pointer-events: none; } // (over the mini-map's own inline fade)
 .serif { font-family: var(--font-serif), Georgia, serif; font-weight: 300; letter-spacing: -0.025em; }

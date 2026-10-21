@@ -10,10 +10,13 @@
 .body { font-size: 17px; color: #d6e0db; max-width: 34ch; }
 .act [data-line] { opacity: 0; transform: translateY(14px); }
 @media (prefers-reduced-motion: reduce) { .act [data-line] { opacity: 1; transform: none; } }
+// Act 11 (plan): a normal page section on the solid background, wider than the drive's copy column
 .plan {
-  justify-content: flex-start; padding-top: 96px;
-  background: linear-gradient(to bottom, transparent, var(--bg) 25%);
-  .copy { max-width: 560px; }
+  justify-content: flex-start; padding-top: 120px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 160px);
+  @media (min-width: 720px) { padding-left: clamp(24px, 6vw, 96px); padding-right: clamp(24px, 6vw, 96px); }
+  .copy { max-width: 1120px; width: 100%; margin: 0 auto; gap: 16px; }
+  .body { max-width: 52ch; }
 }
 
 /* act extras, from the prototype */
