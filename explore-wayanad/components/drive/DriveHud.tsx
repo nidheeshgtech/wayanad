@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { game, resetCar, togglePause, VIEWS, type View } from "@/lib/game";
 import { honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
-import { disableTilt, enableTilt, recenter } from "@/lib/tilt";
 import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
 import { loading, progress } from "@/lib/loading";
@@ -12,8 +11,8 @@ import styles from "./Drive.module.scss";
 /**
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
  * Esc) pause, H horn, C camera, R back on the road. Every on-screen button does the same as its key and lights up
- * when the key is used. Touch: turn the phone like a steering wheel (lib/tilt; the wheel bottom-left turns with you,
- * tap it to straighten up), or steer buttons where tilt isn't available or is switched off; brake and accelerator right.
+ * when the key is used. Touch: big steer buttons bottom-left, horn bottom-centre, brake and accelerator bottom-right;
+ * camera, reset, pause and sound small in the top-right corner. "Back to the story" shows for a few seconds after a tap.
  * Readouts are written straight into the DOM each frame (no React state per frame). React state only for the
  * screens: start, pause, the Kalpetta → Sulthan Bathery card, and the finish.
  */
@@ -24,8 +23,6 @@ const ICON = {
   view: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="m8 7 2-3h4l2 3" /><circle cx="12" cy="13.5" r="3.5" /></>,
   reset: <><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" /><path d="M4 4v4.5h4.5" /></>,
   pause: <path d="M8 5v14M16 5v14" />,
-  arrows: <path d="m9 18-6-6 6-6M15 6l6 6-6 6" />,
-  wheel: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.5" /><path d="M12 14.5V21M9.6 12.8 3.3 11M14.4 12.8l6.3-1.8" /></>,
   left: <path d="m15 18-6-6 6-6" />,
   right: <path d="m9 18 6-6-6-6" />,
   go: <path d="m6 15 6-6 6 6" />,
@@ -47,11 +44,23 @@ function restart() {
 
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished">("start");
-  const [tiltOn, setTiltOn] = useState(false), wheel = useRef<HTMLButtonElement>(null);
   const [ready, setReady] = useState(false), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const speed = useRef<HTMLElement>(null), place = useRef<HTMLDivElement>(null), next = useRef<HTMLDivElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0 }), bar = useRef<HTMLDivElement>(null), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
+
+  // touch: the "Back to the story" link stays hidden until you tap the screen, then shows for a few seconds
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let timer = 0;
+    const tap = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" || (e.target as Element).closest("button")) return;
+      top.current?.setAttribute("data-show", ""); clearTimeout(timer);
+      timer = window.setTimeout(() => top.current?.removeAttribute("data-show"), 3000);
+    };
+    addEventListener("pointerdown", tap);
+    return () => { removeEventListener("pointerdown", tap); clearTimeout(timer); };
+  }, []);
 
   // the camera you used last time
   useEffect(() => { try { const v = localStorage.getItem("drive-view") as View | null; if (v && VIEWS.includes(v)) { game.view = v; setView(v); } } catch {} }, []);
@@ -89,7 +98,6 @@ export default function DriveHud() {
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
       if (place.current) place.current.textContent = game.place;
       if (next.current) next.current.textContent = `${game.next} · ${game.nextM >= 1000 ? `${(game.nextM / 1000).toFixed(1)} km` : `${Math.round(game.nextM / 10) * 10} m`}`;
-      if (wheel.current) wheel.current.style.setProperty("--turn", `${-game.steer * 120}deg`);
       if (bar.current) bar.current.style.transform = `scaleX(${progress()})`;
       if (loading.ready) setReady(true);
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
@@ -103,17 +111,7 @@ export default function DriveHud() {
     return () => { cancelAnimationFrame(raf); engine(false, 0, 0); };
   }, []);
 
-  // tilt steering on phones unless switched off last time; buttons if the phone can't
-  const tiltPref = () => { try { return localStorage.getItem("drive-steer") !== "buttons"; } catch { return true; } };
-  const chooseTilt = (on: boolean) => {
-    try { localStorage.setItem("drive-steer", on ? "tilt" : "buttons"); } catch {}
-    if (!on) { disableTilt(); setTiltOn(false); return; }
-    void enableTilt().then(setTiltOn);
-  };
-  const start = () => {
-    game.started = true; game.phase = "drive"; game.paused = false;
-    if (matchMedia("(pointer: coarse)").matches && tiltPref()) void enableTilt().then(setTiltOn);
-  };
+  const start = () => { game.started = true; game.phase = "drive"; game.paused = false; };
   const onward = () => { game.leg = 1; game.phase = "drive"; resetCar(3); };
   const chooseQuality = (m: QualityMode) => { setQualityMode(m); setMode(m); };
   // touch: hold to press; leaving the button lets go
@@ -125,7 +123,7 @@ export default function DriveHud() {
 
   return (
     <>
-      <div className={styles.top}>
+      <div ref={top} className={styles.top}>
         <a href="/" className={styles.back}>← Back to the story</a>
         <div className={styles.where}><div ref={place} className={styles.place}>Adivaram</div><div ref={next} className={styles.next} /></div>
         <div className={styles.speed}><b ref={speed}>0</b><small>km/h</small></div>
@@ -133,7 +131,7 @@ export default function DriveHud() {
       <div ref={note} className={styles.note} aria-live="polite" />
 
       <div className={styles.buttons}>
-        <button type="button" ref={ref("horn")} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
+        <button type="button" ref={ref("horn")} className={styles.hornKey} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
         <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
         <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
@@ -142,18 +140,11 @@ export default function DriveHud() {
 
       {/* touch controls (shown on touch screens) */}
       <div className={styles.touch}>
-        {tiltOn ? (
-          <div className={styles.steer}>
-            <button type="button" ref={wheel} className={styles.wheel} onClick={() => recenter()} title="Straighten up" aria-label="Steering by tilt: tap to straighten up"><Icon name="wheel" /></button>
-            <button type="button" className={styles.mode} onClick={() => chooseTilt(false)} title="Steer with buttons" aria-label="Steer with buttons instead"><Icon name="arrows" /></button>
-          </div>
-        ) : (
-          <div className={styles.steer} aria-hidden>
-            <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? 1 : 0; })}><Icon name="left" /></button>
-            <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}><Icon name="right" /></button>
-            <button type="button" className={styles.mode} onClick={() => chooseTilt(true)} title="Steer by tilting" aria-label="Steer by tilting the phone"><Icon name="wheel" /></button>
-          </div>
-        )}
+        <div className={styles.steer} aria-hidden>
+          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? 1 : 0; })}><Icon name="left" /></button>
+          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}><Icon name="right" /></button>
+        </div>
+        <button type="button" className={styles.bigHorn} onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button>
         <div className={styles.pedals}>
           <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /></button>
           <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /></button>
@@ -170,7 +161,7 @@ export default function DriveHud() {
             <li><kbd>H</kbd> horn: a slow vehicle ahead gives way where it&apos;s safe</li>
             <li><kbd>Space</kbd> pause · <kbd>C</kbd> camera · <kbd>R</kbd> back on the road</li>
           </ul>
-          <p className={styles.phone}>On a phone: turn it like a steering wheel to steer. Tap the wheel to straighten up. ▲ go, ▼ brake.</p>
+          <p className={styles.phone}>On a phone: ◀ ▶ steer, ▲ go, ▼ brake, the middle button is the horn. Tap the screen for the way back to the story.</p>
           <p className={styles.small}>Keep left. Overtake on the right when the road is clear; oncoming traffic slows for you, but not on the hairpins. Showers come and go.</p>
           {ready ? <button type="button" className={styles.go} onClick={start} autoFocus>Start driving</button> : (
             <div className={styles.loading} aria-live="polite"><div className={styles.track}><div ref={bar} className={styles.bar} /></div><span>Loading the road…</span></div>

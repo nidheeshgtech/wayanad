@@ -12,7 +12,7 @@
   small { font: 12px var(--font-sans), sans-serif; color: var(--mute); } }
 .note { position: fixed; z-index: 5; left: 50%; top: 96px; transform: translateX(-50%); font-size: 12px; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
 
-.buttons svg, .steer svg, .pedals svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.buttons svg, .steer svg, .pedals svg, .bigHorn svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
 
 .buttons { position: fixed; z-index: 5; right: 20px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px;
   button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--mute); background: rgba(8, 20, 16, .45); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; backdrop-filter: blur(6px);
@@ -21,25 +21,40 @@
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
 .touch { display: none; }
-@media (pointer: coarse) {
-  .touch { display: block; }
-  .buttons { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom, 0px)); gap: 6px;
-    button { width: 36px; height: 36px; } }
-}
-.steer, .pedals { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 10px;
-  button { display: grid; place-items: center; width: 60px; height: 60px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); touch-action: none; backdrop-filter: blur(6px);
-    svg { width: 24px; height: 24px; }
+.steer, .pedals, .bigHorn { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.steer, .pedals { display: flex; gap: 8px; align-items: flex-end;
+  button { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); touch-action: none; backdrop-filter: blur(6px);
+    svg { width: 26px; height: 26px; }
     &:active { background: rgba(238, 242, 238, .25); } } }
-.steer { left: 16px; align-items: flex-end; }
-// the tilt wheel turns with the car's steering
-.steer .wheel { width: 72px; height: 72px; color: var(--amber); border-color: var(--amber); svg { width: 40px; height: 40px; transform: rotate(var(--turn, 0deg)); } }
-// steer by tilt / by buttons
-.steer .mode { width: 36px; height: 36px; color: var(--mute); svg { width: 18px; height: 18px; } }
-.phone { display: none; font-size: 13px; }
-@media (pointer: coarse) { .phone { display: block; } }
-.pedals { right: 16px; align-items: flex-end;
-  button { border-radius: 16px; width: 52px; height: 68px; }
+.steer { left: 14px; }
+.pedals { right: 14px;
+  button { border-radius: 18px; width: 64px; height: 84px; }
   .gas { color: var(--amber); border-color: var(--amber); background: rgba(217, 164, 65, .18); &:active { background: rgba(217, 164, 65, .45); } } }
+// the horn: between the steer buttons and the pedals
+.bigHorn { left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); backdrop-filter: blur(6px); touch-action: manipulation;
+  svg { width: 26px; height: 26px; }
+  &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
+.phone { display: none; font-size: 13px; }
+
+// phones: nothing over the middle of the road. The place title goes, "Back to the story" waits for a tap, the speed
+// sits top-left, the small buttons top-right (the horn has its own big one), the driving controls along the bottom.
+@media (pointer: coarse) {
+  .touch, .phone { display: block; }
+  .card .keys { display: none; }
+  // narrow phones (360 px): room for the horn between the steer buttons and the pedals
+  @media (max-width: 375px) { .steer button { width: 56px; height: 56px; } .pedals button { width: 56px; height: 78px; } .bigHorn { width: 56px; height: 56px; } }
+  .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: linear-gradient(rgba(8, 20, 16, .4), transparent); }
+  .where { display: none; }
+  .speed { order: -1; text-align: left; margin-right: auto; b { font-size: 34px; } }
+  .back { position: absolute; left: 14px; top: calc(62px + env(safe-area-inset-top, 0px)); padding: 8px 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: rgba(8, 20, 16, .7); color: var(--ink); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .top[data-show] .back { opacity: 1; pointer-events: auto; }
+  .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;
+    button { width: 32px; height: 32px; svg { width: 15px; height: 15px; } } }
+  .buttons .hornKey { display: none; }
+  .note { top: calc(64px + env(safe-area-inset-top, 0px)); }
+}
 
 .card { position: fixed; z-index: 10; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(520px, calc(100vw - 32px)); max-height: calc(100svh - 32px); overflow: auto;
   background: rgba(10, 24, 20, .92); border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: grid; gap: 14px;
