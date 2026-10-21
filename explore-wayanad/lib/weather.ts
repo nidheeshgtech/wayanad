@@ -31,11 +31,26 @@ const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Parti
 const TAU = { cloud: 30, mist: 25, rain: 15, wetUp: 18, wetDown: 70 }; // s: time constants
 let RAIN_AFTER = 90; // s of a visit before drizzle is allowed
 let DRY_VISITS = 0.35; // share of visits with no drizzle at all
-/** Drive mode (/drive) wants weather you drive through: showers come round every few minutes and go again, and under
- * them the day turns properly dark (`weather.gloom`, read by the lighting). The story keeps its bright default. */
+/** Drive mode (/drive) wants weather you drive through: showers placed along the road by distance, shuffled every
+ * drive (see planShowers), and under them the day turns properly dark (`weather.gloom`, read by the lighting).
+ * The story keeps its bright default. */
 let showery = false;
-/** States to play in order before the random drift takes over, each with its hold in seconds (drive mode's first shower). */
-const script: [WeatherName, number][] = [];
+/** Drive mode's showers: [from, to] km along the drive and how hard. Between them only dry states drift. */
+type Shower = { from: number; to: number; kind: WeatherName };
+let showers: Shower[] = [], km = 0, lastKm = 0;
+const RAINY: WeatherName[] = ["drizzle", "rain", "downpour"];
+/** A new set of showers: the first 1.5–4 km in, then every 2–8 km, each 0.8–3 km long; drizzle, rain or a downpour.
+ * About one drive in seven stays dry. */
+function planShowers(): Shower[] {
+  if (random() < 0.15) return [];
+  const out: Shower[] = [];
+  for (let at = 1.5 + random() * 2.5; at < 80; ) {
+    const len = 0.8 + random() * 2.2, r = random();
+    out.push({ from: at, to: at + len, kind: r < 0.3 ? "drizzle" : r < 0.72 ? "rain" : "downpour" });
+    at += len + 2 + random() * 6;
+  }
+  return out;
+}
 export function setDriveWeather() {
   showery = true; RAIN_AFTER = 40; DRY_VISITS = 0;
   Object.assign(STATES.clear.next, { partly: 3, overcast: 2, clear: 1 });
@@ -44,9 +59,7 @@ export function setDriveWeather() {
   Object.assign(STATES.drizzle.next, { rain: 2, clearing: 2 });
   Object.assign(STATES.rain.next, { downpour: 2, clearing: 2 });
   STATES.clear.hold = [40, 80]; STATES.partly.hold = [30, 60];
-  // the first shower comes for sure: clouds build ~30 s in, drizzle, a proper downpour, then it clears
-  script.push(["overcast", 18], ["drizzle", 16], ["rain", 22], ["downpour", 28], ["rain", 14], ["clearing", 45]);
-  if (started) until = Math.min(until, clock + 30);
+  showers = planShowers();
 }
 
 /** Current weather. `sun` (0–1) is how much direct sunlight gets through, with slow cloud shadows passing over. */
@@ -86,6 +99,7 @@ function pick(progress: number) {
   const options = Object.entries(from.next).map(([name, w]) => {
     let weight = w ?? 0;
     if (name === "drizzle" && (dryVisit || clock < RAIN_AFTER)) weight = 0;
+    if (showery && RAINY.includes(name as WeatherName)) weight = 0; // drive mode: rain only where the plan puts it
     if (name === "mist" || name === "overcast") weight *= 1 + high;
     return [name as WeatherName, weight] as const;
   }).filter(([, w]) => w > 0);
@@ -95,19 +109,26 @@ function pick(progress: number) {
   return options[0]?.[0] ?? "partly";
 }
 
-/** Advance the weather by dt seconds; `progress` is how far up the climb you are (0–1). Call once per frame. */
-export function stepWeather(dt: number, progress: number) {
+/** Advance the weather by dt seconds; `progress` is how far up the climb you are (0–1), `driven` the km driven so far
+ * (drive mode). Call once per frame. */
+export function stepWeather(dt: number, progress: number, driven = 0) {
   if (!started) start();
   dt = Math.min(dt, 0.25); // a long frame (tab switch) doesn't fast-forward the sky
   clock += dt;
+  if (showery && !forced) {
+    km = driven;
+    if (km < lastKm - 0.5) showers = planShowers(); // a restart from Adivaram: a new set of showers
+    lastKm = km;
+    // cloud builds over the last 400 m before a shower, and it clears over 600 m after
+    const z = showers.find((w) => km >= w.from - 0.4 && km < w.to + 0.6);
+    const want: WeatherName | null = z ? (km < z.from ? "overcast" : km < z.to ? z.kind : "clearing") : RAINY.includes(weather.state) ? "clearing" : null;
+    if (want && weather.state !== want) { weather.state = want; until = clock + (z ? 1e9 : 40); }
+    else if (!z && until > 1e8) until = clock + 30;
+  }
   if (!forced && clock > until) {
-    const next = script.shift();
-    if (next) { weather.state = next[0]; until = clock + next[1]; }
-    else {
-      weather.state = pick(progress);
-      const h = STATES[weather.state].hold;
-      until = clock + h[0] + random() * (h[1] - h[0]);
-    }
+    weather.state = pick(progress);
+    const h = STATES[weather.state].hold;
+    until = clock + h[0] + random() * (h[1] - h[0]);
   }
   const target = STATES[weather.state], ease = (tau: number) => 1 - Math.exp(-dt / tau);
   weather.cloud += (target.cloud - weather.cloud) * ease(TAU.cloud);

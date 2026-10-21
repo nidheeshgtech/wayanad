@@ -4,12 +4,14 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { scrollState } from "@/lib/scrollState";
 import { game } from "@/lib/game";
 import { stepWeather, weather } from "@/lib/weather";
-import { duskness, stepTheme } from "@/lib/theme";
+import { duskness, nightness, stepTheme } from "@/lib/theme";
 import { BackSide, Color, DirectionalLight, Mesh, Object3D, PMREMGenerator, Scene, ShaderMaterial, SphereGeometry, Texture, Vector3 } from "three";
 
 /** The sun's direction, shared by the sky, the shadows and the haze: a morning sun in the east (+x), a little north, or
- * at dusk (lib/theme) low in the west-north-west, just over the ridges. Its strength follows lib/weather. */
+ * at dusk (lib/theme) low in the west-north-west, just over the ridges; at night it stands for the moon, high in the
+ * south-east. Its strength follows lib/weather. */
 const SUN_DAY = new Vector3(0.82, 0.5, -0.28).normalize(), SUN_DUSK = new Vector3(-0.9, 0.07, -0.42).normalize();
+const MOON = new Vector3(0.45, 0.62, 0.64).normalize();
 export const SUN_DIR = SUN_DAY.clone();
 const SHADOW = { span: 22, distance: 70 }; // the shadowed box follows the camera: ±22 units (220 m) square
 
@@ -26,7 +28,7 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
 
   // the sky light: an environment map from a sky gradient, one for the day and one for dusk (deep blue overhead, a warm
   // glow along the western horizon, darker all round); a switch crosses over at the middle of the fade
-  const envs = useRef<{ day: Texture; dusk: Texture } | null>(null);
+  const envs = useRef<{ day: Texture; dusk: Texture; night: Texture } | null>(null);
   useEffect(() => {
     const sky = new Scene(), uniforms = {
       horizon: { value: new Color(0xdde6ec) }, zenith: { value: new Color(0x7fa7d4) }, ground: { value: new Color(0x26332a) },
@@ -48,10 +50,14 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
     uniforms.horizon.value.set(0xc98a6a); uniforms.zenith.value.set(0x2d3f66); uniforms.ground.value.set(0x141a17);
     uniforms.sun.value.set(0xff9a55).multiplyScalar(0.6); uniforms.sunDir.value.copy(SUN_DUSK);
     const dusk = pmrem.fromScene(sky, 0.02);
-    envs.current = { day: day.texture, dusk: dusk.texture };
-    scene.environment = duskness() > 0.5 ? dusk.texture : day.texture;
+    // night: moonlit blue-grey overhead, the horizon a shade lighter, the forest below near black
+    uniforms.horizon.value.set(0x3a4862); uniforms.zenith.value.set(0x16223a); uniforms.ground.value.set(0x07090a);
+    uniforms.sun.value.set(0xb8c8ee).multiplyScalar(0.25); uniforms.sunDir.value.copy(MOON);
+    const night = pmrem.fromScene(sky, 0.02);
+    envs.current = { day: day.texture, dusk: dusk.texture, night: night.texture };
+    scene.environment = nightness() > 0.5 ? night.texture : duskness() > 0.5 ? dusk.texture : day.texture;
     scene.environmentIntensity = 1.0;
-    return () => { scene.environment = null; envs.current = null; day.dispose(); dusk.dispose(); pmrem.dispose(); };
+    return () => { scene.environment = null; envs.current = null; day.dispose(); dusk.dispose(); night.dispose(); pmrem.dispose(); };
   }, [gl, scene]);
 
   useEffect(() => {
@@ -63,17 +69,22 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
   }, [scene, sunRef, target]);
 
   useFrame((_, dt) => {
-    if (!game.paused) stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1); // drive mode: Space holds the weather too
+    // drive mode: Space holds the weather too, and its showers come by distance (odometer in units of 10 m → km)
+    if (!game.paused) stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1, game.active ? game.odometer / 100 : 0);
     stepTheme(dt);
-    const e = duskness();
-    SUN_DIR.copy(SUN_DAY).lerp(SUN_DUSK, e).normalize();
-    if (envs.current) { const want = e > 0.5 ? envs.current.dusk : envs.current.day; if (scene.environment !== want) scene.environment = want; }
+    const e = duskness(), n = nightness();
+    // the low sun goes down and the moon comes up: hide the swap under the darkest moment of the fade
+    SUN_DIR.copy(n < 0.5 ? SUN_DUSK : MOON);
+    if (n < 0.5) SUN_DIR.copy(SUN_DAY).lerp(SUN_DUSK, e).normalize();
+    if (envs.current) { const want = n > 0.5 ? envs.current.night : e > 0.5 ? envs.current.dusk : envs.current.day; if (scene.environment !== want) scene.environment = want; }
     // clouds over the sun: direct light fades to a quarter (shadows soften with it); sky light dims a little.
     // At dusk the sky light is lower and the sun a low, weaker orange (its colour: Director)
-    scene.environmentIntensity = (1.1 - 0.35 * weather.cloud) * (1 - 0.45 * weather.gloom) * (1 - 0.15 * e);
+    scene.environmentIntensity = (1.1 - 0.35 * weather.cloud) * (1 - 0.45 * weather.gloom) * (1 - 0.15 * e) * (1 - 0.35 * n);
     const sun = sunRef.current;
     if (!sun) return;
-    sun.intensity = (0.8 + 3.0 * weather.sun) * (1 - 0.2 * weather.mist) * (1 - 0.6 * weather.gloom) * (1 - 0.65 * e);
+    sun.intensity = (0.8 + 3.0 * weather.sun) * (1 - 0.2 * weather.mist) * (1 - 0.6 * weather.gloom) * (1 - 0.65 * e)
+      * (1 - 0.3 * n)                                      // moonlight: about a quarter of the day's sun (colour: Director)
+      * (1 - 0.95 * Math.max(0, 1 - Math.abs(n - 0.5) / 0.2)); // out for a moment while the sun becomes the moon
     target.position.copy(camera.position);
     // the light itself never comes from lower than ~17°: a true dusk sun would put whole slopes in shadow
     lightDir.copy(SUN_DIR); lightDir.y = Math.max(0.3, lightDir.y); lightDir.normalize();

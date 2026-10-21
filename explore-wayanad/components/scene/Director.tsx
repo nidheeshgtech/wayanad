@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Color, FogExp2, MathUtils, Points, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
+import { Color, FogExp2, MathUtils, Object3D, Points, SpotLight, Vector3, CatmullRomCurve3, DirectionalLight, Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8 } from "@/lib/drive";
 import { mistPatch, weather } from "@/lib/weather";
@@ -10,7 +10,7 @@ import { height } from "@/lib/terrain";
 import { game } from "@/lib/game";
 import { frameTimed } from "@/lib/perf";
 import { thunder } from "@/lib/water";
-import { duskness } from "@/lib/theme";
+import { duskness, nightness } from "@/lib/theme";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -50,6 +50,9 @@ const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST
  * low orange sun. Under cloud the sky greys and darkens. */
 const SKY_DUSK = new Color(0x1f2f52), SKY_DUSK_CLOUD = new Color(0x3a3f4c), FOG_DUSK = new Color(0xa3877f), FOG_DUSK_MIST = new Color(0x9a8a86);
 const SUN_DUSK = new Color(0xffb07a), MIST_DUSK = new Color(0x8a8296), tmpSun = new Color();
+/* Night: a moonlit blue-black sky and haze (the haze stays bluish and dark: lib/atmosphere then glows toward neither
+ * sun), cool moonlight. */
+const SKY_NIGHT = new Color(0x08101e), FOG_NIGHT = new Color(0x182131), MOON_LIGHT = new Color(0x9db2dc), MIST_NIGHT = new Color(0x2a3242);
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
   soochipara: [[45, 6, -95], [20, 12, -150]],
@@ -86,6 +89,12 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     };
   }, [curve]);
   if (!scene.fog) { scene.fog = new FogExp2(PALETTE.churam.fog, 0.02); scene.background = new Color(PALETTE.churam.sky); }
+  // the story's own headlamps: after dusk the seat you ride in lights the road ahead (drive mode has the car's)
+  const beam = useMemo(() => {
+    const light = new SpotLight(0xfff0d8, 0, 14, 0.62, 0.7, 1.1), target = new Object3D();
+    light.target = target; scene.add(light, target);
+    return { light, target };
+  }, [scene]);
 
   useFrame((_, delta) => frameTimed("director", () => {
     const { act, progress: p, hold } = scrollState;
@@ -176,20 +185,18 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       fogTint = tmpFog.current.copy(FOG_CLEAR).lerp(FOG_CLOUD, weather.cloud).lerp(FOG_MIST, weather.mist * 0.6).lerp(FOG_STORM, weather.gloom * 0.8);
     }
     // dusk: the same blends, toward the evening colours (the acts after the drive keep most of their own palette)
-    const e = duskness();
-    if (e > 0) {
-      if (driving) {
-        sky = tmpSky.current.copy(sky).lerp(tmpSun.copy(SKY_DUSK).lerp(SKY_DUSK_CLOUD, weather.cloud * 0.7), e);
-        fogTint = tmpFog.current.copy(fogTint).lerp(tmpSun.copy(FOG_DUSK).lerp(FOG_DUSK_MIST, weather.mist).multiplyScalar(1 - 0.35 * weather.gloom), e);
-      }
+    const e = duskness(), n = nightness();
+    if (e > 0 && driving) {
+      sky = tmpSky.current.copy(sky).lerp(tmpSun.copy(SKY_DUSK).lerp(SKY_DUSK_CLOUD, weather.cloud * 0.7), e).lerp(SKY_NIGHT, n);
+      fogTint = tmpFog.current.copy(fogTint).lerp(tmpSun.copy(FOG_DUSK).lerp(FOG_DUSK_MIST, weather.mist).multiplyScalar(1 - 0.35 * weather.gloom), e).lerp(FOG_NIGHT, n);
     }
     // fireflies come out through Stay, peak at Night, and fade over Plan
-    const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
-    fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog).lerp(FOG_DUSK, e * 0.4), 0.05);
-    (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky).lerp(SKY_DUSK, e * 0.4), 0.05);
+    const flies = Math.max(act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies, n * 0.7);
+    fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog).lerp(FOG_DUSK, e * 0.4).lerp(FOG_NIGHT, n * 0.5), 0.05);
+    (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky).lerp(SKY_DUSK, e * 0.4).lerp(SKY_NIGHT, n * 0.5), 0.05);
     // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
     // drive mode's showers go properly dark (weather.gloom); in a downpour, now and then, lightning
-    exposure.current += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom + 0.1 * e - exposure.current) * 0.05;
+    exposure.current += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom + 0.1 * e + 0.6 * n - exposure.current) * 0.05;
     const L = lightning.current;
     if (game.active && !game.paused && weather.rain > 1.15) {
       L.next -= delta;
@@ -203,10 +210,16 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white
     if (terrain) (terrain.material as MeshStandardMaterial).color.lerp(tint.current.set(P.ground).lerp(WHITE, 0.8), 0.05);
-    if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e), 0.05);
+    if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e).lerp(MOON_LIGHT, n), 0.05);
     // the mist puffs take the evening light (white puffs glowed against a dusk sky)
+    const beamOn = !game.active && driving ? Math.max(0, e - 0.4) / 0.6 : 0;
+    beam.light.visible = beamOn > 0.01; beam.light.intensity = beamOn * 7;
+    if (beam.light.visible) {
+      beam.light.position.copy(camera.position).y -= 0.15;
+      beam.target.position.copy(camera.position).addScaledVector(heading.current, 4).y -= 0.55; beam.target.updateMatrixWorld();
+    }
     const mm = mistRef.current?.material as { opacity: number; color: Color } | undefined;
-    if (mm) { mm.opacity += (mist * (1 - 0.4 * e) - mm.opacity) * 0.06; mm.color.setRGB(1, 1, 1).lerp(MIST_DUSK, e); }
+    if (mm) { mm.opacity += (mist * (1 - 0.4 * e) - mm.opacity) * 0.06; mm.color.setRGB(1, 1, 1).lerp(MIST_DUSK, e).lerp(MIST_NIGHT, n); }
     const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (flies - fm.opacity) * 0.04;
   }));
   return null;

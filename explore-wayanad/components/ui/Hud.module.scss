@@ -16,5 +16,5 @@
   &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } }
 .theme { position: fixed; z-index: 5; right: 20px; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: var(--mute); background: rgba(8, 20, 16, .35); border: 1px solid var(--line); border-radius: 50%; cursor: pointer;
   svg { width: 17px; height: 17px; }
-  &[aria-pressed="true"] { color: var(--amber); border-color: var(--amber); }
+  &[data-theme="dusk"], &[data-theme="night"] { color: var(--amber); border-color: var(--amber); }
   &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } }

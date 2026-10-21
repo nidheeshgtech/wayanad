@@ -64,10 +64,13 @@ export function stepCar(road: RoadInfo, dt: number) {
   g.braking = i.brake > 0 && g.speed > 0.02;
   // heading relative to the road: your steering turns the car, the road turns under it; the assist takes part of the
   // road's turn for you and lets go as you steer, so you still drive the bends
+  // the assist takes more of the turn the tighter the bend (up to ~90 % on the hairpins), so the car follows the
+  // bends without a fight and your steering is for lines and overtakes
+  const assist = g.assist + (1 - g.assist) * 0.75 * Math.min(1, Math.max(0, (Math.abs(curvature) - 0.12) / 0.45));
   const v = g.speed, yawRate = (g.steer * lock * v) / CAR.rMin, roadTurn = v * curvature;
-  g.psi += (yawRate - roadTurn * (1 - g.assist)) * dt;
+  g.psi += (yawRate - roadTurn * (1 - assist)) * dt;
   // tyres straighten along the road as the wheel comes back (blended, not switched, so letting go doesn't jolt)
-  g.psi -= g.psi * Math.min(1, dt * (0.8 + 2.6 * g.assist)) * (1 - Math.min(1, Math.abs(g.steer) * 2.5)) ** 2;
+  g.psi -= g.psi * Math.min(1, dt * (0.8 + 2.6 * assist)) * (1 - Math.min(1, Math.abs(g.steer) * 2.5)) ** 2;
   g.psi = Math.max(-1.1, Math.min(1.1, g.psi));
   // too fast for the bend: grip runs out and the car drifts to the outside
   g.sideways = v * v * curvature;

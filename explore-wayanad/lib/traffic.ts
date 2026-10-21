@@ -43,10 +43,10 @@ export function vehiclePose(curve: CatmullRomCurve3, v: Vehicle, widen: (t: numb
 /** The mix, in the order vehicles are handed out: cars and two-wheelers most, then buses (state, private, tourist),
  * lorries, autos and vans — about one bus in five. */
 const MIX = [0, 1, 2, 3, 1, 4, 5, 7, 1, 6, 3, 2, 8, 1, 2, 3];
-/** Up to 240 vehicles, half each way, spread by `density` (relative, along the road: more by the towns, fewer on the
+/** Up to 340 vehicles, half each way, spread by `density` (relative, along the road: more by the towns, fewer on the
  * hairpins) — placed at equal steps of the density's running total, so busy stretches get more of them. */
 export function createFleet(length: number, density: (d: number) => number = () => 1): Vehicle[] {
-  const n = Math.max(4, Math.min(240, Math.floor(length / 11.5)));
+  const n = Math.max(4, Math.min(340, Math.floor(length / 8)));
   const steps = 2000, cum = new Float64Array(steps + 1);
   for (let i = 0; i < steps; i++) cum[i + 1] = cum[i] + Math.max(0.05, density(2 + ((length - 4) * (i + 0.5)) / steps));
   const at = (u: number) => { let lo = 0, hi = steps; const x = u * cum[steps]; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= x) lo = mid; else hi = mid; } return 2 + ((length - 4) * (lo + (x - cum[lo]) / Math.max(1e-9, cum[hi] - cum[lo]))) / steps; };
@@ -60,6 +60,12 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
   dt = Math.min(.05, Math.max(0, dt));
   // the viewer rides up the road (direction 1) like a bus: it holds narrow bends against oncoming traffic too
   const stops = reservePassingZones(viewer === undefined ? fleet : [...fleet, { id: -1, kind: 0, direction: 1, distance: viewer, speed: 0 }], zones);
+  // the two vehicles ahead of each in its own direction: one sort per direction (checking every pair was O(n²))
+  const ahead = new Map<Vehicle, Vehicle[]>();
+  for (const dir of [1, -1]) {
+    const lane = fleet.filter(v => v.direction === dir).sort((a, b) => (a.distance - b.distance) * dir);
+    lane.forEach((v, i) => ahead.set(v, [lane[(i + 1) % lane.length], lane[(i + 2) % lane.length]].filter(o => o !== v)));
+  }
   const moves = fleet.map(v => {
     const spec = VEHICLES[v.kind], t = v.distance / length;
     const a = curve.getTangentAt(Math.max(0, t - 1.2 / length));
@@ -69,7 +75,7 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     const cap = v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
     let desired = Math.min(spec.speed * pace(v.id) * cap, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
     let room = stops.get(v.id) ?? Infinity;
-    for (const other of fleet) if (other !== v && other.direction === v.direction) {
+    for (const other of ahead.get(v)!) {
       const gap = ((other.distance - v.distance) * v.direction + span) % span;
       const clearance = gap - (spec.length + VEHICLES[other.kind].length) / 2;
       const safe = .65 + v.speed * (2 + rain * 2);

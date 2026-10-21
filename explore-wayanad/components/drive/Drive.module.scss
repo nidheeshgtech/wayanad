@@ -18,7 +18,7 @@
   button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--mute); background: rgba(8, 20, 16, .45); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; backdrop-filter: blur(6px);
     svg { width: 18px; height: 18px; }
     &:active, &[data-on], &[aria-pressed="true"] { color: var(--bg); background: var(--amber); border-color: var(--amber); }
-    &.themeKey[aria-pressed="true"] { color: var(--amber); background: rgba(8, 20, 16, .45); }
+    &.themeKey[data-theme="dusk"], &.themeKey[data-theme="night"] { color: var(--amber); border-color: var(--amber); }
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
 .touch { display: none; }

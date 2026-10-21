@@ -2,8 +2,8 @@
 import { use, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
-  Box3, BufferAttribute, BufferGeometry, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
-  Object3D, Quaternion, SphereGeometry, SpotLight, Vector3, type PerspectiveCamera,
+  AdditiveBlending, Box3, BufferAttribute, BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
+  Object3D, Quaternion, SphereGeometry, SpotLight, Sprite, SpriteMaterial, Vector3, type PerspectiveCamera,
 } from "three";
 import { CAR, game } from "@/lib/game";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
@@ -20,6 +20,16 @@ import type { ActId } from "@/data/acts";
 /* The car you drive: a compact SUV (Brezza-style, CC BY — public/models/traffic/ATTRIBUTION.md), 4.0 m long, in units
  * of 10 m with +z forward and +x its left. Camera views (C cycles them): behind it, close behind, on the bonnet. */
 const LENGTH = 0.4;
+/** A soft round glow for the lamp sprites (one texture for all). */
+let glowTex: CanvasTexture | null = null;
+function glowTexture() {
+  if (glowTex) return glowTex;
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d")!, r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, "rgba(255,255,255,1)"); r.addColorStop(0.25, "rgba(255,255,255,0.55)"); r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return (glowTex = new CanvasTexture(c));
+}
 const VIEW = {
   chase: { back: 0.78, up: 0.2, ahead: 0.9, aimUp: 0.06 },
   near: { back: 0.5, up: 0.13, ahead: 0.9, aimUp: 0.07 },
@@ -121,7 +131,20 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     });
     const spot = new SpotLight(0xfff0d0, 0, 9, 0.5, 0.6, 1.2); spot.position.set(0, 0.07, LENGTH / 2);
     const target = new Object3D(); target.position.set(0, -0.15, 4); root.add(spot, target); spot.target = target;
-    return { root, body, wheels, steering, lamps, spot };
+    // brake and reversing glows: soft sprites over the tail lamps, so a press of the brake reads from the chase camera
+    // in any light (the lamp material alone is a dull red in daylight)
+    const tail = new Box3(); body.updateMatrixWorld(true);
+    body.traverse((o) => { const m = o as Mesh; if (m.isMesh && lamps.tail.includes(m.material as MeshStandardMaterial)) tail.expandByObject(m); });
+    if (tail.isEmpty()) tail.set(new Vector3(-0.09, 0.07, -LENGTH / 2), new Vector3(0.09, 0.09, -LENGTH / 2 + 0.01));
+    const w = tail.max.x - tail.min.x, y = (tail.min.y + tail.max.y) / 2, z = tail.min.z - 0.004;
+    const glow = (color: number, size: number, xs: number[]) => {
+      const material = new SpriteMaterial({ map: glowTexture(), color, transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending, fog: false });
+      for (const x of xs) { const sp = new Sprite(material); sp.position.set(x, y, z); sp.scale.setScalar(size); body.add(sp); }
+      return material;
+    };
+    const brakeGlow = glow(0xff2a14, 0.07, [tail.min.x + w * 0.1, tail.max.x - w * 0.1]);
+    const reverseGlow = glow(0xfff4e8, 0.045, [tail.min.x + w * 0.3, tail.max.x - w * 0.3]);
+    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow };
   }, [source]);
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
@@ -168,7 +191,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     }
 
     // pose: on the road at s, `lat` across it, turned `psi` from its direction, pitched with the slope
-    const { p, tan, left, fwd, n, m, q: rot } = tmp, { root, body, wheels, steering, lamps, spot } = rig;
+    const { p, tan, left, fwd, n, m, q: rot } = tmp, { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow } = rig;
     road.curve.getPointAt(t, p); road.curve.getTangentAt(t, tan);
     left.set(tan.z, 0, -tan.x).normalize();
     p.addScaledVector(left, lat); p.y -= 0.588; // the asphalt (as Traffic's lanePoint)
@@ -189,9 +212,13 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     for (const w of wheels) { w.spinner.rotation.x = game.wheel; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0; }
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
 
-    // lamps: brake lights when braking; tail and head lamps on in rain, mist and gloom; the beam only then
+    // lamps: brake lights whenever the brake is pressed (slowing or reversing), reversing lights going backwards; tail
+    // and head lamps on in rain, mist, gloom and after dusk; the beam only then
     const dark = Math.min(1, weather.gloom + weather.mist * 0.6 + weather.rain * 0.5 + duskness());
-    for (const l of lamps.tail) l.emissiveIntensity = game.braking ? 3.5 : 0.3 + dark * 1.2;
+    const braking = !game.paused && game.input.brake > 0, reversing = game.speed < -0.01;
+    for (const l of lamps.tail) l.emissiveIntensity = braking ? 4 : 0.3 + dark * 1.2;
+    brakeGlow.opacity += ((braking ? 0.95 : dark * 0.18) - brakeGlow.opacity) * Math.min(1, dt * 18);
+    reverseGlow.opacity += ((reversing ? 0.9 : 0) - reverseGlow.opacity) * Math.min(1, dt * 12);
     for (const l of lamps.head) l.emissiveIntensity = 0.15 + dark * 2.5;
     spot.intensity = dark * 6; spot.visible = dark > 0.05;
 
@@ -200,7 +227,11 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     if (view !== C.view) { C.from.copy(camera.position); C.fromQ.copy(camera.quaternion); C.blend = 0; C.view = view; }
     const fov = view === "hood" ? 66 : 60;
     if (Math.abs(camera3.fov - fov) > 0.01) { camera3.fov += (fov - camera3.fov) * Math.min(1, dt * 8); camera3.updateProjectionMatrix(); }
-    const heading = Math.atan2(fwd.x, fwd.z);
+    // the chase camera looks a little toward where the road goes (its direction ~12 m ahead), not only where the car
+    // points, so on a hairpin the way out comes into view as you turn instead of the bank
+    const ahead = road.curve.getTangentAt(Math.min(1, (s + 1.2) / L), tmp.a), carYaw = Math.atan2(fwd.x, fwd.z);
+    const roadYaw = Math.atan2(ahead.x, ahead.z), toRoad = Math.atan2(Math.sin(roadYaw - carYaw), Math.cos(roadYaw - carYaw));
+    const heading = carYaw + toRoad * 0.3 * Math.min(1, Math.abs(game.speed) / 0.3);
     if (!C.ready) { C.yaw = heading; C.y = root.position.y; C.ready = true; }
     if (!game.paused) {
       const dy = Math.atan2(Math.sin(heading - C.yaw), Math.cos(heading - C.yaw));

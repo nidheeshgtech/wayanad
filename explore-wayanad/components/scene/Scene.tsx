@@ -21,6 +21,7 @@ import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
 import Waterfalls from "./Waterfalls";
 import Monkeys from "./Monkeys";
+import Pedestrians from "./Pedestrians";
 import Rain from "./Rain";
 import Traffic from "./Traffic";
 import WeatherDebug from "./WeatherDebug";
@@ -121,6 +122,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Creepers curve={curve} density={small ? 0.5 : 1} />
       <Waterfalls curve={curve} />
       <Suspense fallback={null}><Monkeys curve={curve} /></Suspense>
+      <Pedestrians curve={curve} small={small} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
       <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />

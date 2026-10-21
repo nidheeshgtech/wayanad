@@ -35,9 +35,11 @@ export function patchAtmosphere() {
 	#endif
 	vec3 fogDir = fogRay / max( fogDist, 1e-4 );
 	// 1 under any day sky (blue-grey fog, clear to storm), 0 under dusk's warm fog
+	// and neither glows at night (a dark fog), when the light comes from the moon
+	float fogLum = dot( fogColor, vec3( 0.299, 0.587, 0.114 ) );
 	float dayGlow = clamp( ( fogColor.b - fogColor.r + 0.05 ) * 20.0, 0.0, 1.0 );
-	float sunward = pow( max( dot( fogDir, ${SUN} ), 0.0 ), 6.0 ) * dayGlow;
-	float duskward = pow( max( dot( fogDir, ${DUSK_SUN} ), 0.0 ), 3.0 ) * ( 1.0 - dayGlow );
+	float sunward = pow( max( dot( fogDir, ${SUN} ), 0.0 ), 6.0 ) * dayGlow * smoothstep( 0.06, 0.2, fogLum );
+	float duskward = pow( max( dot( fogDir, ${DUSK_SUN} ), 0.0 ), 3.0 ) * ( 1.0 - dayGlow ) * smoothstep( 0.04, 0.12, fogLum );
 	// the haze and the mist take the light of the day: under a storm's dark fog they darken with it (a clear day's fog is
 	// bright enough that this stays 1, so fair-weather looks are unchanged)
 	float dayLight = clamp( dot( fogColor, vec3( 0.299, 0.587, 0.114 ) ) / 0.6, 0.3, 1.0 );

@@ -6,16 +6,16 @@ import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, DataTexture, DoubleSide, Group, Mesh,
   MeshStandardMaterial, Points, PointsMaterial, Vector3, type WebGLProgramParametersWithUniforms,
 } from "three";
-import { SECTION, archT, height, roadDistance, roadShapeAt } from "@/lib/terrain";
+import { SECTION, height, roadDistance, roadShapeAt } from "@/lib/terrain";
 import { weather } from "@/lib/weather";
 import { game } from "@/lib/game";
 import { waterSound } from "@/lib/water";
 
-/* Monsoon waterfalls of the churam: streams pouring down the tallest rock cuts beside the road, and a few white falls
- * on the far slopes, spread along the climb. Wide enough (4–6 m) to read through the roadside plants; they run a
+/* Monsoon waterfalls: streams pouring down the tallest rock cuts beside the road, and white falls on the far slopes,
+ * spread along the climb and on across the plateau to Kalpetta (one every couple of km, at least 700 m apart). Wide enough (4–6 m) to read through the roadside plants; they run a
  * little thinner in dry weather and full and white in and after rain (weather.wet). Units of 10 m. */
-const ROADSIDE = { count: 8, spacing: 40, minFace: 0.6, probe: [SECTION.drain + 0.1, SECTION.drain + 3] as [number, number] };
-const DISTANT = { count: 4, from: 9, to: 20, steps: 16 };
+const ROADSIDE = { count: 14, spacing: 70, minFace: 0.35, probe: [SECTION.drain + 0.1, SECTION.drain + 3] as [number, number] };
+const DISTANT = { count: 6, from: 9, to: 20, steps: 16 };
 
 /** Value noise and the falling-water look, added to a standard material (so it's lit and fogged like everything else). */
 const WATER_GLSL = /* glsl */ `
@@ -86,9 +86,9 @@ function overGround(a: Vector3, b: Vector3, n: number) {
 
 /** The rock faces beside the churam: where the uphill side stands as a face, its foot and lip (as Creepers.tsx). */
 function roadsideFalls(curve: CatmullRomCurve3): Fall[] {
-  const L = curve.getLength(), end = archT() * L, found: (Fall & { s: number; h: number })[] = [];
+  const L = curve.getLength(), end = L - 10, found: (Fall & { s: number; h: number })[] = [];
   const side = new Vector3();
-  for (let s = 20; s < end - 10; s += 0.35) {
+  for (let s = 20; s < end - 10; s += 0.5) {
     const t = s / L, pt = curve.getPointAt(t), tan = curve.getTangentAt(t), widen = roadShapeAt(t).widen;
     side.set(tan.z, 0, -tan.x).normalize();
     for (const dir of [1, -1]) {
@@ -119,7 +119,7 @@ function roadsideFalls(curve: CatmullRomCurve3): Fall[] {
 
 /** Thin falls on the far slopes: the steepest ground some way off the road, followed downhill. */
 function distantFalls(curve: CatmullRomCurve3): Fall[] {
-  const L = curve.getLength(), end = archT() * L, out: Fall[] = [];
+  const L = curve.getLength(), end = L - 10, out: Fall[] = [];
   const grad = (x: number, z: number) => new Vector3(height(x + 0.3, z) - height(x - 0.3, z), 0, height(x, z + 0.3) - height(x, z - 0.3)).divideScalar(0.6);
   const candidates: { at: Vector3; steep: number; s: number }[] = [];
   for (let s = 60; s < end - 30; s += 6) {
