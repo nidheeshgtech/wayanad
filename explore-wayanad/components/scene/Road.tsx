@@ -39,7 +39,7 @@ function ribbon(curve: CatmullRomCurve3, segments: number, widen: (t: number) =>
 function asphalt() {
   const loader = new TextureLoader();
   const load = (name: string, srgb: boolean) => {
-    const t = loader.load(`/textures/${name}.jpg`); t.wrapS = t.wrapT = RepeatWrapping; t.anisotropy = 8;
+    const t = loader.load(`/textures/${name}.webp`); t.wrapS = t.wrapT = RepeatWrapping; t.anisotropy = 8;
     if (srgb) t.colorSpace = SRGBColorSpace; return t;
   };
   const m = new MeshStandardMaterial({ color: 0x86867f, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });

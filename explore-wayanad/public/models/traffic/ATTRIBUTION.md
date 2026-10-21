@@ -63,3 +63,5 @@ Shapes follow real makes; no maker or operator endorsement implied.
 
 License reference: https://creativecommons.org/publicdomain/zero/1.0/
 These are optimized low-polygon models, not photogrammetry or exact manufacturer replicas.
+
+All real (Sketchfab) models above, except brezza-player and wagonr-real, were also mesh-simplified (meshoptimizer, 35–50 % of triangles kept) and meshopt-compressed on 2026-10-21 to fit the page budget.

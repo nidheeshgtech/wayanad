@@ -2,8 +2,9 @@
 import { timed } from "@/lib/perf";
 import { use, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { BufferGeometry, CatmullRomCurve3, Color, InstancedMesh, Material, Matrix4, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from "three";
+import { BufferAttribute, BufferGeometry, CatmullRomCurve3, Color, InstancedMesh, Material, Matrix4, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { SECTION, archT, height, roadDistance } from "@/lib/terrain";
 import { inTown, townPlan } from "./Town";
 import { weather } from "@/lib/weather";
@@ -21,13 +22,27 @@ const KINDS: Kind[] = [
 const CHUNK = 16; // units of road per chunk
 const FULL = 1.5; // units: chunks whose nearest instance could be this close get the full scan
 
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+/** A mesh's geometry as plain floats. Meshopt-compressed scans store quantized positions with the scale on the node,
+ * so those get the node's transform baked in; uncompressed ones keep their geometry as authored (node offsets ignored). */
+function geometryOf(m: Mesh) {
+  const g = m.geometry.clone();
+  if (!g.attributes.position.normalized) return g;
+  for (const [k, a] of Object.entries(g.attributes) as [string, BufferAttribute][]) {
+    const out = new Float32Array(a.count * a.itemSize);
+    for (let i = 0; i < a.count; i++) for (let c = 0; c < a.itemSize; c++) out[i * a.itemSize + c] = a.getComponent(i, c);
+    g.setAttribute(k, new BufferAttribute(out, a.itemSize));
+  }
+  m.updateWorldMatrix(true, false);
+  return g.applyMatrix4(m.matrixWorld);
+}
 const loaded = new Map<string, Promise<{ geometry: BufferGeometry; material: Material; light: BufferGeometry }[]>>();
 function load(model: string) {
-  if (!loaded.has(model)) loaded.set(model, Promise.all([new GLTFLoader().loadAsync(`/models/${model}/${model}.gltf`), new GLTFLoader().loadAsync(`/models/${model}/${model}_lod.gltf`).catch(() => null)]).then(([gltf, lod]) => {
+  if (!loaded.has(model)) loaded.set(model, Promise.all([loader.loadAsync(`/models/${model}/${model}.gltf`), loader.loadAsync(`/models/${model}/${model}_lod.gltf`).catch(() => null)]).then(([gltf, lod]) => {
     const light: BufferGeometry[] = [];
-    lod?.scene.traverse((o) => { if ((o as Mesh).isMesh) light.push((o as Mesh).geometry); });
+    lod?.scene.traverse((o) => { if ((o as Mesh).isMesh) light.push(geometryOf(o as Mesh)); });
     const parts: { geometry: BufferGeometry; material: Material }[] = [];
-    gltf.scene.traverse((o) => { if ((o as Mesh).isMesh) { const m = o as Mesh; parts.push({ geometry: m.geometry.clone(), material: m.material as Material }); } });
+    gltf.scene.traverse((o) => { if ((o as Mesh).isMesh) { const m = o as Mesh; parts.push({ geometry: geometryOf(m), material: m.material as Material }); } });
     // the light version's parts, matched by order; any missing part keeps its full geometry
     return parts.map((p, i) => ({ ...p, light: light[i] ?? p.geometry }));
   }));

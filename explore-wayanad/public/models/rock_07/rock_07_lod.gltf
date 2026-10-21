@@ -1,1 +1,217 @@
-{"asset":{"generator":"glTF-Transform v4.5.1","version":"2.0"},"accessors":[{"type":"SCALAR","componentType":5123,"count":4443,"bufferView":0,"byteOffset":0},{"type":"VEC4","componentType":5126,"count":927,"bufferView":1,"byteOffset":0},{"type":"VEC3","componentType":5126,"count":927,"max":[0.0807986855506897,0.1418129950761795,0.14198321104049683],"min":[-0.08655917644500732,-0.0015936866402626038,-0.1778004765510559],"bufferView":1,"byteOffset":16},{"type":"VEC3","componentType":5126,"count":927,"bufferView":1,"byteOffset":28},{"type":"VEC2","componentType":5126,"count":927,"bufferView":1,"byteOffset":40}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":8888,"target":34963},{"buffer":0,"byteOffset":8888,"byteLength":44496,"byteStride":48,"target":34962}],"buffers":[{"uri":"rock_07_lod.bin","byteLength":53384}],"materials":[{"name":"rock_07","doubleSided":true}],"meshes":[{"name":"realCap_Model_3","primitives":[{"attributes":{"COLOR_0":1,"POSITION":2,"NORMAL":3,"TEXCOORD_0":4},"mode":4,"material":0,"indices":0}]}],"nodes":[{"name":"rock_07","mesh":0}],"scenes":[{"name":"Scene","nodes":[0]}],"scene":0}
+{
+  "asset": {
+    "generator": "glTF-Transform v4.5.1",
+    "version": "2.0"
+  },
+  "accessors": [
+    {
+      "type": "SCALAR",
+      "componentType": 5123,
+      "count": 4443,
+      "normalized": false,
+      "byteOffset": 0,
+      "bufferView": 0
+    },
+    {
+      "type": "VEC3",
+      "componentType": 5120,
+      "count": 927,
+      "normalized": true,
+      "byteOffset": 0,
+      "bufferView": 1
+    },
+    {
+      "type": "VEC4",
+      "componentType": 5121,
+      "count": 927,
+      "normalized": true,
+      "byteOffset": 0,
+      "bufferView": 2
+    },
+    {
+      "type": "VEC3",
+      "componentType": 5122,
+      "count": 927,
+      "max": [
+        17150,
+        14693,
+        32767
+      ],
+      "min": [
+        -17150,
+        -14693,
+        -32767
+      ],
+      "normalized": true,
+      "byteOffset": 0,
+      "bufferView": 3
+    },
+    {
+      "type": "VEC2",
+      "componentType": 5123,
+      "count": 927,
+      "normalized": true,
+      "byteOffset": 0,
+      "bufferView": 4
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 1,
+      "byteOffset": 0,
+      "byteLength": 8886,
+      "target": 34963,
+      "extensions": {
+        "EXT_meshopt_compression": {
+          "buffer": 0,
+          "byteOffset": 0,
+          "byteLength": 1697,
+          "mode": "TRIANGLES",
+          "byteStride": 2,
+          "count": 4443
+        }
+      }
+    },
+    {
+      "buffer": 1,
+      "byteOffset": 8888,
+      "byteLength": 3708,
+      "target": 34962,
+      "byteStride": 4,
+      "extensions": {
+        "EXT_meshopt_compression": {
+          "buffer": 0,
+          "byteOffset": 1700,
+          "byteLength": 1949,
+          "mode": "ATTRIBUTES",
+          "filter": "OCTAHEDRAL",
+          "byteStride": 4,
+          "count": 927
+        }
+      }
+    },
+    {
+      "buffer": 1,
+      "byteOffset": 12596,
+      "byteLength": 3708,
+      "target": 34962,
+      "byteStride": 4,
+      "extensions": {
+        "EXT_meshopt_compression": {
+          "buffer": 0,
+          "byteOffset": 3652,
+          "byteLength": 2782,
+          "mode": "ATTRIBUTES",
+          "byteStride": 4,
+          "count": 927
+        }
+      }
+    },
+    {
+      "buffer": 1,
+      "byteOffset": 16304,
+      "byteLength": 7416,
+      "target": 34962,
+      "byteStride": 8,
+      "extensions": {
+        "EXT_meshopt_compression": {
+          "buffer": 0,
+          "byteOffset": 6436,
+          "byteLength": 5054,
+          "mode": "ATTRIBUTES",
+          "byteStride": 8,
+          "count": 927
+        }
+      }
+    },
+    {
+      "buffer": 1,
+      "byteOffset": 23720,
+      "byteLength": 3708,
+      "target": 34962,
+      "byteStride": 4,
+      "extensions": {
+        "EXT_meshopt_compression": {
+          "buffer": 0,
+          "byteOffset": 11492,
+          "byteLength": 3234,
+          "mode": "ATTRIBUTES",
+          "byteStride": 4,
+          "count": 927
+        }
+      }
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "rock_07_lod.bin",
+      "byteLength": 14728
+    },
+    {
+      "byteLength": 27428,
+      "extensions": {
+        "EXT_meshopt_compression": {
+          "fallback": true
+        }
+      }
+    }
+  ],
+  "materials": [
+    {
+      "name": "rock_07",
+      "doubleSided": true,
+      "pbrMetallicRoughness": {}
+    }
+  ],
+  "meshes": [
+    {
+      "name": "realCap_Model_3",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "COLOR_0": 2,
+            "POSITION": 3,
+            "TEXCOORD_0": 4
+          },
+          "mode": 4,
+          "material": 0,
+          "indices": 0
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "rock_07",
+      "translation": [
+        -0.0028802454471588135,
+        0.07010965421795845,
+        -0.01790863275527954
+      ],
+      "scale": [
+        0.15989184379577637,
+        0.15989184379577637,
+        0.15989184379577637
+      ],
+      "mesh": 0
+    }
+  ],
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0,
+  "extensionsUsed": [
+    "EXT_meshopt_compression",
+    "KHR_mesh_quantization"
+  ],
+  "extensionsRequired": [
+    "EXT_meshopt_compression",
+    "KHR_mesh_quantization"
+  ]
+}

@@ -4,7 +4,8 @@
  *   npm run fetch:textures
  *
  * For each texture: colour (diffuse), OpenGL normal and (where listed in ROUGH) roughness map at 1k, resized to SIZE px with macOS `sips` when available
- * (keeps the page light; the 1k original is kept otherwise), written to public/textures/<name>-{color,normal,rough}.jpg.
+ * (keeps the page light; the 1k original is kept otherwise), then encoded to public/textures/<name>-{color,normal,rough}.webp
+ * with `cwebp -q 85` (about 40 % smaller than the jpg; needs `brew install webp`).
  */
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -42,6 +43,8 @@ for (const [name, id] of Object.entries(TEXTURES)) {
     } else {
       await rename(tmp, file);
     }
+    execFileSync("cwebp", ["-quiet", "-q", "85", "-m", "6", file, "-o", file.replace(/\.jpg$/, ".webp")]);
+    await rm(file);
   }
   console.log(`  ${name.padEnd(8)} ← ${id}`);
 }

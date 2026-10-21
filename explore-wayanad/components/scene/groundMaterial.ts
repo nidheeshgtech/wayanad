@@ -23,7 +23,7 @@ export function groundMaterial() {
   if (shared) return shared;
   const loader = new TextureLoader();
   const load = (name: string, srgb: boolean) => {
-    const t = loader.load(`/textures/${name}.jpg`);
+    const t = loader.load(`/textures/${name}.webp`);
     t.wrapS = t.wrapT = RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = SRGBColorSpace;
