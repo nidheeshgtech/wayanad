@@ -10,6 +10,7 @@ import { honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
 import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
+import { duskness } from '@/lib/theme';
 import { frameTimed } from '@/lib/perf';
 import { hasOccupants, occupantMaterial, occupantsFor } from '@/lib/occupants';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
@@ -118,6 +119,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const st = trafficControl.staged >= 0 ? fleet.find(f => f.id === trafficControl.staged) : undefined; // dev review only
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
     let visible = 0;
+    const dusk = duskness();
     for (let i = 0; i < fleet.length; i++) {
       const v = fleet[i], o = objects[i], pose = vehiclePose(curve, v, widen);
       o.root.position.copy(pose.position); o.root.quaternion.copy(pose.rotation);
@@ -129,10 +131,10 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if (o.root.visible && !footprintOk(curve, v)) o.root.visible = false;
       if (o.root.visible) visible++;
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
-      for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist) * .35 : .1 + weather.rain * 2 + weather.mist;
+      for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist + dusk) * .35 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6;
       // the little lamp quads only when they're lit (rain, mist, a dark sky): in daylight they were two draw calls a
       // vehicle for a glow nobody could see
-      if (o.root.visible) { const lit = weather.rain + weather.mist + weather.gloom > .08; for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit; }
+      if (o.root.visible) { const lit = weather.rain + weather.mist + weather.gloom + dusk > .08; for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit; }
     }
     trafficControl.count = visible;
   }));

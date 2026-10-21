@@ -5,6 +5,7 @@ import { honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import { loading, progress } from "@/lib/loading";
 import styles from "./Drive.module.scss";
 
@@ -136,6 +137,7 @@ export default function DriveHud() {
         <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
         <Sound icon />
+        <ThemeToggle className={styles.themeKey} />
       </div>
 
       {/* touch controls (shown on touch screens) */}

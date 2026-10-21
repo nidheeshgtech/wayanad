@@ -45,10 +45,12 @@ export function settle() { acc = 0; game.prev = { s: game.s, lat: game.lat, psi:
 export function stepCar(road: RoadInfo, dt: number) {
   const g = game, i = g.input;
   g.s = Math.min(road.length, Math.max(1.5, g.s));
-  // steering: quick to turn in, quicker to straighten; less lock the faster you go, so it's calm at speed and sharp
-  // when slow — the hairpins at 30 km/h still take a good turn of the wheel
-  const toward = i.steer, tau = Math.abs(toward) > Math.abs(g.steer) ? 0.11 : 0.07;
-  g.steer += (toward - g.steer) * (1 - Math.exp(-dt / tau));
+  // steering: keys and touch buttons are all-or-nothing, so the wheel winds toward them at a steady rate (full lock
+  // in ~0.4 s, back to centre in ~0.3 s) and is then eased, so turning in and letting go are both gradual. Less lock
+  // the faster you go, so it's calm at speed and sharp when slow — the hairpins at 30 km/h still take a good turn
+  const winding = Math.abs(i.steer) > Math.abs(g.turn) && Math.sign(i.steer) === Math.sign(g.turn || i.steer), rate = (winding ? 2.5 : 3.4) * dt;
+  g.turn += Math.max(-rate, Math.min(rate, i.steer - g.turn));
+  g.steer += (g.turn - g.steer) * (1 - Math.exp(-dt / 0.08));
   const v0 = g.speed, lock = 1 / (1 + (Math.abs(v0) / 1.5) ** 2);
   // pedals: throttle pulls (less toward top speed), the brake stops you and then reverses gently; the climb pulls back
   const { curvature, grade } = roadAt(road, g.s);
@@ -64,7 +66,8 @@ export function stepCar(road: RoadInfo, dt: number) {
   // road's turn for you and lets go as you steer, so you still drive the bends
   const v = g.speed, yawRate = (g.steer * lock * v) / CAR.rMin, roadTurn = v * curvature;
   g.psi += (yawRate - roadTurn * (1 - g.assist)) * dt;
-  if (Math.abs(i.steer) < 0.05) g.psi -= g.psi * Math.min(1, dt * (0.8 + 2.6 * g.assist)); // tyres straighten along the road
+  // tyres straighten along the road as the wheel comes back (blended, not switched, so letting go doesn't jolt)
+  g.psi -= g.psi * Math.min(1, dt * (0.8 + 2.6 * g.assist)) * (1 - Math.min(1, Math.abs(g.steer) * 2.5)) ** 2;
   g.psi = Math.max(-1.1, Math.min(1.1, g.psi));
   // too fast for the bend: grip runs out and the car drifts to the outside
   g.sideways = v * v * curvature;

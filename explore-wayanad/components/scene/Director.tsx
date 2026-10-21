@@ -10,6 +10,7 @@ import { height } from "@/lib/terrain";
 import { game } from "@/lib/game";
 import { frameTimed } from "@/lib/perf";
 import { thunder } from "@/lib/water";
+import { duskness } from "@/lib/theme";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -45,6 +46,10 @@ const TURN_BACK = [0.58, 0.92, 25] as const; // act progress from, to; and units
 /* Churam sky and haze colours for clear and full cloud (lib/weather blends between them), and for thick mist. */
 const SKY_CLEAR = new Color(0x6f9fcf), SKY_CLOUD = new Color(0x8494a2), SKY_STORM = new Color(0x48525a), FOG_STORM = new Color(0x7f888d);
 const FOG_CLEAR = new Color(0xd3dee6), FOG_CLOUD = new Color(0xb9c3c8), FOG_MIST = new Color(0xd9dee0);
+/* Dusk (lib/theme): deep blue overhead, warm mauve haze (it must stay warmer than blue: lib/atmosphere reads that), a
+ * low orange sun. Under cloud the sky greys and darkens. */
+const SKY_DUSK = new Color(0x1f2f52), SKY_DUSK_CLOUD = new Color(0x3a3f4c), FOG_DUSK = new Color(0xa3877f), FOG_DUSK_MIST = new Color(0x9a8a86);
+const SUN_DUSK = new Color(0xffb07a), MIST_DUSK = new Color(0x8a8296), tmpSun = new Color();
 const SPOTS: Record<string, [number[], number[]]> = {
   kalpetta:   [[-10, 24, -150], [0, 4, -230]],
   soochipara: [[45, 6, -95], [20, 12, -150]],
@@ -170,13 +175,21 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       sky = tmpSky.current.copy(SKY_CLEAR).lerp(SKY_CLOUD, weather.cloud).lerp(SKY_STORM, weather.gloom);
       fogTint = tmpFog.current.copy(FOG_CLEAR).lerp(FOG_CLOUD, weather.cloud).lerp(FOG_MIST, weather.mist * 0.6).lerp(FOG_STORM, weather.gloom * 0.8);
     }
+    // dusk: the same blends, toward the evening colours (the acts after the drive keep most of their own palette)
+    const e = duskness();
+    if (e > 0) {
+      if (driving) {
+        sky = tmpSky.current.copy(sky).lerp(tmpSun.copy(SKY_DUSK).lerp(SKY_DUSK_CLOUD, weather.cloud * 0.7), e);
+        fogTint = tmpFog.current.copy(fogTint).lerp(tmpSun.copy(FOG_DUSK).lerp(FOG_DUSK_MIST, weather.mist).multiplyScalar(1 - 0.35 * weather.gloom), e);
+      }
+    }
     // fireflies come out through Stay, peak at Night, and fade over Plan
     const flies = act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies;
-    fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog), 0.05);
-    (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky), 0.05);
+    fog.color.lerp(driving ? fogTint : tmpFog.current.set(P.fog).lerp(FOG_DUSK, e * 0.4), 0.05);
+    (scene.background as Color).lerp(driving ? sky : tmpSky.current.set(P.sky).lerp(SKY_DUSK, e * 0.4), 0.05);
     // overcast reads darker, but never by more than a few stops: exposure eases with the cloud
     // drive mode's showers go properly dark (weather.gloom); in a downpour, now and then, lightning
-    exposure.current += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom - exposure.current) * 0.05;
+    exposure.current += (1.15 - 0.2 * weather.cloud - 0.45 * weather.gloom + 0.1 * e - exposure.current) * 0.05;
     const L = lightning.current;
     if (game.active && !game.paused && weather.rain > 1.15) {
       L.next -= delta;
@@ -190,8 +203,10 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white
     if (terrain) (terrain.material as MeshStandardMaterial).color.lerp(tint.current.set(P.ground).lerp(WHITE, 0.8), 0.05);
-    if (sunRef.current) sunRef.current.color.lerp(new Color(P.light), 0.05);
-    const mm = mistRef.current?.material as { opacity: number } | undefined; if (mm) mm.opacity += (mist - mm.opacity) * 0.06;
+    if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e), 0.05);
+    // the mist puffs take the evening light (white puffs glowed against a dusk sky)
+    const mm = mistRef.current?.material as { opacity: number; color: Color } | undefined;
+    if (mm) { mm.opacity += (mist * (1 - 0.4 * e) - mm.opacity) * 0.06; mm.color.setRGB(1, 1, 1).lerp(MIST_DUSK, e); }
     const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (flies - fm.opacity) * 0.04;
   }));
   return null;

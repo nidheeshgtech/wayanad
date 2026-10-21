@@ -3,6 +3,7 @@ import { createContext, useContext, useMemo, useRef } from "react";
 import styles from "./Hud.module.scss";
 import Sound from "./Sound";
 import Horn from "./Horn";
+import ThemeToggle from "./ThemeToggle";
 
 type HudApi = { setCounter: (n: number) => void; showCounter: (on: boolean) => void; setScene: (s: string) => void; setStatus: (s: string) => void; setGrade: (c: string | null) => void };
 const Ctx = createContext<HudApi | null>(null);
@@ -29,6 +30,7 @@ export default function Hud({ children }: { children: React.ReactNode }) {
       <div className={styles.grain} aria-hidden /><div className={styles.vignette} aria-hidden />
       <Horn />
       <Sound />
+      <ThemeToggle />
       {children}
     </Ctx.Provider>
   );

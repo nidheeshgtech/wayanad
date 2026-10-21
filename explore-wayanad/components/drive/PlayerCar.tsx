@@ -13,6 +13,7 @@ import { forestRoad, height, roadShapeAt } from "@/lib/terrain";
 import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
+import { duskness } from "@/lib/theme";
 import { frameTimed } from "@/lib/perf";
 import type { ActId } from "@/data/acts";
 
@@ -123,7 +124,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     return { root, body, wheels, steering, lamps, spot };
   }, [source]);
 
-  const cam = useRef({ yaw: 0, y: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
+  const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
 
@@ -189,7 +190,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
 
     // lamps: brake lights when braking; tail and head lamps on in rain, mist and gloom; the beam only then
-    const dark = Math.min(1, weather.gloom + weather.mist * 0.6 + weather.rain * 0.5);
+    const dark = Math.min(1, weather.gloom + weather.mist * 0.6 + weather.rain * 0.5 + duskness());
     for (const l of lamps.tail) l.emissiveIntensity = game.braking ? 3.5 : 0.3 + dark * 1.2;
     for (const l of lamps.head) l.emissiveIntensity = 0.15 + dark * 2.5;
     spot.intensity = dark * 6; spot.visible = dark > 0.05;
@@ -203,7 +204,9 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     if (!C.ready) { C.yaw = heading; C.y = root.position.y; C.ready = true; }
     if (!game.paused) {
       const dy = Math.atan2(Math.sin(heading - C.yaw), Math.cos(heading - C.yaw));
-      C.yaw += Math.max(-YAW.maxRate * dt, Math.min(YAW.maxRate * dt, dy * (1 - Math.exp(-dt / YAW.tau))));
+      // damped follow, capped softly (a hard cap kinked the turn: steady swing, then a sudden ease)
+      const cap = YAW.maxRate * dt;
+      C.yaw += cap * Math.tanh((dy * (1 - Math.exp(-dt / YAW.tau))) / cap);
       C.y += (root.position.y - C.y) * (1 - Math.exp(-dt / 0.15));
     }
     if (view === "hood") {
@@ -215,11 +218,15 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
       want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back).addScaledVector(up, v.up);
       look.set(root.position.x, C.y, root.position.z).addScaledVector(dir, v.ahead).addScaledVector(up, v.aimUp);
       // keep the hillside out of the shot: lift the camera over any ground between it and the car
+      // (eased: rises quickly, settles slowly, so the shot never pops)
+      let lift = 0;
       for (let i = 1; i <= 5; i++) {
         const f = i / 5, x = root.position.x + (want.x - root.position.x) * f, z = root.position.z + (want.z - root.position.z) * f;
-        const need = height(x, z) + 0.06 - (C.y + (want.y - C.y) * f);
-        if (need > 0) want.y += need / f;
+        const need = height(x, z) + 0.06 - (C.y + (want.y + lift - C.y) * f);
+        if (need > 0) lift += need / f;
       }
+      if (!game.paused) C.lift += (lift - C.lift) * (1 - Math.exp(-dt / (lift > C.lift ? 0.08 : 0.5)));
+      want.y += Math.max(C.lift, lift * 0.5);
     }
     // a bump or a scrape nudges the view a little; never a shake
     const nudge = Math.min(1, game.bump + game.scrape * 0.4) * 0.004;

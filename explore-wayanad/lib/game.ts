@@ -20,6 +20,7 @@ const fresh = () => ({
   prev: { s: 3, lat: 0.2, psi: 0 },           // the previous physics step, for drawing between steps
   accel: 0, sideways: 0,                      // units/s² along and across: the body pitches and rolls with them
   steer: 0,                                   // eased steering, −1 (right) … 1 (left)
+  turn: 0,                                    // the steering wheel's position, winding toward input.steer at a steady rate
   input: { throttle: 0, brake: 0, steer: 0 }, // from keys / touch: 0–1, 0–1, −1…1
   assist: 0.65,                               // how much of the road's own curve is steered for you (0 = all yours)
   braking: false, scrape: 0, bump: 0,         // for lights, camera shake and sound
@@ -42,7 +43,7 @@ export const CAR = { halfL: 0.2, halfW: 0.1, max: 2.8, reverse: 0.45, accel: 0.5
 /** Put the car back in its lane, facing up the road, stopped. */
 export function resetCar(at?: number) {
   if (at !== undefined) game.s = at;
-  game.lat = 0.2; game.psi = 0; game.speed = 0; game.steer = 0; game.accel = 0; game.sideways = 0;
+  game.lat = 0.2; game.psi = 0; game.speed = 0; game.steer = 0; game.turn = 0; game.accel = 0; game.sideways = 0;
   game.prev = { s: game.s, lat: game.lat, psi: game.psi };
   game.reset++;
 }

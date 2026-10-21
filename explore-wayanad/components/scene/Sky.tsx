@@ -5,6 +5,7 @@ import { BackSide, Color, FogExp2, Mesh, ShaderMaterial, SphereGeometry, Vector3
 import { SUN_DIR } from "./Lighting";
 import { AIR_LINEAR } from "@/lib/atmosphere";
 import { weather } from "@/lib/weather";
+import { duskness } from "@/lib/theme";
 
 /**
  * Sky dome that follows the camera: the act's sky colour overhead, the same pale haze as the land's aerial perspective at
@@ -17,7 +18,7 @@ export default function Sky() {
     side: BackSide, depthWrite: false, fog: false,
     uniforms: {
       top: { value: new Color() }, haze: { value: new Vector3(...AIR_LINEAR) }, fogColor: { value: new Color() }, fogAmount: { value: 0 },
-      sunDir: { value: SUN_DIR }, sunColor: { value: new Color(0xfff1d6) }, time: { value: 0 }, cloud: { value: 0 }, sun: { value: 1 }, gloom: { value: 0 },
+      sunDir: { value: SUN_DIR }, sunColor: { value: new Color(0xfff1d6) }, time: { value: 0 }, cloud: { value: 0 }, sun: { value: 1 }, gloom: { value: 0 }, dusk: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -27,7 +28,7 @@ export default function Sky() {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 top, haze, fogColor, sunDir, sunColor;
-      uniform float fogAmount, time, cloud, sun, gloom;
+      uniform float fogAmount, time, cloud, sun, gloom, dusk;
       varying vec3 vDir;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
@@ -39,16 +40,22 @@ export default function Sky() {
         vec3 dir = normalize(vDir);
         // the horizon haze darkens with the fog under a storm, exactly as the land's (lib/atmosphere), so no seam
         float dayLight = clamp(dot(fogColor, vec3(0.299, 0.587, 0.114)) / 0.6, 0.3, 1.0);
-        vec3 horizon = mix(haze, fogColor, 0.35) * dayLight;
-        vec3 col = mix(horizon, top, smoothstep(0.0, 0.45, dir.y));
+        vec3 horizon = mix(haze, fogColor, 0.35 + 0.45 * dusk) * dayLight;
+        vec3 col = mix(horizon, top, smoothstep(0.0, mix(0.45, 0.6, dusk), dir.y));
         if (dir.y < 0.0) col = horizon;
+        // dusk: an orange band low over the western ridges, fading up into the blue
+        float west = max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(sunDir.x, 0.0, sunDir.z))), 0.0);
+        col += vec3(1.0, 0.42, 0.16) * dusk * (0.25 + 0.75 * pow(west, 2.5)) * (1.0 - smoothstep(-0.02, 0.32, dir.y)) * 0.55 * (1.0 - 0.7 * cloud);
         // clouds on a flat layer overhead: projected so they shrink toward the horizon
         if (dir.y > 0.02) {
           vec2 uv = dir.xz / (dir.y + 0.12) * 0.9 + vec2(time * 0.004, time * 0.0015);
           float c = smoothstep(mix(0.6, 0.3, cloud), mix(0.82, 0.62, cloud), fbm(uv)); // a few clouds when clear, near-full cover when overcast
           float shade = 0.82 + 0.18 * smoothstep(0.4, 0.9, fbm(uv * 1.7 + 3.1));
           // storm cloud (drive mode's downpours, gloom): heavy and slate-grey instead of white
-          col = mix(col, mix(mix(vec3(0.97, 0.98, 0.99), vec3(0.74, 0.77, 0.8), cloud), vec3(0.36, 0.4, 0.43), gloom) * shade, c * smoothstep(0.02, 0.25, dir.y) * 0.95);
+          // at dusk the clouds take the sunset from below: rose toward the west, slate overhead
+          vec3 cloudCol = mix(mix(vec3(0.97, 0.98, 0.99), vec3(0.74, 0.77, 0.8), cloud), vec3(0.36, 0.4, 0.43), gloom);
+          cloudCol = mix(cloudCol, mix(vec3(0.3, 0.3, 0.42), vec3(1.0, 0.55, 0.42), west * (1.0 - smoothstep(0.1, 0.7, dir.y))) * (1.0 - 0.5 * cloud), dusk);
+          col = mix(col, cloudCol * shade, c * smoothstep(0.02, 0.25, dir.y) * 0.95);
         }
         float sunDisc = max(dot(dir, normalize(sunDir)), 0.0);
         col += sunColor * (pow(sunDisc, 8.0) * 0.25 + pow(sunDisc, 400.0) * 4.0) * (0.15 + 0.85 * sun); // veiled as cloud passes over
@@ -65,6 +72,7 @@ export default function Sky() {
     const u = material.uniforms, fog = scene.fog as FogExp2 | null;
     u.time.value += dt;
     u.cloud.value = weather.cloud; u.sun.value = weather.sun; u.gloom.value = weather.gloom;
+    const e = duskness(); u.dusk.value = e; u.sunColor.value.setRGB(1, 0.945 - 0.5 * e, 0.84 - 0.65 * e);
     if (fog) { u.fogColor.value.copy(fog.color); u.fogAmount.value = Math.min(1, Math.max(0, (fog.density - 0.01) / 0.05)); }
     if (scene.background instanceof Color) u.top.value.copy(scene.background);
   });
