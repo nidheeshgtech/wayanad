@@ -11,11 +11,11 @@ import { weather } from "@/lib/weather";
 import { game } from "@/lib/game";
 import { waterSound } from "@/lib/water";
 
-/* Monsoon waterfalls of the churam: a few streams pouring down the tallest rock cuts beside the road, and a couple of
- * thin white falls on the far slopes. Only a handful, spread out, so each one is a moment. They run thin in dry
- * weather and full and white in and after rain (weather.wet). Units of 10 m. */
-const ROADSIDE = { count: 4, spacing: 90, minFace: 0.6, probe: [SECTION.drain + 0.1, SECTION.drain + 3] as [number, number] };
-const DISTANT = { count: 2, from: 9, to: 20, steps: 16 };
+/* Monsoon waterfalls of the churam: streams pouring down the tallest rock cuts beside the road, and a few white falls
+ * on the far slopes, spread along the climb. Wide enough (4–6 m) to read through the roadside plants; they run a
+ * little thinner in dry weather and full and white in and after rain (weather.wet). Units of 10 m. */
+const ROADSIDE = { count: 8, spacing: 40, minFace: 0.6, probe: [SECTION.drain + 0.1, SECTION.drain + 3] as [number, number] };
+const DISTANT = { count: 4, from: 9, to: 20, steps: 16 };
 
 /** Value noise and the falling-water look, added to a standard material (so it's lit and fogged like everything else). */
 const WATER_GLSL = /* glsl */ `
@@ -105,7 +105,7 @@ function roadsideFalls(curve: CatmullRomCurve3): Fall[] {
       if (h < ROADSIDE.minFace) continue;
       const footAt = pt.clone().addScaledVector(out, foot + widen + 0.02);
       const top = new Vector3(lipAt.x, lipY, lipAt.z), bottom = new Vector3(footAt.x, bed, footAt.z);
-      found.push({ s, h, path: overGround(top, bottom, 28), top, bottom, width: 0.15 + Math.min(0.12, h * 0.03), facing: out.clone().negate(), distant: false });
+      found.push({ s, h, path: overGround(top, bottom, 28), top, bottom, width: 0.35 + Math.min(0.25, h * 0.06), facing: out.clone().negate(), distant: false });
     }
   }
   // the tallest faces, spread out along the climb
@@ -133,13 +133,13 @@ function distantFalls(curve: CatmullRomCurve3): Fall[] {
   }
   for (const c of candidates.sort((a, b) => b.steep - a.steep)) {
     if (out.length >= DISTANT.count) break;
-    if (out.some((f) => f.top.distanceTo(c.at) < 60)) continue;
+    if (out.some((f) => f.top.distanceTo(c.at) < 40)) continue;
     // follow the slope down from here, in short steps
     const p = c.at.clone(), path = [c.at.clone()];
     for (let i = 0; i < DISTANT.steps * 4; i++) { const g = grad(p.x, p.z); if (g.length() < 0.35) break; p.addScaledVector(g.normalize(), -0.125); p.y = height(p.x, p.z); path.push(p.clone()); }
     if (c.at.y - p.y < 2) continue; // at least 20 m of drop
     const facing = new Vector3(c.at.x - p.x, 0, c.at.z - p.z).normalize().negate();
-    out.push({ path, top: c.at.clone(), bottom: p.clone(), width: 0.3, facing, distant: true });
+    out.push({ path, top: c.at.clone(), bottom: p.clone(), width: 0.7, facing, distant: true });
   }
   return out;
 }
@@ -155,7 +155,7 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     };
     const near = make(2.2), far = make(1.2);
     const wet = new MeshStandardMaterial({ color: 0x14181a, roughness: 0.18, transparent: true, opacity: 0.55, depthWrite: false });
-    const spray = new PointsMaterial({ map: sprayTexture(), size: 0.035, transparent: true, depthWrite: false, opacity: 0.28, blending: AdditiveBlending, color: 0xdfe6ea });
+    const spray = new PointsMaterial({ map: sprayTexture(), size: 0.05, transparent: true, depthWrite: false, opacity: 0.35, blending: AdditiveBlending, color: 0xdfe6ea });
     const group = new Group(); group.name = "waterfalls";
     const falls = [...roadsideFalls(curve), ...distantFalls(curve)];
     if (typeof window !== "undefined") (window as unknown as { __wayanadFalls?: unknown }).__wayanadFalls = falls.map((f) => ({ top: f.top.toArray(), bottom: f.bottom.toArray(), facing: f.facing.toArray(), distant: f.distant }));
@@ -163,12 +163,12 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     const sprays: { points: Points; base: Vector3; seeds: Float32Array }[] = [];
     for (const f of falls) {
       // the stream: a strip draped over the ground along its path, lifted a little; the wet rock: a wider strip under it
-      const stream = new Mesh(drape(f.path, f.width, f.distant ? 0.05 : 0.025), f.distant ? far : near); stream.renderOrder = 2;
-      const rock = new Mesh(drape(f.path, f.width * 2.4, f.distant ? 0.035 : 0.015), wet); rock.renderOrder = 1;
+      const stream = new Mesh(drape(f.path, f.width, f.distant ? 0.08 : 0.06), f.distant ? far : near); stream.renderOrder = 2;
+      const rock = new Mesh(drape(f.path, f.width * 2.4, f.distant ? 0.06 : 0.045), wet); rock.renderOrder = 1;
       group.add(rock, stream);
       // spray where it lands
       {
-        const n = f.distant ? 16 : 60, seeds = new Float32Array(n * 3), pos = new Float32Array(n * 3);
+        const n = f.distant ? 24 : 90, seeds = new Float32Array(n * 3), pos = new Float32Array(n * 3);
         for (let i = 0; i < n; i++) seeds.set([Math.random(), Math.random(), Math.random()], i * 3);
         const g = new BufferGeometry(); g.setAttribute("position", new BufferAttribute(pos, 3));
         const points = new Points(g, spray); points.frustumCulled = false; points.renderOrder = 3;
@@ -182,7 +182,7 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     if (game.paused) return;
     const { time, flow, sprays, falls } = built;
     time.value += Math.min(dt, 0.1);
-    flow.value += (0.3 + 0.7 * Math.max(weather.wet, weather.rain) - flow.value) * Math.min(1, dt * 0.2);
+    flow.value += (0.6 + 0.4 * Math.max(weather.wet, weather.rain) - flow.value) * Math.min(1, dt * 0.2);
     for (const sp of sprays) {
       const p = sp.points.geometry.getAttribute("position") as BufferAttribute, k = 0.12 + flow.value * 0.18;
       for (let i = 0; i < p.count; i++) {
