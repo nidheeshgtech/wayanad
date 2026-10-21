@@ -6,7 +6,7 @@ import { engine } from "@/lib/engine";
 import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
-import { loading, progress } from "@/lib/loading";
+import StartScreen, { ControlRow, panelStyles } from "@/components/ui/StartScreen";
 import styles from "./Drive.module.scss";
 
 /**
@@ -44,10 +44,10 @@ function restart() {
 }
 
 export default function DriveHud() {
-  const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished">("start");
-  const [ready, setReady] = useState(false), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
+  const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const speed = useRef<HTMLElement>(null), place = useRef<HTMLDivElement>(null), next = useRef<HTMLDivElement>(null), note = useRef<HTMLDivElement>(null);
-  const summary = useRef({ km: 0, min: 0 }), bar = useRef<HTMLDivElement>(null), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
+  const summary = useRef({ km: 0, min: 0 }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
   // touch: the "Back to the story" link stays hidden until you tap the screen, then shows for a few seconds
@@ -99,8 +99,6 @@ export default function DriveHud() {
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
       if (place.current) place.current.textContent = game.place;
       if (next.current) next.current.textContent = `${game.next} · ${game.nextM >= 1000 ? `${(game.nextM / 1000).toFixed(1)} km` : `${Math.round(game.nextM / 10) * 10} m`}`;
-      if (bar.current) bar.current.style.transform = `scaleX(${progress()})`;
-      if (loading.ready) setReady(true);
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -124,6 +122,7 @@ export default function DriveHud() {
 
   return (
     <>
+      <div data-hud>
       <div ref={top} className={styles.top}>
         <a href="/" className={styles.back}>← Back to the story</a>
         <div className={styles.where}><div ref={place} className={styles.place}>Adivaram</div><div ref={next} className={styles.next} /></div>
@@ -153,25 +152,39 @@ export default function DriveHud() {
         </div>
       </div>
 
+      </div>
+
       {screen === "start" && (
-        <div className={styles.card} role="dialog" aria-label="Drive the churam">
-          <h1>Drive the churam</h1>
-          <p>From Adivaram: nine hairpins up to the Lakkidi gate, across the plateau to Kalpetta, then the forest road to the Karnataka border.</p>
-          <ul className={styles.keys}>
-            <li><kbd>W</kbd><kbd>↑</kbd> accelerate · <kbd>S</kbd><kbd>↓</kbd> brake, reverse</li>
-            <li><kbd>A</kbd><kbd>D</kbd> or <kbd>←</kbd><kbd>→</kbd> steer</li>
-            <li><kbd>H</kbd> horn: a slow vehicle ahead gives way where it&apos;s safe</li>
-            <li><kbd>Space</kbd> pause · <kbd>C</kbd> camera · <kbd>R</kbd> back on the road</li>
-          </ul>
-          <p className={styles.phone}>On a phone: ◀ ▶ steer, ▲ go, ▼ brake, the middle button is the horn. Tap the screen for the way back to the story.</p>
-          <p className={styles.small}>Keep left. Overtake on the right when the road is clear; oncoming traffic slows for you, but not on the hairpins. Showers come and go.</p>
-          {ready ? <button type="button" className={styles.go} onClick={start} autoFocus>Start driving</button> : (
-            <div className={styles.loading} aria-live="polite"><div className={styles.track}><div ref={bar} className={styles.bar} /></div><span>Loading the road…</span></div>
-          )}
-        </div>
+        <StartScreen
+          eyebrow="Drive mode · The churam"
+          title={<>Drive the<br />churam.</>}
+          lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
+          stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
+          startLabel="Start driving" onStart={start}
+          footer={<a className={panelStyles.link} href="/">Back to the story</a>}
+          panel={<>
+            <h2>Controls</h2>
+            <div className={panelStyles.keyOnly}>
+              <ControlRow label="Accelerate"><kbd>W</kbd><kbd>↑</kbd></ControlRow>
+              <ControlRow label="Brake, reverse"><kbd>S</kbd><kbd>↓</kbd></ControlRow>
+              <ControlRow label="Steer"><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd></ControlRow>
+              <ControlRow label="Horn"><kbd>H</kbd></ControlRow>
+              <ControlRow label="Camera · back on the road"><kbd>C</kbd><kbd>R</kbd></ControlRow>
+              <ControlRow label="Pause"><kbd>Space</kbd></ControlRow>
+            </div>
+            <div className={panelStyles.touchOnly}>
+              <ControlRow label="Steer"><kbd>◀</kbd><kbd>▶</kbd></ControlRow>
+              <ControlRow label="Accelerate · brake"><kbd>▲</kbd><kbd>▼</kbd></ControlRow>
+              <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
+              <ControlRow label="Back to the story"><kbd>tap the road</kbd></ControlRow>
+            </div>
+            <p>Sound the horn behind a slow vehicle and it gives way where it&apos;s safe. Oncoming traffic doesn&apos;t, on the hairpins.</p>
+          </>}
+        />
       )}
       {screen === "paused" && (
         <div className={styles.card} role="dialog" aria-label="Paused">
+          <p className={styles.eyebrow}>Drive mode</p>
           <h1>Paused</h1>
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={() => togglePause(false)} autoFocus>Resume</button>
@@ -186,13 +199,27 @@ export default function DriveHud() {
       )}
       {screen === "between" && (
         <div className={styles.card} role="dialog" aria-label="Kalpetta">
+          <p className={styles.eyebrow}>Kalpetta</p>
           <h1>Kalpetta</h1>
           <p>The road on to Sulthan Bathery (24 km) isn&apos;t built yet. The drive carries on from Sulthan Bathery, through the forest to the border.</p>
           <button type="button" className={styles.go} onClick={onward} autoFocus>Drive on from Sulthan Bathery</button>
         </div>
       )}
+      {screen === "gate" && (
+        <div className={styles.card} role="dialog" aria-label="Lakkidi gate">
+          <p className={styles.eyebrow}>Lakkidi gate · end of the drive</p>
+          <h1>Welcome to Wayanad.</h1>
+          <p>You climbed the nine hairpins: {summary.current.km.toFixed(1)} km in {Math.max(1, Math.round(summary.current.min))} min. The road on past the gate, through Vythiri and Kalpetta to the forest and the border, opens in the next update.</p>
+          <p className={styles.small}>Thanks for driving. See you on the plateau.</p>
+          <div className={styles.row}>
+            <button type="button" className={styles.go} onClick={restart} autoFocus>Drive the churam again</button>
+            <a href="/" className={styles.ghost}>Back to the story</a>
+          </div>
+        </div>
+      )}
       {screen === "finished" && (
         <div className={styles.card} role="dialog" aria-label="The border">
+          <p className={styles.eyebrow}>Muthanga · the border</p>
           <h1>The border gate</h1>
           <p>Kerala ends at the barrier; Karnataka is on the other side. You drove {summary.current.km.toFixed(1)} km in {Math.max(1, Math.round(summary.current.min))} min.</p>
           <div className={styles.row}>

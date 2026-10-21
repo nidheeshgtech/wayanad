@@ -1,0 +1,71 @@
+// The title screen (StartScreen.tsx): a dim veil over the landscape, a fixed rhythm of 8 px steps, one amber accent.
+.screen { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; color: var(--ink);
+  padding: calc(24px + env(safe-area-inset-top, 0px)) clamp(20px, 5vw, 72px) calc(32px + env(safe-area-inset-bottom, 0px));
+  background:
+    linear-gradient(90deg, rgba(8, 18, 15, .92) 0%, rgba(8, 18, 15, .72) 45%, rgba(8, 18, 15, .35) 100%),
+    linear-gradient(0deg, rgba(8, 18, 15, .9) 0%, rgba(8, 18, 15, 0) 55%),
+    var(--bg);
+  transition: background-color 1.2s, opacity .8s, visibility 0s .8s;
+  overflow-y: auto; overscroll-behavior: contain;
+  &[data-ready] { background-color: transparent; }
+  &[data-leaving] { opacity: 0; visibility: hidden; pointer-events: none; } }
+
+.top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.brand { font: 500 12px/1 var(--font-sans), sans-serif; letter-spacing: .22em; text-transform: uppercase; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mute); letter-spacing: .08em; text-transform: uppercase;
+  &::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); animation: pulse 1.4s infinite; } }
+.screen[data-ready] .status::before { background: var(--amber); animation: none; }
+
+.body { flex: 1; display: grid; grid-template-columns: minmax(0, 600px) minmax(0, 360px); justify-content: space-between; align-items: end; gap: 48px; padding-top: 48px; }
+.intro { display: grid; gap: 24px; }
+.eyebrow { font: 500 12px/1.2 var(--font-sans), sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
+.title { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(44px, 7vw, 92px); line-height: .96; letter-spacing: -.03em; }
+.lead { font-size: 17px; line-height: 1.55; color: var(--mute); max-width: 46ch; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(94, 122, 112, .6); border-bottom: 1px solid rgba(94, 122, 112, .6); margin: 0;
+  > div { display: grid; gap: 6px; padding: 16px 16px 16px 0; & + div { padding-left: 16px; border-left: 1px solid rgba(94, 122, 112, .6); } }
+  dt { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+  dd { margin: 0; font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(22px, 3vw, 30px); line-height: 1; } }
+
+.actions { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; padding-top: 8px; }
+// the loading bar that becomes the Start button
+.start { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 280px; height: 56px; padding: 0 20px 0 24px;
+  border-radius: 12px; border: 1px solid var(--line); background: rgba(14, 31, 26, .6); color: var(--ink); font-size: 16px; font-weight: 500; cursor: pointer;
+  transition: background .3s, color .3s, border-color .3s, transform .15s;
+  &:disabled { cursor: progress; }
+  &:not(:disabled) { background: var(--amber); border-color: var(--amber); color: #0e1f1a;
+    &:hover { transform: translateY(-1px); } &:active { transform: translateY(0); } }
+  &:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  kbd { font: 500 11px var(--font-sans), sans-serif; letter-spacing: .06em; padding: 4px 8px; border-radius: 6px; background: rgba(14, 31, 26, .14); } }
+.fill { position: absolute; inset: 0; background: rgba(217, 164, 65, .22); transform-origin: left; transform: scaleX(.03); transition: transform .3s; }
+.loadText, .pct { position: relative; color: var(--mute); font-weight: 400; }
+.pct { font-variant-numeric: tabular-nums; color: var(--ink); }
+
+// the controls panel (drive mode)
+.panel { align-self: end; display: grid; gap: 4px; padding: 20px 24px; border: 1px solid rgba(94, 122, 112, .55); border-radius: 16px; background: rgba(10, 24, 20, .66); backdrop-filter: blur(10px);
+  h2 { font: 500 11px/1 var(--font-sans), sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); padding-bottom: 12px; }
+  p { font-size: 13px; line-height: 1.5; color: var(--mute); padding-top: 12px; } }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 40px; font-size: 14px; color: var(--mute);
+  & + .row { border-top: 1px solid rgba(94, 122, 112, .3); } }
+.keys { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;
+  kbd { min-width: 28px; height: 26px; display: inline-grid; place-items: center; padding: 0 7px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px;
+    font: 500 12px var(--font-sans), sans-serif; color: var(--ink); background: rgba(14, 31, 26, .5); } }
+// which controls list shows: keys on a keyboard device, buttons on a touch screen
+.touchOnly { display: none; }
+@media (pointer: coarse) { .keyOnly, .start kbd { display: none; } .touchOnly { display: contents; } .start { justify-content: center; } }
+
+.link { font-size: 14px; color: var(--mute); text-decoration: none; padding: 8px 0; border-bottom: 1px solid transparent;
+  &:hover { color: var(--ink); border-color: var(--line); } &:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; } }
+
+@media (max-width: 860px) {
+  .body { grid-template-columns: minmax(0, 1fr); align-items: end; gap: 24px; padding-top: 24px; }
+  .intro { gap: 20px; }
+  .lead { font-size: 15px; }
+  .start { width: 100%; min-width: 0; }
+  .actions { gap: 12px; justify-content: center; }
+  .panel { padding: 16px 20px; }
+}
+@media (max-width: 860px) and (max-height: 760px) { .panel { display: none; } }
+
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .screen { transition: none; } .status::before { animation: none; } .start, .fill { transition: none; } }

@@ -22,15 +22,13 @@ export default function Hud({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       <div ref={grade} className={styles.grade} aria-hidden />
-      <div className={styles.hud} aria-hidden>
+      <div className={styles.hud} aria-hidden data-hud>
         <div><div className={styles.brand}>Explore Wayanad</div><div ref={status} className={styles.status}>Ghat open today</div></div>
         <div ref={counterBox} className={styles.counter}><b ref={counter}>0</b><span> / 9</span><small>hairpin</small></div>
       </div>
-      <div ref={scene} className={styles.scene} aria-hidden>Adivaram</div>
+      <div ref={scene} className={styles.scene} aria-hidden data-hud>Adivaram</div>
       <div className={styles.grain} aria-hidden /><div className={styles.vignette} aria-hidden />
-      <Horn />
-      <Sound />
-      <ThemeToggle />
+      <div data-hud><Horn /><Sound /><ThemeToggle /></div>
       {children}
     </Ctx.Provider>
   );

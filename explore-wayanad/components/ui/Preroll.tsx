@@ -1,18 +1,27 @@
 "use client";
-import { useState } from "react";
-import styles from "./Preroll.module.scss";
+import { useCallback, useState } from "react";
+import StartScreen, { panelStyles } from "./StartScreen";
 
-/** Not scroll-driven: three stamps, then the first scroll starts the climb. Also covers the scene's first frames. */
-export default function Preroll() {
+/**
+ * The story's title screen (components/ui/StartScreen): it holds until the scene is fully built and warmed, so the
+ * climb starts smoothly, then fades out on Start. `scene`: whether a canvas is coming (null while the capability
+ * probe runs; false for the video tier, which needs no wait).
+ */
+export default function Preroll({ scene }: { scene: boolean | null }) {
   const [state, setState] = useState<"idle" | "go" | "done">("idle");
+  const start = useCallback(() => {
+    setState("go");
+    setTimeout(() => setState("done"), matchMedia("(prefers-reduced-motion: reduce)").matches ? 50 : 900);
+  }, []);
   if (state === "done") return null;
   return (
-    <div className={`${styles.preroll} ${state === "go" ? styles.go : ""}`}>
-      <div className={styles.hint}>Explore Wayanad</div>
-      <div className={styles.stamps}><span>Adivaram</span><span>14 kilometres</span><span>Nine bends</span></div>
-      <button type="button" onClick={() => { setState("go"); setTimeout(() => setState("done"), matchMedia("(prefers-reduced-motion: reduce)").matches ? 100 : 3200); }}>Start the climb</button>
-      <div className={styles.hint}>Scroll to drive. Sound is off until you turn it on.</div>
-      <a className={styles.drive} href="/drive">Or drive the bus yourself →</a>
-    </div>
+    <StartScreen
+      eyebrow="Act 1 · Thamarassery Churam"
+      title={<>Nine bends<br />to the top.</>}
+      lead="Fourteen kilometres from Adivaram up to the Lakkidi gate. Scroll to ride it. Sound stays off until you turn it on."
+      stats={[["Adivaram", "Start"], ["14 km", "Distance"], ["9", "Hairpins"]]}
+      startLabel="Start the climb" onStart={start} scene={scene} leaving={state === "go"}
+      footer={<a className={panelStyles.link} href="/drive">Or drive it yourself →</a>}
+    />
   );
 }

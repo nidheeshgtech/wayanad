@@ -20,6 +20,9 @@ import type { ActId } from "@/data/acts";
 /* The car you drive: a compact SUV (Brezza-style, CC BY — public/models/traffic/ATTRIBUTION.md), 4.0 m long, in units
  * of 10 m with +z forward and +x its left. Camera views (C cycles them): behind it, close behind, on the bonnet. */
 const LENGTH = 0.4;
+/** Phase one ends just past the Lakkidi gate: the car brakes by itself over the last `brake` units and stops `after`
+ * units (400 m) beyond the arch, and the HUD says goodbye. */
+const GATE = { after: 40, brake: 12 };
 /** A soft round glow for the lamp sprites (one texture for all). */
 let glowTex: CanvasTexture | null = null;
 function glowTexture() {
@@ -157,7 +160,10 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     if (game.reset !== lastReset.current || game.leg !== lastLeg.current) { lastReset.current = game.reset; lastLeg.current = game.leg; settle(); cam.current.ready = false; }
     let alpha = 1;
     if (game.started && game.phase === "drive" && !game.paused) {
+      const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
+      if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       alpha = simulate(road, dt);
+      if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       if (game.leg === 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
         const knock = collidePlayer(trafficControl.fleet, curve, road.widen, p);
@@ -183,7 +189,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
       const places = scrollState.places.filter((pl) => pl.t <= t);
       game.bends = scrollState.bends.filter((b) => b <= t).length;
       game.place = t < scrollState.arch ? (game.bends ? `Hairpin ${game.bends}` : "Adivaram") : places.length ? places[places.length - 1].name : "Lakkidi";
-      [game.next, game.nextM] = t < scrollState.arch ? ["Lakkidi gate", (scrollState.arch - t) * L * 10] : ["Kalpetta", (1 - t) * L * 10];
+      [game.next, game.nextM] = t < scrollState.arch ? ["Lakkidi gate", (scrollState.arch - t) * L * 10] : ["End of the drive", Math.max(0, scrollState.arch * L + GATE.after - s) * 10];
     } else {
       const places = (forestRoad()?.places ?? []).filter((pl) => pl.t <= t);
       game.place = places.length ? places[places.length - 1].name : "Sulthan Bathery";

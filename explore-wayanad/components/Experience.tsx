@@ -23,7 +23,7 @@ export default function Experience() {
   const tier = useCapability();
   return (
     <Hud>
-      <Preroll />
+      <Preroll scene={tier === null ? null : tier !== "video"} />
       <SmoothScroll />
       <MiniMap />
       {tier && tier !== "video" && <Scene tier={tier} />}

@@ -25,8 +25,9 @@ const fresh = () => ({
   assist: 0.65,                               // how much of the road's own curve is steered for you (0 = all yours)
   braking: false, scrape: 0, bump: 0,         // for lights, camera shake and sound
   wheel: 0,                                   // wheel rotation, radians (rolls with distance)
-  /** "between": the Kalpetta → Sulthan Bathery card is up; "finished": stopped at the border gate */
-  phase: "drive" as "drive" | "between" | "finished",
+  /** "between": the Kalpetta → Sulthan Bathery card is up; "finished": stopped at the border gate; "gate": the end of
+   * phase one, stopped just past the Lakkidi gate */
+  phase: "drive" as "drive" | "between" | "finished" | "gate",
   odometer: 0, clock: 0,                      // units driven, seconds driving
   reset: 0,                                   // bumped to put the car back in lane
   view: "chase" as View,                      // camera (C cycles): behind, close behind, on the bonnet

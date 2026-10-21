@@ -52,7 +52,7 @@ export default function MiniMap() {
 
   if (!map) return null;
   return (
-    <div ref={root} className={styles.map} aria-hidden>
+    <div ref={root} className={styles.map} aria-hidden data-hud>
       <svg width={map.w} height={map.h} viewBox={`0 0 ${map.w} ${map.h}`}>
         <path d={map.d} className={styles.road} />
         {map.bends.map(([x, y], i) => (

@@ -1,8 +1,15 @@
 "use client";
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import type { Object3D } from "three";
+import { DefaultLoadingManager, type Object3D } from "three";
 import { loading } from "@/lib/loading";
+
+// models and textures report to the loading state (lib/loading) through three's default loading manager
+if (typeof window !== "undefined" && !(globalThis as { __wayanadLoadingHooked?: boolean }).__wayanadLoadingHooked) {
+  (globalThis as { __wayanadLoadingHooked?: boolean }).__wayanadLoadingHooked = true;
+  const prev = DefaultLoadingManager.onProgress;
+  DefaultLoadingManager.onProgress = (url, loaded, total) => { loading.loaded = loaded; loading.total = total; prev?.(url, loaded, total); };
+}
 
 const SETTLE = 8; // frames with nothing loading before warming up (React mounts what the loads unblocked)
 
