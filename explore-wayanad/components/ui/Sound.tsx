@@ -7,7 +7,8 @@ import styles from "./Hud.module.scss";
  * Opt-in ambience, off by default: low-passed brown noise, like distant wind and rain.
  * A stand-in from the prototype until the on-site recordings and Howler (Phase 4).
  */
-export default function Sound() {
+/** `icon`: a speaker icon instead of the words (drive mode's button row), with the row's `className`. */
+export default function Sound({ icon = false, className }: { icon?: boolean; className?: string } = {}) {
   const [on, setOn] = useState(false);
   const audio = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null);
 
@@ -31,5 +32,10 @@ export default function Sound() {
     setOn(next);
   };
 
-  return <button type="button" className={styles.mute} aria-pressed={on} onClick={toggle}>{on ? "Sound on" : "Sound off"}</button>;
+  if (!icon) return <button type="button" className={styles.mute} aria-pressed={on} onClick={toggle}>{on ? "Sound on" : "Sound off"}</button>;
+  return (
+    <button type="button" className={className} aria-pressed={on} onClick={toggle} title={on ? "Sound on" : "Sound off"} aria-label={on ? "Sound on" : "Sound off"}>
+      <svg viewBox="0 0 24 24" aria-hidden><path d="M11 5 6 9H3v6h3l5 4z" />{on ? <><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" /></> : <path d="m16 9.5 5 5m0-5-5 5" />}</svg>
+    </button>
+  );
 }

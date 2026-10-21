@@ -23,7 +23,10 @@ export function useCapability(): Tier | null {
       if (performance.now() - start < 800) requestAnimationFrame(tick);
       else {
         const fps = frames / 0.8;
-        setTier(fps > 50 && mem >= 4 ? "full" : fps > 30 ? "lite" : "video");
+        // a blank page holds 60 fps on any phone, so the probe alone sent phones the desktop stack; a touch-first
+        // device (input type, not screen size) is capped at lite
+        const touch = matchMedia("(pointer: coarse)").matches;
+        setTier(fps > 50 && mem >= 4 && !touch ? "full" : fps > 30 ? "lite" : "video");
       }
     };
     requestAnimationFrame(tick);

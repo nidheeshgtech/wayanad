@@ -12,6 +12,16 @@ export const LEVELS = [
   { dpr: 1, forest: 0.7, shadows: false },  // 4 low
   { dpr: 0.85, forest: 0.55, shadows: false }, // 5 lowest (auto only)
 ];
+/** The lite tier (phones): no shadows already, and a sharp picture matters more on a small high-density screen than
+ * forest density, so the resolution never drops below 1.25 and the forest thins first. */
+export const LITE_LEVELS = [
+  { dpr: 2, forest: 0.9, shadows: false },
+  { dpr: 1.75, forest: 0.8, shadows: false },
+  { dpr: 1.5, forest: 0.75, shadows: false },
+  { dpr: 1.5, forest: 0.65, shadows: false },
+  { dpr: 1.25, forest: 0.6, shadows: false },
+  { dpr: 1.25, forest: 0.55, shadows: false },
+];
 export const FIXED: Record<Exclude<QualityMode, "auto">, number> = { high: 0, medium: 2, low: 4 };
 
 type QualityState = { mode: QualityMode; level: number };

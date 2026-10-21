@@ -67,9 +67,9 @@ export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "st
   const small = tier === "lite";
   return (
     <Canvas
-      dpr={[1, small ? 1.5 : 2]}
+      dpr={[1, 2]}
       camera={{ fov: 60, near: 0.02, far: 400 }}
-      gl={{ antialias: !small, powerPreference: "high-performance" }}
+      gl={{ antialias: true, powerPreference: "high-performance" }} // MSAA is cheap on phone (tile) GPUs and removes the jagged edges
       shadows={small ? false : "soft"}
       onCreated={({ gl }) => { gl.toneMappingExposure = 1.0; }}
       style={{ position: "fixed", inset: 0, zIndex: 0 }}
@@ -146,7 +146,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Rain count={small ? 2000 : 4500} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar curve={curve} forest={forest?.curve ?? null} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
-      <Quality start={small ? 2 : 0} />
+      <Quality start={small ? 2 : 0} lite={small} />
       <PerfProbe />
       <Warmup needs={mode === "drive" ? ["mountain-traffic", "player-car"] : ["mountain-traffic"]} />
       {process.env.NODE_ENV !== "production" && <WeatherDebug />}

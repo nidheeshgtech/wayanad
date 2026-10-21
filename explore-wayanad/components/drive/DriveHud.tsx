@@ -16,6 +16,18 @@ import styles from "./Drive.module.scss";
  * screens: start, pause, the Kalpetta → Sulthan Bathery card, and the finish.
  */
 const VIEW_NAME: Record<View, string> = { chase: "Behind", near: "Close", hood: "Bonnet" };
+/** Line icons for the controls (24 px grid, stroked in the text colour). */
+const ICON = {
+  horn: <><path d="M3 10h3l11-5v14L6 14H3z" /><path d="m7 14 1.5 5H11l-1.2-4" /></>,
+  view: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="m8 7 2-3h4l2 3" /><circle cx="12" cy="13.5" r="3.5" /></>,
+  reset: <><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" /><path d="M4 4v4.5h4.5" /></>,
+  pause: <path d="M8 5v14M16 5v14" />,
+  left: <path d="m15 18-6-6 6-6" />,
+  right: <path d="m9 18 6-6-6-6" />,
+  go: <path d="m6 15 6-6 6 6" />,
+  brake: <path d="m6 9 6 6 6-6" />,
+};
+const Icon = ({ name }: { name: keyof typeof ICON }) => <svg viewBox="0 0 24 24" aria-hidden>{ICON[name]}</svg>;
 const QUALITY: QualityMode[] = ["auto", "high", "medium", "low"];
 
 /** The next camera view; remembered for next time. */
@@ -105,22 +117,22 @@ export default function DriveHud() {
       <div ref={note} className={styles.note} aria-live="polite" />
 
       <div className={styles.buttons}>
-        <button type="button" ref={ref("horn")} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)">Horn</button>
-        <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title="Camera (C)">View: {VIEW_NAME[view]}</button>
-        <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)">Reset</button>
-        <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause">❚❚</button>
+        <button type="button" ref={ref("horn")} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
+        <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
+        <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
+        <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
+        <Sound icon />
       </div>
-      <Sound />
 
       {/* touch controls (shown on touch screens) */}
       <div className={styles.touch} aria-hidden>
         <div className={styles.steer}>
-          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? 1 : 0; })}>◀</button>
-          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}>▶</button>
+          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? 1 : 0; })}><Icon name="left" /></button>
+          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}><Icon name="right" /></button>
         </div>
         <div className={styles.pedals}>
-          <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}>Brake</button>
-          <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}>Go</button>
+          <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /></button>
+          <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /></button>
         </div>
       </div>
 

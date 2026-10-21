@@ -2,7 +2,7 @@
   position: fixed; z-index: 4; right: 20px; top: calc(110px + env(safe-area-inset-top, 0px)); pointer-events: none;
   padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: rgba(8, 24, 20, .55); backdrop-filter: blur(6px);
   opacity: 0; transition: opacity .5s;
-  @media (max-width: 719px) { transform: scale(.75); transform-origin: top right; }
+  @media (max-width: 719px) { transform: scale(.5); transform-origin: top right; right: 12px; }
 }
 .road { fill: none; stroke: var(--mute); stroke-width: 1.5; stroke-linejoin: round; }
 .bend { fill: var(--bg); stroke: var(--dim); stroke-width: 1; }

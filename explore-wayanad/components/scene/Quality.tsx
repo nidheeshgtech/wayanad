@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { InstancedMesh, Material, Mesh } from "three";
 import { perfStats } from "@/lib/perf";
-import { FIXED, LEVELS, quality } from "@/lib/quality";
+import { FIXED, LEVELS as DESKTOP, LITE_LEVELS, quality } from "@/lib/quality";
 import { loading } from "@/lib/loading";
 
 /* Auto quality, judged on typical frames rather than the average: a frame over HITCH ms is a one-off (a shader
@@ -20,11 +20,13 @@ const HOLD_DOWN = 60; // s to stay down after a step up didn't hold
 /**
  * Applies the quality level (render resolution, forest density, shadows; lib/quality LEVELS). Fixed modes just apply
  * their level. Auto steps down after two slow windows in a row, and tries one step up after a long smooth spell —
- * going straight back if that doesn't hold, then not trying again for a while. `start` lets the lite tier begin lower.
+ * going straight back if that doesn't hold, then not trying again for a while. `start` lets the lite tier begin lower;
+ * `lite` uses the phone ladder (LITE_LEVELS).
  * Vegetation meshes are found by name ("veg-*") and keep their full count in userData.full, so thinning is just
  * drawing fewer of the (randomly ordered) instances.
  */
-export default function Quality({ start = 0 }: { start?: number }) {
+export default function Quality({ start = 0, lite = false }: { start?: number; lite?: boolean }) {
+  const LEVELS = lite ? LITE_LEVELS : DESKTOP;
   const { gl, scene, setDpr } = useThree();
   const applied = useRef(-1), mode = useRef(quality.mode);
   const s = useRef({ t: -WARMUP, frames: [] as number[], slow: 0, smooth: 0, trial: false, holdUntil: 0, clock: 0 });
