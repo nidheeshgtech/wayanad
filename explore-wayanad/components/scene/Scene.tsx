@@ -162,7 +162,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       )}
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
-      <Rain count={small ? 2000 : 4500} />
+      <Rain count={small ? 5000 : 9000} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar curve={curve} forest={forest?.curve ?? null} /></Suspense>}
       {mode === "drive" && <ImpactFx />}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />

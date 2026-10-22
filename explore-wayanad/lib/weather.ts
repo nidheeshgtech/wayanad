@@ -39,15 +39,14 @@ let showery = false;
 type Shower = { from: number; to: number; kind: WeatherName };
 let showers: Shower[] = [], km = 0, lastKm = 0;
 const RAINY: WeatherName[] = ["drizzle", "rain", "downpour"];
-/** A new set of showers: the first 1.5–4 km in, then every 2–8 km, each 0.8–3 km long; drizzle, rain or a downpour.
- * About one drive in seven stays dry. */
+/** A new set of showers: the first always early (0.6–1.6 km in, so every drive gets one), then one every 1.5–5 km,
+ * each 1–3 km long, drizzle, rain or a downpour; about one in five of the later ones doesn't come (dry stretches). */
 function planShowers(): Shower[] {
-  if (random() < 0.15) return [];
   const out: Shower[] = [];
-  for (let at = 1.5 + random() * 2.5; at < 80; ) {
-    const len = 0.8 + random() * 2.2, r = random();
-    out.push({ from: at, to: at + len, kind: r < 0.3 ? "drizzle" : r < 0.72 ? "rain" : "downpour" });
-    at += len + 2 + random() * 6;
+  for (let at = 0.6 + random(), first = true; at < 80; first = false) {
+    const len = 1 + random() * 2, r = random();
+    if (first || random() > 0.2) out.push({ from: at, to: at + len, kind: r < 0.3 ? "drizzle" : r < 0.72 ? "rain" : "downpour" });
+    at += len + 1.5 + random() * 3.5;
   }
   return out;
 }
@@ -63,7 +62,9 @@ export function setDriveWeather() {
 }
 
 /** Current weather. `sun` (0–1) is how much direct sunlight gets through, with slow cloud shadows passing over. */
-export const weather = { cloud: 0.06, mist: 0, rain: 0, wet: 0, sun: 1, gloom: 0, state: "clear" as WeatherName };
+type WeatherState = { cloud: number; mist: number; rain: number; wet: number; sun: number; gloom: number; state: WeatherName };
+/** (one object for the page, like lib/game's: the scene and the HUD load in different chunks) */
+export const weather: WeatherState = ((globalThis as { __wayanadWeather?: WeatherState }).__wayanadWeather ??= { cloud: 0.06, mist: 0, rain: 0, wet: 0, sun: 1, gloom: 0, state: "clear" });
 export const wetUniform = { value: 0 };
 /** Cloud shadows sliding over the land: `uCloudCover` is how broken the cloud is (0 clear or full, 1 half-covered),
  * `uWeatherTime` drives the drift. Used by CLOUD_SHADOW_GLSL in the ground, road and plant shaders. */
