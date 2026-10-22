@@ -3,7 +3,6 @@
 
 .top { position: fixed; z-index: 5; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 16px; padding: 16px 20px; pointer-events: none;
   background: linear-gradient(rgba(8, 20, 16, .55), transparent); }
-.back { pointer-events: auto; color: var(--mute); font-size: 12px; text-decoration: none; padding: 8px 0; &:hover { color: var(--ink); } }
 .where { flex: 1; text-align: center; }
 .place { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(20px, 3vw, 28px); line-height: 1.1; }
 .next { font-size: 12px; color: var(--mute); margin-top: 4px; }
@@ -44,7 +43,7 @@
   svg { width: 26px; height: 26px; }
   &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
 
-// phones: nothing over the middle of the road. The place title goes, "Back to the story" waits for a tap, the speed
+// phones: nothing over the middle of the road. The place title goes, the speed
 // sits top-left, the small buttons top-right (the horn has its own big one), the driving controls along the bottom.
 @media (pointer: coarse) {
   .touch { display: block; }
@@ -54,9 +53,6 @@
   .where { display: none; }
   .speed { order: -1; text-align: left; margin-right: auto; b { font-size: 34px; } }
   .km { justify-content: start; margin-top: 6px; min-width: 104px; }
-  .back { position: absolute; left: 14px; top: calc(100px + env(safe-area-inset-top, 0px)); padding: 8px 14px; border-radius: 999px;
-    border: 1px solid var(--line); background: rgba(8, 20, 16, .7); color: var(--ink); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s; }
-  .top[data-show] .back { opacity: 1; pointer-events: auto; }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;
     button { width: 32px; height: 32px; svg { width: 15px; height: 15px; } } }
   .buttons .hornKey { display: none; }

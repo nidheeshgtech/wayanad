@@ -13,7 +13,7 @@ import styles from "./Drive.module.scss";
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
  * Esc) pause, H horn, C camera, R back on the road. Every on-screen button does the same as its key and lights up
  * when the key is used. Touch: big steer buttons bottom-left, horn bottom-centre, brake and accelerator bottom-right;
- * camera, reset, pause and sound small in the top-right corner. "Back to the story" shows for a few seconds after a tap.
+ * camera, reset, pause and sound small in the top-right corner. The way back to the story is in the pause menu.
  * Readouts are written straight into the DOM each frame (no React state per frame). React state only for the
  * screens: start, pause, the Kalpetta → Sulthan Bathery card, and the finish.
  */
@@ -50,19 +50,6 @@ export default function DriveHud() {
   const speed = useRef<HTMLElement>(null), place = useRef<HTMLDivElement>(null), next = useRef<HTMLDivElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0 }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
-
-  // touch: the "Back to the story" link stays hidden until you tap the screen, then shows for a few seconds
-  const top = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let timer = 0;
-    const tap = (e: PointerEvent) => {
-      if (e.pointerType !== "touch" || (e.target as Element).closest("button")) return;
-      top.current?.setAttribute("data-show", ""); clearTimeout(timer);
-      timer = window.setTimeout(() => top.current?.removeAttribute("data-show"), 3000);
-    };
-    addEventListener("pointerdown", tap);
-    return () => { removeEventListener("pointerdown", tap); clearTimeout(timer); };
-  }, []);
 
   // the camera you used last time
   useEffect(() => { try { const v = localStorage.getItem("drive-view") as View | null; if (v && VIEWS.includes(v)) { game.view = v; setView(v); } } catch {} }, []);
@@ -127,8 +114,7 @@ export default function DriveHud() {
   return (
     <>
       <div data-hud>
-      <div ref={top} className={styles.top}>
-        <a href="/" className={styles.back}>← Back to the story</a>
+      <div className={styles.top}>
         <div className={styles.where}><div ref={place} className={styles.place}>Adivaram</div><div ref={next} className={styles.next} /></div>
         <div className={styles.speed}>
           <b ref={speed}>0</b><small>km/h</small>
@@ -183,7 +169,7 @@ export default function DriveHud() {
               <ControlRow label="Steer"><kbd>◀</kbd><kbd>▶</kbd></ControlRow>
               <ControlRow label="Accelerate · brake"><kbd>▲</kbd><kbd>▼</kbd></ControlRow>
               <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
-              <ControlRow label="Back to the story"><kbd>tap the road</kbd></ControlRow>
+              <ControlRow label="Back to the story"><kbd>pause</kbd></ControlRow>
             </div>
             <p>Sound the horn behind a slow vehicle and it gives way where it&apos;s safe. Oncoming traffic doesn&apos;t, on the hairpins.</p>
           </>}
