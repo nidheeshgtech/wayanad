@@ -10,6 +10,13 @@
 .speed { text-align: right; font-family: var(--font-serif), Georgia, serif; line-height: 1;
   b { display: block; font-weight: 300; font-size: 44px; color: var(--amber); font-variant-numeric: tabular-nums; }
   small { font: 12px var(--font-sans), sans-serif; color: var(--mute); } }
+// distance along the route: "KM 4.8 / 12.4" over a hairline of progress
+.km { margin-top: 10px; display: grid; grid-template-columns: auto auto auto; justify-content: end; align-items: baseline; column-gap: 4px;
+  font: 500 11px/1 var(--font-sans), sans-serif; letter-spacing: .08em; color: var(--dim);
+  em { font-style: normal; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  span:last-of-type { font-variant-numeric: tabular-nums; }
+  i { grid-column: 1 / -1; display: block; height: 2px; margin-top: 6px; border-radius: 1px; background: rgba(238, 242, 238, .14); overflow: hidden; }
+  u { display: block; height: 100%; background: var(--amber); transform-origin: left; transform: scaleX(0); text-decoration: none; } }
 .note { position: fixed; z-index: 5; left: 50%; top: 96px; transform: translateX(-50%); font-size: 12px; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
 
 .buttons svg, .steer svg, .pedals svg, .bigHorn svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
@@ -46,7 +53,8 @@
   .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: linear-gradient(rgba(8, 20, 16, .4), transparent); }
   .where { display: none; }
   .speed { order: -1; text-align: left; margin-right: auto; b { font-size: 34px; } }
-  .back { position: absolute; left: 14px; top: calc(62px + env(safe-area-inset-top, 0px)); padding: 8px 14px; border-radius: 999px;
+  .km { justify-content: start; margin-top: 6px; min-width: 104px; }
+  .back { position: absolute; left: 14px; top: calc(100px + env(safe-area-inset-top, 0px)); padding: 8px 14px; border-radius: 999px;
     border: 1px solid var(--line); background: rgba(8, 20, 16, .7); color: var(--ink); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .25s; }
   .top[data-show] .back { opacity: 1; pointer-events: auto; }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;

@@ -33,6 +33,7 @@ const fresh = () => ({
   view: "chase" as View,                      // camera (C cycles): behind, close behind, on the bonnet
   // for the HUD, filled in by the car each frame
   place: "Adivaram", next: "Lakkidi gate", nextM: 0, bends: 0,
+  km: 0, kmTotal: 0,                          // along the road from Adivaram, and to the end of the drive
 });
 /** One object for the page (the HUD and the 3D scene load in different chunks). */
 export const game: ReturnType<typeof fresh> = ((globalThis as { __wayanadGame?: ReturnType<typeof fresh> }).__wayanadGame ??= fresh());

@@ -46,6 +46,7 @@ function restart() {
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const speed = useRef<HTMLElement>(null), place = useRef<HTMLDivElement>(null), next = useRef<HTMLDivElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0 }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
@@ -97,6 +98,9 @@ export default function DriveHud() {
     let raf = 0;
     const tick = () => {
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
+      if (km.current) km.current.textContent = game.km.toFixed(1);
+      if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
+      if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
       if (place.current) place.current.textContent = game.place;
       if (next.current) next.current.textContent = `${game.next} · ${game.nextM >= 1000 ? `${(game.nextM / 1000).toFixed(1)} km` : `${Math.round(game.nextM / 10) * 10} m`}`;
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
@@ -126,7 +130,10 @@ export default function DriveHud() {
       <div ref={top} className={styles.top}>
         <a href="/" className={styles.back}>← Back to the story</a>
         <div className={styles.where}><div ref={place} className={styles.place}>Adivaram</div><div ref={next} className={styles.next} /></div>
-        <div className={styles.speed}><b ref={speed}>0</b><small>km/h</small></div>
+        <div className={styles.speed}>
+          <b ref={speed}>0</b><small>km/h</small>
+          <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
+        </div>
       </div>
       <div ref={note} className={styles.note} aria-live="polite" />
 

@@ -1,7 +1,7 @@
 'use client';
 import { use, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, VEHICLES, vehiclePose, type Player, type Vehicle } from '@/lib/traffic';
@@ -22,7 +22,25 @@ function load(name: string) {
 let assets: Promise<(Group | null)[]> | null = null;
 const loadAssets = () => assets ??= Promise.all(VEHICLES.map(v => load(v.name)));
 const widen = (t: number) => roadShapeAt(t).widen;
-/** On the road, wheels out of the bank: the check Traffic uses to hide unsafe vehicles, for a pose. */
+/** Where a vehicle drawn at `pose` would poke off the asphalt (giving way at its edge, a wide bus round a bend) or
+ * into the bank (small mismatches between the baked terrain and the road cut): the nudge that puts it back — inward
+ * toward the road's centre line and up over the ground — written into `out`. Vehicles used to be hidden in those
+ * spots, which made them vanish and reappear as they came toward you. */
+const corner = new Vector3(), centre = new Vector3(), inward = new Vector3(), tmpNudge = new Vector3();
+function nudgeFor(curve: CatmullRomCurve3, v: Vehicle, pose: { position: Vector3; rotation: Quaternion }, out: Vector3) {
+  const spec = VEHICLES[v.kind], L = curve.getLength();
+  curve.getPointAt(Math.min(1, Math.max(0, v.distance / L)), centre);
+  let off = 0, lift = 0;
+  inward.set(0, 0, 0);
+  for (const z of [-spec.length / 2, spec.length / 2]) for (const x of [-spec.width / 2, spec.width / 2]) {
+    corner.set(x, .025, z).applyQuaternion(pose.rotation).add(pose.position);
+    const over = roadDistance(corner.x, corner.z) - .39;
+    if (over > off) { off = over; inward.set(centre.x - corner.x, 0, centre.z - corner.z).normalize(); }
+    lift = Math.max(lift, height(corner.x, corner.z) - corner.y);
+  }
+  return out.copy(inward).multiplyScalar(off).setY(Math.min(lift, .12));
+}
+/** On the road, wheels out of the bank: whether a vehicle can stand at its edge here (giving way needs room). */
 function footprintOk(curve: CatmullRomCurve3, v: Vehicle) {
   const spec = VEHICLES[v.kind], pose = vehiclePose(curve, v, widen);
   for (const z of [-spec.length / 2, spec.length / 2]) for (const x of [-spec.width / 2, spec.width / 2]) {
@@ -51,7 +69,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
     model.scale.set(spec.width / size.x, spec.height / size.y, scale); model.position.set(-center.x * spec.width / size.x, -bounds.min.y * spec.height / size.y, -center.z * scale);
@@ -87,7 +105,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if (geo) { people = new Mesh(geo, occupantMaterial); people.castShadow = false; people.receiveShadow = true; people.name = 'occupants'; root.add(people); }
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
-    return { root, lights, owned, people };
+    return { root, lights, owned, people, offset: new Vector3(), fresh: true };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useFrame(({ camera }, dt) => frameTimed('traffic', () => {
@@ -119,17 +137,22 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const st = trafficControl.staged >= 0 ? fleet.find(f => f.id === trafficControl.staged) : undefined; // dev review only
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
     let visible = 0;
-    const dusk = duskness();
+    const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
     for (let i = 0; i < fleet.length; i++) {
       const v = fleet[i], o = objects[i], pose = vehiclePose(curve, v, widen);
-      o.root.position.copy(pose.position); o.root.quaternion.copy(pose.rotation);
       o.root.userData.mode = v.mode ?? 'cruise'; // read by the dev review snapshot
       const far2 = camera.position.distanceToSquared(pose.position);
-      o.root.visible = far2 < (small ? 28 : 50) ** 2 && v.distance > 3 && v.distance < curve.getLength() - 3;
+      // in range, with a margin both ways so a vehicle near the limit doesn't flicker in and out; and not at the ends
+      // of the road, where the fleet wraps round from one end to the other
+      const range = o.root.visible ? view + 4 : view;
+      o.root.visible = far2 < range * range && v.distance > 3 && v.distance < length - 3;
+      if (o.root.visible) {
+        // kept on the asphalt and out of the bank (eased, so the nudge itself never jumps)
+        o.offset.lerp(nudgeFor(curve, v, pose, tmpNudge), o.fresh ? 1 : ease); o.fresh = false;
+        o.root.position.copy(pose.position).add(o.offset); o.root.quaternion.copy(pose.rotation);
+        visible++;
+      } else o.fresh = true;
       if (o.people) o.people.visible = far2 < 14 ** 2; // people inside only where you could see them
-      // Existing baked terrain has isolated cut mismatches: conservatively omit unsafe footprints.
-      if (o.root.visible && !footprintOk(curve, v)) o.root.visible = false;
-      if (o.root.visible) visible++;
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
       for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist + dusk) * .35 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6;
       // the little lamp quads only when they're lit (rain, mist, a dark sky): in daylight they were two draw calls a

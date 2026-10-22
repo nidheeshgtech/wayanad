@@ -21,6 +21,7 @@ import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
 import Waterfalls from "./Waterfalls";
+import RoadStreams from "./RoadStreams";
 import Monkeys from "./Monkeys";
 import Pedestrians from "./Pedestrians";
 import Rain from "./Rain";
@@ -138,6 +139,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
       <Waterfalls curve={curve} />
+      <RoadStreams curve={curve} small={small} />
       <Suspense fallback={null}><Monkeys curve={curve} /></Suspense>
       <Pedestrians curve={curve} small={small} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />

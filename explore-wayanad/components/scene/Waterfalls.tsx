@@ -3,17 +3,20 @@ import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
-  AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, DataTexture, DoubleSide, Group, Mesh,
+  AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, CircleGeometry, DataTexture, DoubleSide, Group, Mesh,
   MeshStandardMaterial, Points, PointsMaterial, Vector3, type WebGLProgramParametersWithUniforms,
 } from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { SECTION, height, roadDistance, roadShapeAt } from "@/lib/terrain";
 import { weather } from "@/lib/weather";
 import { game } from "@/lib/game";
 import { waterSound } from "@/lib/water";
 
-/* Monsoon waterfalls: streams pouring down the tallest rock cuts beside the road, and white falls on the far slopes,
- * spread along the climb and on across the plateau to Kalpetta (one every couple of km, at least 700 m apart). Wide enough (4–6 m) to read through the roadside plants; they run a
- * little thinner in dry weather and full and white in and after rain (weather.wet). Units of 10 m. */
+/* Monsoon waterfalls: streams pouring down the rock cuts beside the road (small trickles on low cuts, wider falls down
+ * the tall faces) and big white falls off the far cliffs, spread along the climb and on across the plateau to Kalpetta.
+ * Each has wet dark rock and a band of moss around it, a foam pool where it lands and spray and mist rising from it.
+ * They run thinner in dry weather and full and white in and after rain (weather.wet). Everything is merged into one
+ * mesh per material (7 draw calls for all of them). Units of 10 m. */
 const ROADSIDE = { count: 14, spacing: 70, minFace: 0.35, probe: [SECTION.drain + 0.1, SECTION.drain + 3] as [number, number] };
 const DISTANT = { count: 6, from: 9, to: 20, steps: 16 };
 
@@ -105,7 +108,8 @@ function roadsideFalls(curve: CatmullRomCurve3): Fall[] {
       if (h < ROADSIDE.minFace) continue;
       const footAt = pt.clone().addScaledVector(out, foot + widen + 0.02);
       const top = new Vector3(lipAt.x, lipY, lipAt.z), bottom = new Vector3(footAt.x, bed, footAt.z);
-      found.push({ s, h, path: overGround(top, bottom, 28), top, bottom, width: 0.35 + Math.min(0.25, h * 0.06), facing: out.clone().negate(), distant: false });
+      // small trickles on low cuts (~1.5 m wide), up to ~6 m wide down the tallest faces
+      found.push({ s, h, path: overGround(top, bottom, 28), top, bottom, width: 0.12 + Math.min(0.45, h * 0.12), facing: out.clone().negate(), distant: false });
     }
   }
   // the tallest faces, spread out along the climb
@@ -139,10 +143,24 @@ function distantFalls(curve: CatmullRomCurve3): Fall[] {
     for (let i = 0; i < DISTANT.steps * 4; i++) { const g = grad(p.x, p.z); if (g.length() < 0.35) break; p.addScaledVector(g.normalize(), -0.125); p.y = height(p.x, p.z); path.push(p.clone()); }
     if (c.at.y - p.y < 2) continue; // at least 20 m of drop
     const facing = new Vector3(c.at.x - p.x, 0, c.at.z - p.z).normalize().negate();
-    out.push({ path, top: c.at.clone(), bottom: p.clone(), width: 0.7, facing, distant: true });
+    // big falls off the high cliffs: wider the longer the drop (up to ~14 m), so they read through the trees from afar
+    out.push({ path, top: c.at.clone(), bottom: p.clone(), width: 0.4 + Math.min(1.0, (c.at.y - p.y) * 0.12), facing, distant: true });
   }
   return out;
 }
+
+/** Foam where the water lands: churning white in the middle of a disc, breaking up toward its edge. */
+const foam = (time: { value: number }, flow: { value: number }) => (shader: WebGLProgramParametersWithUniforms) => {
+  shader.uniforms.uTime = time; shader.uniforms.uFlow = flow;
+  shader.fragmentShader = shader.fragmentShader
+    .replace("#include <common>", `#include <common>\n${WATER_GLSL}`)
+    .replace("#include <map_fragment>", `
+      vec2 q = vMapUv - 0.5; float r = length(q) * 2.0, a = atan(q.y, q.x);
+      float n = vnoise(vec2(a * 3.0, r * 5.0 - uTime * 0.9)) * 0.6 + vnoise(vec2(a * 9.0 + 3.0, r * 14.0 - uTime * 1.7)) * 0.4;
+      float body = smoothstep(0.35, 0.75, n + (1.0 - r) * 0.45);
+      diffuseColor.rgb = mix(vec3(0.5, 0.58, 0.6), vec3(0.95, 0.97, 0.98), body);
+      diffuseColor.a = (1.0 - smoothstep(0.55, 1.0, r)) * (0.25 + 0.6 * body) * mix(0.55, 1.0, uFlow);`);
+};
 
 export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
   const built = useMemo(() => timed("waterfalls", () => {
@@ -155,45 +173,67 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     };
     const near = make(2.2), far = make(1.2);
     const wet = new MeshStandardMaterial({ color: 0x14181a, roughness: 0.18, transparent: true, opacity: 0.55, depthWrite: false });
+    const moss = new MeshStandardMaterial({ color: 0x24401f, roughness: 0.7, transparent: true, opacity: 0.45, depthWrite: false });
+    const pool = new MeshStandardMaterial({ map: white, transparent: true, depthWrite: false, roughness: 0.3, metalness: 0 });
+    pool.onBeforeCompile = foam(time, flow); pool.customProgramCacheKey = () => "waterfall-foam";
     const spray = new PointsMaterial({ map: sprayTexture(), size: 0.05, transparent: true, depthWrite: false, opacity: 0.35, blending: AdditiveBlending, color: 0xdfe6ea });
+    const mist = new PointsMaterial({ map: sprayTexture(), size: 0.32, transparent: true, depthWrite: false, opacity: 0.1, color: 0xe6ecef });
     const group = new Group(); group.name = "waterfalls";
     const falls = [...roadsideFalls(curve), ...distantFalls(curve)];
-    if (typeof window !== "undefined") (window as unknown as { __wayanadFalls?: unknown }).__wayanadFalls = falls.map((f) => ({ top: f.top.toArray(), bottom: f.bottom.toArray(), facing: f.facing.toArray(), distant: f.distant }));
-    if (process.env.NODE_ENV !== "production") console.info("[waterfalls]", JSON.stringify(falls.map((f) => ({ s: (f as { s?: number }).s ?? null, drop: +(f.top.y - f.bottom.y).toFixed(2), distant: f.distant }))));
-    const sprays: { points: Points; base: Vector3; seeds: Float32Array }[] = [];
+    if (typeof window !== "undefined") (window as unknown as { __wayanadFalls?: unknown }).__wayanadFalls = falls.map((f) => ({ top: f.top.toArray(), bottom: f.bottom.toArray(), facing: f.facing.toArray(), distant: f.distant, width: f.width }));
+    if (process.env.NODE_ENV !== "production") console.info("[waterfalls]", JSON.stringify(falls.map((f) => ({ s: (f as { s?: number }).s ?? null, drop: +(f.top.y - f.bottom.y).toFixed(2), width: +f.width.toFixed(2), distant: f.distant }))));
+    const parts = { near: [] as BufferGeometry[], far: [] as BufferGeometry[], wet: [] as BufferGeometry[], moss: [] as BufferGeometry[], pool: [] as BufferGeometry[] };
+    // spray (fine, bright, at every foot) and mist (big soft puffs, at the bigger falls): one Points each for all falls
+    const sprayAt: { base: Vector3; k: number; from: number; n: number }[] = [], mistAt: typeof sprayAt = [];
+    let sprayN = 0, mistN = 0;
     for (const f of falls) {
-      // the stream: a strip draped over the ground along its path, lifted a little; the wet rock: a wider strip under it
-      const stream = new Mesh(drape(f.path, f.width, f.distant ? 0.08 : 0.06), f.distant ? far : near); stream.renderOrder = 2;
-      const rock = new Mesh(drape(f.path, f.width * 2.4, f.distant ? 0.06 : 0.045), wet); rock.renderOrder = 1;
-      group.add(rock, stream);
-      // spray where it lands
-      {
-        const n = f.distant ? 24 : 90, seeds = new Float32Array(n * 3), pos = new Float32Array(n * 3);
-        for (let i = 0; i < n; i++) seeds.set([Math.random(), Math.random(), Math.random()], i * 3);
-        const g = new BufferGeometry(); g.setAttribute("position", new BufferAttribute(pos, 3));
-        const points = new Points(g, spray); points.frustumCulled = false; points.renderOrder = 3;
-        group.add(points); sprays.push({ points, base: f.bottom.clone().addScaledVector(f.facing, 0.05), seeds });
-      }
+      const lift = f.distant ? 0.05 : 0.025;
+      (f.distant ? parts.far : parts.near).push(drape(f.path, f.width, lift));
+      parts.wet.push(drape(f.path, f.width * 2.4, lift - 0.01));
+      parts.moss.push(drape(f.path, f.width * 4, lift - 0.018));
+      const base = f.bottom.clone().addScaledVector(f.facing, f.width * 0.5);
+      parts.pool.push(new CircleGeometry(f.width * 1.3, 20).rotateX(-Math.PI / 2).translate(base.x, height(base.x, base.z) + 0.012, base.z));
+      const n = Math.round((f.distant ? 30 : 50) * (0.6 + f.width * 1.5));
+      sprayAt.push({ base: f.bottom.clone().addScaledVector(f.facing, 0.05), k: 0.5 + f.width * 1.2, from: sprayN, n }); sprayN += n;
+      if (f.width > 0.3) { const m = Math.round(6 + f.width * 14); mistAt.push({ base, k: 1 + f.width * 2, from: mistN, n: m }); mistN += m; }
     }
-    return { group, time, flow, sprays, falls };
+    const merged = (list: BufferGeometry[], material: MeshStandardMaterial, order: number) => {
+      if (!list.length) return;
+      const mesh = new Mesh(mergeGeometries(list), material); mesh.renderOrder = order; group.add(mesh);
+      for (const g of list) g.dispose();
+    };
+    merged(parts.moss, moss, 0); merged(parts.wet, wet, 1); merged(parts.pool, pool, 1); merged(parts.near, near, 2); merged(parts.far, far, 2);
+    const cloud = (count: number, material: PointsMaterial) => {
+      const g = new BufferGeometry(); g.setAttribute("position", new BufferAttribute(new Float32Array(count * 3), 3));
+      const points = new Points(g, material); points.frustumCulled = false; points.renderOrder = 3; group.add(points);
+      const seeds = new Float32Array(count * 3); for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
+      return { points, seeds };
+    };
+    const sprays = { ...cloud(sprayN, spray), at: sprayAt }, mists = { ...cloud(mistN, mist), at: mistAt };
+    return { group, time, flow, sprays, mists, falls };
   }), [curve]);
 
   useFrame(({ camera }, dt) => {
     if (game.paused) return;
-    const { time, flow, sprays, falls } = built;
+    const { time, flow, sprays, mists, falls } = built;
     time.value += Math.min(dt, 0.1);
     flow.value += (0.6 + 0.4 * Math.max(weather.wet, weather.rain) - flow.value) * Math.min(1, dt * 0.2);
-    for (const sp of sprays) {
-      const p = sp.points.geometry.getAttribute("position") as BufferAttribute, k = 0.12 + flow.value * 0.18;
-      for (let i = 0; i < p.count; i++) {
-        const a = sp.seeds[i * 3], b = sp.seeds[i * 3 + 1], c = sp.seeds[i * 3 + 2], life = (time.value * (0.25 + c * 0.3) + a) % 1;
-        p.setXYZ(i, sp.base.x + (b - 0.5) * k + Math.sin(a * 40 + time.value) * 0.02, sp.base.y + life * k * 1.1, sp.base.z + (c - 0.5) * k);
+    const t = time.value;
+    // spray: drops thrown up and out from the foot, falling back; mist: slow puffs rising and drifting off
+    for (const [cloud, rise, drift, speed] of [[sprays, 1.1, 0.02, 0.25], [mists, 1.8, 0.08, 0.06]] as const) {
+      const p = cloud.points.geometry.getAttribute("position") as BufferAttribute, sd = cloud.seeds;
+      for (const at of cloud.at) {
+        const k = (0.12 + flow.value * 0.18) * at.k;
+        for (let i = at.from; i < at.from + at.n; i++) {
+          const a = sd[i * 3], b = sd[i * 3 + 1], c = sd[i * 3 + 2], life = (t * (speed + c * speed * 1.2) + a) % 1;
+          p.setXYZ(i, at.base.x + (b - 0.5) * k + Math.sin(a * 40 + t) * drift, at.base.y + life * k * rise, at.base.z + (c - 0.5) * k);
+        }
       }
       p.needsUpdate = true;
     }
-    // the sound of the nearest one (only with the sound on: lib/water)
+    // the sound of the nearest one, louder as you come close (only with the sound on: lib/water)
     let nearest = Infinity;
-    for (const f of falls) if (!f.distant) nearest = Math.min(nearest, camera.position.distanceTo(f.bottom));
+    for (const f of falls) if (!f.distant) nearest = Math.min(nearest, camera.position.distanceTo(f.bottom) / (0.6 + f.width));
     waterSound(nearest, flow.value);
   });
   return <primitive object={built.group} />;

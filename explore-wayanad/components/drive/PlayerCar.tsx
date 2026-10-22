@@ -207,6 +207,8 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
       game.bends = scrollState.bends.filter((b) => b <= t).length;
       game.place = t < scrollState.arch ? (game.bends ? `Hairpin ${game.bends}` : "Adivaram") : places.length ? places[places.length - 1].name : "Lakkidi";
       [game.next, game.nextM] = t < scrollState.arch ? ["Lakkidi gate", (scrollState.arch - t) * L * 10] : ["End of the drive", Math.max(0, scrollState.arch * L + GATE.after - s) * 10];
+      // the km readout: road distance from Adivaram (units of 10 m → km), out of the drive's length to its stop
+      game.km = s / 100; game.kmTotal = (scrollState.arch * L + GATE.after) / 100;
     } else {
       const places = (forestRoad()?.places ?? []).filter((pl) => pl.t <= t);
       game.place = places.length ? places[places.length - 1].name : "Sulthan Bathery";
