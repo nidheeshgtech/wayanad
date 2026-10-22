@@ -152,7 +152,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
   }, [source]);
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
-  const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
+  const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
 
   // before the director and traffic each frame (negative priority runs first and leaves rendering to R3F)
@@ -167,11 +167,15 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
       alpha = simulate(road, dt);
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       if (game.leg === 0 && trafficControl.curve === curve) {
-        const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
+        const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer };
         const knock = collidePlayer(trafficControl.fleet, curve, road.widen, p);
         if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
-        hit(knock); // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h
+        // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
+        // round a vehicle you're touching stays quiet), again only if it gets clearly harder
+        const T = touching.current;
+        if (knock > 0) { if (knock > T.peak + 0.12) { hit(knock); T.peak = knock; } T.clear = 0; }
+        else if ((T.clear += dt) > 0.4) T.peak = 0;
       }
       if (game.leg === 0 && game.s > road.length * 0.995) { game.phase = "between"; game.speed = 0; }
       const stop = FOREST_ROUTE.stop * road.length;

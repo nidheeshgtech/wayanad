@@ -176,7 +176,8 @@ export function interactWithViewer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
 }
 
 /* ---- drive mode: the player's bus among the traffic ---- */
-export type Player = { s: number; lat: number; speed: number; halfL: number; halfW: number };
+/** `steer`: the wheel, −1…1 (lets you creep round a vehicle you're touching: collidePlayer). */
+export type Player = { s: number; lat: number; speed: number; halfL: number; halfW: number; steer?: number };
 /** The lanes the player's bus covers: its own (left, 1) and/or the oncoming one (right, −1). */
 export const playerLanes = (p: Player): (1 | -1)[] => [...(p.lat + p.halfW > 0.02 ? [1 as const] : []), ...(p.lat - p.halfW < -0.02 ? [-1 as const] : [])];
 /** A vehicle's centre, units left of the road's centre line (oncoming traffic: negative). */
@@ -224,6 +225,7 @@ export function interactWithPlayer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
 
 /** Keep the player's bus out of the vehicles: where footprints overlap (along the road and across it), the bus is put
  * back at the contact and slowed to the other vehicle's pace (head-on: stopped). Returns the knock (0 = none). */
+const CREEP = .25; // units/s
 export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: (t: number) => number, p: Player) {
   const length = curve.getLength();
   let knock = 0;
@@ -233,7 +235,9 @@ export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: 
     if (Math.abs(vehicleLat(v, widen, length) - p.lat) >= spec.width / 2 + p.halfW) continue;
     const theirs = v.direction * v.speed; // their speed along the road, in your direction
     knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
-    if (g > 0) { p.s = v.distance - reach - .01; p.speed = Math.min(p.speed, Math.max(0, theirs)); }
+    // nose to tail with it: you can't go through, but with the wheel turned you can creep on (up to ~9 km/h with full
+    // lock) so the nose swings out and you pull round it; without steering you're held at its speed, as before
+    if (g > 0) { p.s = v.distance - reach - .01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer ?? 0) * 1.5)); }
     else { p.s = v.distance + reach + .01; p.speed = Math.max(p.speed, theirs); }
   }
   return knock;
