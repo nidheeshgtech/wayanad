@@ -7,7 +7,8 @@ import { duskness } from "@/lib/theme";
 import { ADVERTISE, BOARDS } from "@/data/sponsors";
 
 /* Roadside hoardings, as the real churam has: a 6 × 3 m board on two steel legs, behind the barrier on the valley
- * side just past a hairpin (and one before the Lakkidi gate), turned toward the road you arrive on; artwork both sides.
+ * side just past each hairpin, on the longer stretches between them, and before the Lakkidi gate; turned toward the road
+ * you arrive on, artwork both sides.
  * The artwork comes from data/sponsors.ts; an unsold board says "Advertise here". Lit after dusk. Units of 10 m. */
 const SIZE = { w: 0.8, h: 0.4, clear: 0.24 }; // board width, height, and how far its foot stands above the road
 
@@ -33,7 +34,8 @@ export default function Billboards({ curve }: { curve: CatmullRomCurve3 }) {
     const panel = new PlaneGeometry(SIZE.w, SIZE.h), faces: MeshStandardMaterial[] = [], textures: Texture[] = [];
     let unsold: Texture | null = null;
     for (const b of BOARDS) {
-      const s = b.gate ? archT() * L + b.after : b.bend ? bends[b.bend - 1] * L + b.after : null;
+      const s = b.gate ? archT() * L + b.after : b.bend ? bends[b.bend - 1] * L + b.after
+        : b.between ? ((bends[b.between[0] - 1] + bends[b.between[1] - 1]) / 2) * L + b.after : null;
       if (s === null || s < 2 || s > L - 2) continue;
       const t = s / L, p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize();
       side.set(tan.z, 0, -tan.x);

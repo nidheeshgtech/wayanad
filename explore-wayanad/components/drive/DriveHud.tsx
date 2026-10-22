@@ -8,7 +8,7 @@ import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import StartScreen, { ControlRow, panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb, shareClimb } from "@/lib/share";
-import { BOARDS } from "@/data/sponsors";
+import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { WHATSAPP } from "@/data/plan";
 import styles from "./Drive.module.scss";
 
@@ -159,7 +159,7 @@ export default function DriveHud() {
           title={<>Drive the<br />churam.</>}
           lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
           stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
-          startLabel="Start drive" onStart={start}
+          startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}
           panel={<>
             <h2>Controls</h2>
             <div className={panelStyles.keyOnly}>
@@ -211,6 +211,14 @@ export default function DriveHud() {
             <div><span>{summary.current.isNew ? "New best" : "Your best"}</span><b>{clock(summary.current.best)}</b></div>
             <div><span>Distance</span><b>{summary.current.km.toFixed(1)} km</b></div>
           </div>
+          {STAY && (
+            <div className={styles.stay}>
+              <span>Where to stay tonight</span>
+              <b>{STAY.name}</b>
+              <em>{STAY.offer}</em>
+              {STAY.url && <a href={STAY.url} target="_blank" rel="noopener noreferrer sponsored">See the stay</a>}
+            </div>
+          )}
           <p>The road on past the gate, through Vythiri and Kalpetta to the forest and the border, opens in the next update. Thanks for driving.</p>
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={() => void shareClimb(summary.current.sec)} autoFocus>Share your time</button>
@@ -232,11 +240,14 @@ export default function DriveHud() {
   );
 }
 
-/** The roadside boards' sponsors, with links (data/sponsors.ts); while none are sold, a way to ask about advertising. */
+/** The sponsors (boards, buses, title, stay: data/sponsors.ts), with links; while none are sold, a way to ask about advertising. */
 function Sponsors() {
-  const sold = BOARDS.flatMap((b) => (b.sponsor?.url ? [b.sponsor] : []));
+  const sold = linkedSponsors();
   if (sold.length) return (
-    <div className={styles.setting}><span>On the road</span>{sold.map((s) => <a key={s.name} className={styles.sponsor} href={s.url!} target="_blank" rel="noopener noreferrer sponsored">{s.name}</a>)}</div>
+    <div className={styles.setting}>
+      <span>{PRESENTED_BY ? `Presented by ${PRESENTED_BY.name} · on the road` : "On the road"}</span>
+      {sold.map((s) => <a key={s.name} className={styles.sponsor} href={s.url!} target="_blank" rel="noopener noreferrer sponsored">{s.name}</a>)}
+    </div>
   );
   if (!WHATSAPP.number) return null;
   return <a className={styles.ghost} href={`https://wa.me/${WHATSAPP.number}?text=${encodeURIComponent("Hi, I'd like to advertise on a roadside board in the Explore Wayanad drive.")}`} target="_blank" rel="noopener noreferrer">Advertise on this road</a>;

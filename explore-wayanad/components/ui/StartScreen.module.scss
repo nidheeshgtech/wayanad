@@ -11,7 +11,9 @@
   &[data-leaving] { opacity: 0; visibility: hidden; pointer-events: none; } }
 
 .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.brand { font: 500 12px/1 var(--font-sans), sans-serif; letter-spacing: .22em; text-transform: uppercase; }
+.brand { display: grid; gap: 8px; font: 500 12px/1 var(--font-sans), sans-serif; letter-spacing: .22em; text-transform: uppercase; }
+.presented { font-size: 11px; letter-spacing: .1em; text-transform: none; color: var(--mute);
+  a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); &:hover { border-color: var(--amber); } } }
 .status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mute); letter-spacing: .08em; text-transform: uppercase;
   &::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); animation: pulse 1.4s infinite; } }
 .screen[data-ready] .status::before { background: var(--amber); animation: none; }

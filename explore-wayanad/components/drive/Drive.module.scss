@@ -68,6 +68,11 @@
   > div { display: grid; gap: 6px; padding: 14px 12px 14px 0; & + div { padding-left: 12px; border-left: 1px solid rgba(94, 122, 112, .5); } }
   span { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
   b { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(20px, 5.4vw, 32px); line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; } }
+.stay { display: grid; gap: 4px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(217, 164, 65, .45); background: rgba(217, 164, 65, .06);
+  span { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
+  b { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: 22px; color: var(--ink); }
+  em { font-style: normal; font-size: 14px; color: var(--mute); }
+  a { justify-self: start; margin-top: 4px; font-size: 14px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); &:hover { border-color: var(--amber); } } }
 .sponsor { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); padding: 4px 0; &:hover { border-color: var(--amber); } }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .go { min-height: 48px; padding: 0 26px; border-radius: 999px; border: 0; background: var(--amber); color: #0e1f1a; font-weight: 500; cursor: pointer; justify-self: start;

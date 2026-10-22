@@ -10,10 +10,12 @@ import styles from "./StartScreen.module.scss";
  * says Start. So the drive never stalls on its first frames. Enter starts too. The landscape shows through, dimmed,
  * once it's built. `scene: false` (no canvas, e.g. the video tier) is ready at once.
  */
-export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false }: {
+export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy }: {
   eyebrow: string; title: ReactNode; lead: string; stats: [string, string][];
   startLabel: string; onStart: () => void; scene?: boolean | null;
   panel?: ReactNode; footer?: ReactNode; leaving?: boolean;
+  /** the title sponsor, under the brand (data/sponsors.ts PRESENTED_BY) */
+  presentedBy?: { name: string; url: string | null } | null;
 }) {
   const [ready, setReady] = useState(false), bar = useRef<HTMLSpanElement>(null), pct = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -45,7 +47,9 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
   return (
     <div className={styles.screen} data-ready={ready || undefined} data-leaving={leaving || undefined} role="dialog" aria-label={eyebrow}>
       <header className={styles.top}>
-        <span className={styles.brand}>Explore Wayanad</span>
+        <span className={styles.brand}>Explore Wayanad
+          {presentedBy && <span className={styles.presented}>Presented by {presentedBy.url ? <a href={presentedBy.url} target="_blank" rel="noopener noreferrer sponsored">{presentedBy.name}</a> : presentedBy.name}</span>}
+        </span>
         <span className={styles.status}>{ready ? "Ready" : "Loading"}</span>
       </header>
       <div className={styles.body}>

@@ -1,7 +1,7 @@
 'use client';
 import { use, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3 } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, VEHICLES, vehiclePose, type Player, type Vehicle } from '@/lib/traffic';
@@ -13,7 +13,30 @@ import { weather } from '@/lib/weather';
 import { duskness } from '@/lib/theme';
 import { frameTimed } from '@/lib/perf';
 import { hasOccupants, occupantMaterial, occupantsFor } from '@/lib/occupants';
+import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
+/* Advertising panels on the buses' sides, below the windows and above the wheels, as Kerala buses carry them
+ * (data/sponsors.ts BUS_SIDES, handed out over the buses in turn; unsold: "Advertise on this bus"). 4 m × 0.6 m. */
+const BUS = /bus|ksrtc/, AD = { length: .4, height: .06, y: .36, z: -.06 };
+let adMaterials: MeshStandardMaterial[] | null = null;
+function busAdMaterials() {
+  if (adMaterials) return adMaterials;
+  const loader = new TextureLoader();
+  return (adMaterials = BUS_SIDES.map((sp) => {
+    let map: Texture;
+    if (sp?.image) { map = loader.load(sp.image); }
+    else {
+      const c = document.createElement('canvas'); c.width = 1400; c.height = 200;
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#0e1f1a'; g.fillRect(0, 0, 1400, 200); g.fillStyle = '#d9a441'; g.fillRect(0, 0, 14, 200); g.fillRect(1386, 0, 14, 200);
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#eef2ee'; g.font = "300 96px Fraunces, Georgia, serif"; g.fillText(ADVERTISE.bus, 700, 96);
+      map = new CanvasTexture(c);
+    }
+    map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
+    return new MeshStandardMaterial({ map, roughness: .5 });
+  }));
+}
+const adPanel = new PlaneGeometry(AD.length, AD.height);
 const cache = new Map<string, Promise<Group | null>>();
 function load(name: string) {
   if (!cache.has(name)) cache.set(name, loadVehicle(`/models/traffic/${name}.glb`, { merged: true }).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
@@ -103,6 +126,15 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     if (hasOccupants(spec.name)) {
       const geo = occupantsFor(spec.name, spec.length, v.id);
       if (geo) { people = new Mesh(geo, occupantMaterial); people.castShadow = false; people.receiveShadow = true; people.name = 'occupants'; root.add(people); }
+    }
+    // advertising on both sides of a bus (one sponsor per bus, in turn)
+    if (BUS.test(spec.name)) {
+      const mats = busAdMaterials(), mat = mats[v.id % mats.length];
+      for (const side of [1, -1]) {
+        const panel = new Mesh(adPanel, mat); panel.name = 'bus-ad';
+        panel.position.set(side * (spec.width / 2 + .004), spec.height * AD.y, AD.z); panel.rotation.y = side * Math.PI / 2;
+        root.add(panel);
+      }
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
     return { root, lights, owned, people, offset: new Vector3(), fresh: true };
