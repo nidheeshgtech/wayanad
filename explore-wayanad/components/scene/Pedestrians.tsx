@@ -36,7 +36,7 @@ const UMBRELLA_COLOR = [0x151515, 0x151515, 0x151515, 0x1d2a4a, 0x4a1d24].map((c
 
 type Person = {
   s: number; from: number; to: number; dir: 1 | -1; speed: number; side: 1 | -1; lane: number; scale: number;
-  phase: number; umbrella: boolean; skin: Color; lower: Color; upper: Color; brolly: Color; woman: boolean; stand: boolean; yaw: number;
+  phase: number; skip: number; umbrella: boolean; skin: Color; lower: Color; upper: Color; brolly: Color; woman: boolean; stand: boolean; yaw: number;
 };
 
 function rng(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
@@ -92,7 +92,7 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
         people.push({
           s, from, to, dir, speed: WALK.speed[0] + r() * (WALK.speed[1] - WALK.speed[0]),
           side, lane: lane + (k ? 0.055 * (lane < (LANE[0] + LANE[1]) / 2 ? 1 : -1) : 0), scale: (woman ? 0.92 : 1) * (0.94 + r() * 0.12),
-          phase: r() * 10, umbrella: r() < UMBRELLA, skin: pick(r, SKIN), woman, stand,
+          phase: r() * 10, skip: 0, umbrella: r() < UMBRELLA, skin: pick(r, SKIN), woman, stand,
           lower: woman ? sareeColor : pick(r, MUNDU), upper: woman ? (r() < 0.6 ? sareeColor.clone().multiplyScalar(0.8) : pick(r, SAREE)) : pick(r, SHIRT),
           brolly: pick(r, UMBRELLA_COLOR), yaw: 0,
         });
@@ -147,9 +147,12 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
         p.s += p.dir * p.speed * dt; p.phase += p.speed * dt * 62;
         if (p.s > p.to) { p.s = p.to; p.dir = -1; } else if (p.s < p.from) { p.s = p.from; p.dir = 1; }
       } else p.phase += dt * 0.6;
+      // well out of view last time: look again only every dozen frames (they walk on meanwhile)
+      if (p.skip > 0) { p.skip--; continue; }
       const { t, p: c, tan, left } = frame(p.s);
       const d = p.lane + roadShapeAt(t).widen, x = c.x + left.x * p.side * d, z = c.z + left.z * p.side * d;
-      if ((x - camera.position.x) ** 2 + (z - camera.position.z) ** 2 > view * view) continue;
+      const far2 = (x - camera.position.x) ** 2 + (z - camera.position.z) ** 2;
+      if (far2 > view * view) { if (far2 > (view + 10) ** 2) p.skip = 12; continue; }
       const walking = p.speed > 0, step = Math.sin(p.phase);
       const yaw = walking ? Math.atan2(tan.x * p.dir, tan.z * p.dir) : p.yaw;
       T.pos.set(x, height(x, z) + (walking ? Math.abs(step) * 0.0025 : 0), z);

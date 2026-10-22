@@ -66,11 +66,9 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     const lane = fleet.filter(v => v.direction === dir).sort((a, b) => (a.distance - b.distance) * dir);
     lane.forEach((v, i) => ahead.set(v, [lane[(i + 1) % lane.length], lane[(i + 2) % lane.length]].filter(o => o !== v)));
   }
+  const bends = bendTable(curve);
   const moves = fleet.map(v => {
-    const spec = VEHICLES[v.kind], t = v.distance / length;
-    const a = curve.getTangentAt(Math.max(0, t - 1.2 / length));
-    const b = curve.getTangentAt(Math.min(1, t + 1.2 / length));
-    const bend = Math.acos(Math.max(-1, Math.min(1, a.dot(b))));
+    const spec = VEHICLES[v.kind], bend = bendAt(bends, v.distance);
     // each vehicle its own pace (±10%), held back while it gives way or takes care (interactWithViewer)
     const cap = v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
     let desired = Math.min(spec.speed * pace(v.id) * cap, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
@@ -226,6 +224,24 @@ export function interactWithPlayer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
 /** Keep the player's bus out of the vehicles: where footprints overlap (along the road and across it), the bus is put
  * back at the contact and slowed to the other vehicle's pace (head-on: stopped). Returns the knock (0 = none). */
 const CREEP = .25; // units/s
+/* How sharply the road turns at each point (the angle between its direction 12 m back and 12 m ahead), worked out
+ * once per road in 0.25-unit steps: every vehicle needs it every frame to slow for the bends, and two tangent
+ * lookups each, 340 vehicles a frame, was a large share of the traffic's time on phones. */
+const BEND_STEP = .25, bendTables = new WeakMap<CatmullRomCurve3, Float32Array>();
+function bendTable(curve: CatmullRomCurve3) {
+  let table = bendTables.get(curve);
+  if (table) return table;
+  const length = curve.getLength(), n = Math.ceil(length / BEND_STEP) + 1;
+  table = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = Math.min(1, (i * BEND_STEP) / length);
+    const a = curve.getTangentAt(Math.max(0, t - 1.2 / length)), b = curve.getTangentAt(Math.min(1, t + 1.2 / length));
+    table[i] = Math.acos(Math.max(-1, Math.min(1, a.dot(b))));
+  }
+  bendTables.set(curve, table);
+  return table;
+}
+const bendAt = (table: Float32Array, d: number) => table[Math.min(table.length - 1, Math.max(0, Math.round(d / BEND_STEP)))];
 export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: (t: number) => number, p: Player) {
   const length = curve.getLength();
   let knock = 0;

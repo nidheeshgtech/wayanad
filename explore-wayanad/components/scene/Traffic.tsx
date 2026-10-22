@@ -92,7 +92,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true, skip: 0 };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
     model.scale.set(spec.width / size.x, spec.height / size.y, scale); model.position.set(-center.x * spec.width / size.x, -bounds.min.y * spec.height / size.y, -center.z * scale);
@@ -137,7 +137,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       }
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
-    return { root, lights, owned, people, offset: new Vector3(), fresh: true };
+    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0 };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useFrame(({ camera }, dt) => frameTimed('traffic', () => {
@@ -148,9 +148,9 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
       const onRoad = game.leg === 0 && game.phase === 'drive';
       const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
-      if (!trafficControl.paused && !game.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
-        onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player) }] : []);
-      if (onRoad && !game.paused) { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(fleet, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); }
+      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
+        onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player) }] : []));
+      if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(fleet, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
     if (!game.active && !trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, viewer);
@@ -170,26 +170,34 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
     let visible = 0;
     const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
+    const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
     for (let i = 0; i < fleet.length; i++) {
-      const v = fleet[i], o = objects[i], pose = vehiclePose(curve, v, widen);
+      const v = fleet[i], o = objects[i];
+      // well out of range last time: look again only every dozen frames (nothing closes 15 units in a fifth of a
+      // second), instead of working out its exact pose every frame for nothing — most of the fleet, most of the time
+      if (o.skip > 0) { o.skip--; continue; }
+      const pose = vehiclePose(curve, v, widen);
       o.root.userData.mode = v.mode ?? 'cruise'; // read by the dev review snapshot
       const far2 = camera.position.distanceToSquared(pose.position);
       // in range, with a margin both ways so a vehicle near the limit doesn't flicker in and out; and not at the ends
       // of the road, where the fleet wraps round from one end to the other
       const range = o.root.visible ? view + 4 : view;
       o.root.visible = far2 < range * range && v.distance > 3 && v.distance < length - 3;
-      if (o.root.visible) {
-        // kept on the asphalt and out of the bank (eased, so the nudge itself never jumps)
-        o.offset.lerp(nudgeFor(curve, v, pose, tmpNudge), o.fresh ? 1 : ease); o.fresh = false;
-        o.root.position.copy(pose.position).add(o.offset); o.root.quaternion.copy(pose.rotation);
-        visible++;
-      } else o.fresh = true;
+      if (!o.root.visible) {
+        o.fresh = true; if (o.people) o.people.visible = false;
+        if (far2 > (view + 15) ** 2) o.skip = 12;
+        continue;
+      }
+      // kept on the asphalt and out of the bank (eased, so the nudge itself never jumps)
+      o.offset.lerp(nudgeFor(curve, v, pose, tmpNudge), o.fresh ? 1 : ease); o.fresh = false;
+      o.root.position.copy(pose.position).add(o.offset); o.root.quaternion.copy(pose.rotation);
+      visible++;
       if (o.people) o.people.visible = far2 < 14 ** 2; // people inside only where you could see them
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
       for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist + dusk) * .35 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6;
       // the little lamp quads only when they're lit (rain, mist, a dark sky): in daylight they were two draw calls a
       // vehicle for a glow nobody could see
-      if (o.root.visible) { const lit = weather.rain + weather.mist + weather.gloom + dusk > .08; for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit; }
+      for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit;
     }
     trafficControl.count = visible;
   }));

@@ -49,7 +49,7 @@ function restart() {
 
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
-  const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  const [shared, setShared] = useState(""), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -221,7 +221,8 @@ export default function DriveHud() {
           )}
           <p>The road on past the gate, through Vythiri and Kalpetta to the forest and the border, opens in the next update. Thanks for driving.</p>
           <div className={styles.row}>
-            <button type="button" className={styles.go} onClick={() => void shareClimb(summary.current.sec)} autoFocus>Share your time</button>
+            <button type="button" className={styles.go} autoFocus
+              onClick={() => void shareClimb(summary.current.sec).then((r) => { if (r === "copied") { setShared("Link copied"); setTimeout(() => setShared(""), 2500); } })}>{shared || "Share your time"}</button>
             <button type="button" className={styles.ghostButton} onClick={restart}>Drive again</button>
           </div>
         </div>

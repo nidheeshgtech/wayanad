@@ -16,10 +16,15 @@ export function recordClimb(sec: number): { best: number; isNew: boolean } {
   return { best, isNew };
 }
 
-export async function shareClimb(sec: number) {
+/** Shares a climb: the phone's share sheet where there is one (if it isn't allowed, the message is copied instead — a
+ * WhatsApp window opened after waiting on the sheet would be blocked, no longer part of the tap), else WhatsApp, opened
+ * straight from the tap. Closing the sheet does nothing more. */
+export async function shareClimb(sec: number): Promise<"shared" | "copied" | "whatsapp" | "cancelled"> {
   const url = location.origin + "/";
   const text = `I drove up the Thamarassery Churam — nine hairpins to the Lakkidi gate — in ${clock(sec)}. Can you beat it?`;
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
-  if (nav.share) { try { await nav.share({ title: "Explore Wayanad", text, url }); return; } catch { /* closed, or not allowed: WhatsApp instead */ } }
-  window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener");
+  if (!nav.share) { window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener"); return "whatsapp"; }
+  try { await nav.share({ title: "Explore Wayanad", text, url }); return "shared"; }
+  catch (e) { if ((e as DOMException).name === "AbortError") return "cancelled"; }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); return "copied"; } catch { return "cancelled"; }
 }
