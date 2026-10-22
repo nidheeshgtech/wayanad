@@ -40,6 +40,7 @@ import Elephant from "./Elephant";
 import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
 import PlayerCar from "../drive/PlayerCar";
+import ImpactFx from "../drive/ImpactFx";
 
 patchAtmosphere(); // before any material compiles
 
@@ -163,6 +164,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 2000 : 4500} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar curve={curve} forest={forest?.curve ?? null} /></Suspense>}
+      {mode === "drive" && <ImpactFx />}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} lite={small} />
       <PerfProbe />

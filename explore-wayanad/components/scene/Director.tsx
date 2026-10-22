@@ -90,7 +90,9 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
   }, [curve]);
   if (!scene.fog) { scene.fog = new FogExp2(PALETTE.churam.fog, 0.02); scene.background = new Color(PALETTE.churam.sky); }
   // the story's own headlamps: after dusk the seat you ride in lights the road ahead (drive mode has the car's)
+  // (story only, and always in the scene at zero when off: switching a light on or off rebuilds every shader — a stall)
   const beam = useMemo(() => {
+    if (game.active) return null;
     const light = new SpotLight(0xfff0d8, 0, 14, 0.62, 0.7, 1.1), target = new Object3D();
     light.target = target; scene.add(light, target);
     return { light, target };
@@ -212,9 +214,9 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     if (terrain) (terrain.material as MeshStandardMaterial).color.lerp(tint.current.set(P.ground).lerp(WHITE, 0.8), 0.05);
     if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e).lerp(MOON_LIGHT, n), 0.05);
     // the mist puffs take the evening light (white puffs glowed against a dusk sky)
-    const beamOn = !game.active && driving ? Math.max(0, e - 0.4) / 0.6 : 0;
-    beam.light.visible = beamOn > 0.01; beam.light.intensity = beamOn * 7;
-    if (beam.light.visible) {
+    const beamOn = beam && driving ? Math.max(0, e - 0.4) / 0.6 : 0;
+    if (beam) beam.light.intensity = beamOn * 7;
+    if (beam && beamOn > 0.01) {
       beam.light.position.copy(camera.position).y -= 0.15;
       beam.target.position.copy(camera.position).addScaledVector(heading.current, 4).y -= 0.55; beam.target.updateMatrixWorld();
     }

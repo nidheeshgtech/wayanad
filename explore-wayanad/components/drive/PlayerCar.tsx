@@ -14,6 +14,7 @@ import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
 import { duskness } from "@/lib/theme";
+import { hit, impact } from "@/lib/impact";
 import { frameTimed } from "@/lib/perf";
 import type { ActId } from "@/data/acts";
 
@@ -151,7 +152,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
   }, [source]);
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
-  const spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
+  const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
 
   // before the director and traffic each frame (negative priority runs first and leaves rendering to R3F)
@@ -159,6 +160,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     const road = roads[Math.min(game.leg, roads.length - 1)];
     if (game.reset !== lastReset.current || game.leg !== lastLeg.current) { lastReset.current = game.reset; lastLeg.current = game.leg; settle(); cam.current.ready = false; }
     let alpha = 1;
+    const speedBefore = game.speed;
     if (game.started && game.phase === "drive" && !game.paused) {
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
@@ -169,12 +171,23 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
         const knock = collidePlayer(trafficControl.fleet, curve, road.widen, p);
         if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
+        hit(knock); // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h
       }
       if (game.leg === 0 && game.s > road.length * 0.995) { game.phase = "between"; game.speed = 0; }
       const stop = FOREST_ROUTE.stop * road.length;
       if (game.leg === 1 && game.s >= stop) { game.s = stop; game.speed = 0; game.phase = "finished"; }
     } else if (!game.paused) game.input.throttle = 0;
     if (!game.paused) game.bump *= Math.exp(-dt * 6);
+    // hitting the barrier or the bank: how hard is the speed it takes off you over the contact (the edge's own number
+    // only sees the angle, so a fast glancing hit read as a graze); sliding on along it at the same speed stays quiet
+    const C2 = contact.current;
+    // (one contact shows once, and again only if it gets clearly harder: grinding along doesn't keep the screen red)
+    if (game.scrape > 0.04) {
+      C2.loss += Math.max(0, Math.abs(speedBefore) - Math.abs(game.speed));
+      const strength = Math.min(1, Math.max(game.scrape, C2.loss * 1.6));
+      if (strength > C2.peak + 0.12) { hit(strength); C2.peak = strength; }
+    } else if (game.scrape < 0.02) { C2.loss = 0; C2.peak = 0; }
+    lastScrape.current = game.scrape;
 
     // drawn between the last two physics steps
     const s = game.prev.s + (game.s - game.prev.s) * alpha, lat = game.prev.lat + (game.lat - game.prev.lat) * alpha, psi = game.prev.psi + (game.psi - game.prev.psi) * alpha;
@@ -226,7 +239,8 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     brakeGlow.opacity += ((braking ? 0.95 : dark * 0.18) - brakeGlow.opacity) * Math.min(1, dt * 18);
     reverseGlow.opacity += ((reversing ? 0.9 : 0) - reverseGlow.opacity) * Math.min(1, dt * 12);
     for (const l of lamps.head) l.emissiveIntensity = 0.15 + dark * 2.5;
-    spot.intensity = dark * 6; spot.visible = dark > 0.05;
+    // (always in the scene, at zero by day: switching a light on or off rebuilds every material's shader — a stall)
+    spot.intensity = dark * 6;
 
     // the camera
     const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.view, { want, look, dir } = tmp;
@@ -265,10 +279,12 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
       if (!game.paused) C.lift += (lift - C.lift) * (1 - Math.exp(-dt / (lift > C.lift ? 0.08 : 0.5)));
       want.y += Math.max(C.lift, lift * 0.5);
     }
-    // a bump or a scrape nudges the view a little; never a shake
-    const nudge = Math.min(1, game.bump + game.scrape * 0.4) * 0.004;
-    if (nudge > 0.0003) want.add(tmp.a.set((Math.random() - 0.5) * nudge, (Math.random() - 0.5) * nudge, (Math.random() - 0.5) * nudge));
+    // an impact shakes the view: smooth noise (a few sines, not random jitter), mostly up-down and side to side,
+    // fading with lib/impact; ~6 cm and a fraction of a degree at full strength
+    const k = impact.shake, st = impact.time * 26;
+    if (k > 0.002) want.add(tmp.a.set(Math.sin(st * 1.3) + 0.5 * Math.sin(st * 2.9 + 0.7), 0.8 * (Math.sin(st * 1.7 + 1.1) + 0.5 * Math.sin(st * 3.3)), 0).multiplyScalar(k * 0.006));
     camera.position.copy(want); camera.lookAt(look);
+    if (k > 0.002) camera.rotateZ(Math.sin(st * 1.1 + 0.3) * k * 0.012);
     if (C.blend < 1) {
       C.blend = Math.min(1, C.blend + dt / BLEND);
       const e = C.blend * C.blend * (3 - 2 * C.blend);

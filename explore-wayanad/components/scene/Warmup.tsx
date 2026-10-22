@@ -1,7 +1,7 @@
 "use client";
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { DefaultLoadingManager, type Object3D } from "three";
+import { DefaultLoadingManager, type InstancedMesh, type Object3D } from "three";
 import { loading } from "@/lib/loading";
 
 // models and textures report to the loading state (lib/loading) through three's default loading manager
@@ -29,11 +29,14 @@ export default function Warmup({ needs = [] }: { needs?: string[] }) {
     quiet.current = mounted && loading.loaded >= loading.total ? quiet.current + 1 : 0;
     if (quiet.current < SETTLE) return;
     done.current = true;
-    const hidden: Object3D[] = [];
+    const hidden: Object3D[] = [], empty: InstancedMesh[] = [];
     scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    // instanced meshes drawing none right now (walkers, plants and scans out of range) would be skipped: draw one
+    scene.traverse((o) => { if ((o as InstancedMesh).isInstancedMesh && (o as InstancedMesh).count === 0) { empty.push(o as InstancedMesh); (o as InstancedMesh).count = 1; } });
     scene.traverse((o) => { o.userData.__fc = o.frustumCulled; o.frustumCulled = false; });
     try { gl.render(scene, camera); } finally {
       for (const o of hidden) o.visible = false;
+      for (const o of empty) o.count = 0;
       scene.traverse((o) => { if (o.userData.__fc !== undefined) { o.frustumCulled = o.userData.__fc; delete o.userData.__fc; } });
     }
     loading.ready = true;
