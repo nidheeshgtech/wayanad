@@ -18,7 +18,8 @@ import { hit, impact } from "@/lib/impact";
 import { frameTimed } from "@/lib/perf";
 import type { ActId } from "@/data/acts";
 
-/* The car you drive: a compact SUV (Brezza-style, CC BY — public/models/traffic/ATTRIBUTION.md), 4.0 m long, in units
+/* The car you drive: a compact SUV, unbranded (CC BY — public/models/traffic/ATTRIBUTION.md; scripts/retouch/player-suv.mjs
+ * takes the maker's badges off and puts WAYANAD on the plates), 4.0 m long, in units
  * of 10 m with +z forward and +x its left. Camera views (C cycles them): behind it, close behind, on the bonnet. */
 const LENGTH = 0.4;
 /** Phase one ends just past the Lakkidi gate: the car brakes by itself over the last `brake` units and stops `after`
@@ -75,7 +76,7 @@ function driver(wheel: Vector3) {
 }
 
 export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; forest: CatmullRomCurve3 | null }) {
-  const source = use(loadVehicle("/models/traffic/brezza-player.glb"));
+  const source = use(loadVehicle("/models/traffic/player-suv.glb"));
   const camera = useThree((s) => s.camera);
   const roads = useMemo<RoadInfo[]>(() => [
     { curve, length: curve.getLength(), widen: (t: number) => roadShapeAt(t).widen },

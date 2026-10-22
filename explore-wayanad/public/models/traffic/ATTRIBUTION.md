@@ -35,8 +35,10 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
 
 - `tourbus-real.glb`: **PRAKASH ZEDONE TOURIST BUS ASHOK LEYLAND BS3** by dkdatta1983 (https://sketchfab.com/dkdatta1983), CC BY 4.0.
   https://sketchfab.com/3d-models/prakash-zedone-tourist-bus-ashok-leyland-bs3-14d9f8a913eb4fd9b92c32b6fb0fabae — simplified to 15 %; glass made see-through.
-- `brezza-player.glb` (the car you drive on /drive): **2022 Maruti Suzuki Vitara Brezza** by BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0.
-  https://sketchfab.com/3d-models/2022-maruti-suzuki-vitara-brezza-1a5cbddc8acb457e9d896d7345fd07d8 — simplified to 8 %, textures 512 px, turned to face +Z.
+- `player-suv.glb` (the car you drive on /drive): **2022 Maruti Suzuki Vitara Brezza** by BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0.
+  https://sketchfab.com/3d-models/2022-maruti-suzuki-vitara-brezza-1a5cbddc8acb457e9d896d7345fd07d8 — simplified to 8 %, textures 512 px, turned to face +Z;
+  maker's badges removed (tailgate emblem and name letters, hybrid badge, steering-wheel logo) and the number plates repainted
+  to read WAYANAD (scripts/retouch/player-suv.mjs). Not affiliated with or endorsed by the manufacturer.
 
 People inside the vehicles (lib/occupants.ts) are simple shapes made in code for this project.
 
@@ -64,4 +66,4 @@ Shapes follow real makes; no maker or operator endorsement implied.
 License reference: https://creativecommons.org/publicdomain/zero/1.0/
 These are optimized low-polygon models, not photogrammetry or exact manufacturer replicas.
 
-All real (Sketchfab) models above, except brezza-player and wagonr-real, were also mesh-simplified (meshoptimizer, 35–50 % of triangles kept) and meshopt-compressed on 2026-10-21 to fit the page budget.
+All real (Sketchfab) models above, except player-suv and wagonr-real, were also mesh-simplified (meshoptimizer, 35–50 % of triangles kept) and meshopt-compressed on 2026-10-21 to fit the page budget.
