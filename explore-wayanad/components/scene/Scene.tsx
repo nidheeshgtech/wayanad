@@ -32,6 +32,7 @@ import Particles from "./Particles";
 import Sky from "./Sky";
 import Shafts from "./Shafts";
 import BendSigns from "./BendSigns";
+import Billboards from "./Billboards";
 import Director from "./Director";
 import Quality from "./Quality";
 import PerfProbe from "./PerfProbe";
@@ -148,6 +149,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Town curve={curve} />
       <TeaHedges curve={curve} density={small ? 0.5 : 1} />
       <BendSigns curve={curve} />
+      <Billboards curve={curve} />
       <Shafts curve={curve} count={small ? 20 : 40} />
       </ShowIn>
       {forest && (

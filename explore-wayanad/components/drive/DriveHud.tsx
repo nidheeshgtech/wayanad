@@ -7,6 +7,9 @@ import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import StartScreen, { ControlRow, panelStyles } from "@/components/ui/StartScreen";
+import { clock, recordClimb, shareClimb } from "@/lib/share";
+import { BOARDS } from "@/data/sponsors";
+import { WHATSAPP } from "@/data/plan";
 import styles from "./Drive.module.scss";
 
 /**
@@ -49,7 +52,7 @@ export default function DriveHud() {
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null);
-  const summary = useRef({ km: 0, min: 0 }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
+  const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
   // the camera you used last time
@@ -92,7 +95,12 @@ export default function DriveHud() {
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
-      if (game.phase !== "drive") summary.current = { km: (game.odometer * 10) / 1000, min: game.clock / 60 };
+      if (game.phase !== "drive") {
+        const S = summary.current;
+        Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
+        // a finished climb (stopped past the Lakkidi gate): your time against your best, once
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock), { recorded: true }); }
+      } else summary.current.recorded = false;
       setScreen((s) => (s === want ? s : want));
       raf = requestAnimationFrame(tick);
     };
@@ -183,6 +191,7 @@ export default function DriveHud() {
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}
           </div>
+          <Sponsors />
         </div>
       )}
       {screen === "between" && (
@@ -197,10 +206,15 @@ export default function DriveHud() {
         <div className={styles.card} role="dialog" aria-label="Lakkidi gate">
           <p className={styles.eyebrow}>Lakkidi gate · end of the drive</p>
           <h1>Welcome to Wayanad.</h1>
-          <p>You climbed the nine hairpins: {summary.current.km.toFixed(1)} km in {Math.max(1, Math.round(summary.current.min))} min. The road on past the gate, through Vythiri and Kalpetta to the forest and the border, opens in the next update.</p>
-          <p className={styles.small}>Thanks for driving. See you on the plateau.</p>
+          <div className={styles.result}>
+            <div><span>Your time</span><b>{clock(summary.current.sec)}</b></div>
+            <div><span>{summary.current.isNew ? "New best" : "Your best"}</span><b>{clock(summary.current.best)}</b></div>
+            <div><span>Distance</span><b>{summary.current.km.toFixed(1)} km</b></div>
+          </div>
+          <p>The road on past the gate, through Vythiri and Kalpetta to the forest and the border, opens in the next update. Thanks for driving.</p>
           <div className={styles.row}>
-            <button type="button" className={styles.go} onClick={restart} autoFocus>Drive the churam again</button>
+            <button type="button" className={styles.go} onClick={() => void shareClimb(summary.current.sec)} autoFocus>Share your time</button>
+            <button type="button" className={styles.ghostButton} onClick={restart}>Drive again</button>
           </div>
         </div>
       )}
@@ -216,4 +230,14 @@ export default function DriveHud() {
       )}
     </>
   );
+}
+
+/** The roadside boards' sponsors, with links (data/sponsors.ts); while none are sold, a way to ask about advertising. */
+function Sponsors() {
+  const sold = BOARDS.flatMap((b) => (b.sponsor?.url ? [b.sponsor] : []));
+  if (sold.length) return (
+    <div className={styles.setting}><span>On the road</span>{sold.map((s) => <a key={s.name} className={styles.sponsor} href={s.url!} target="_blank" rel="noopener noreferrer sponsored">{s.name}</a>)}</div>
+  );
+  if (!WHATSAPP.number) return null;
+  return <a className={styles.ghost} href={`https://wa.me/${WHATSAPP.number}?text=${encodeURIComponent("Hi, I'd like to advertise on a roadside board in the Explore Wayanad drive.")}`} target="_blank" rel="noopener noreferrer">Advertise on this road</a>;
 }
