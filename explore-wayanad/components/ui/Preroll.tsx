@@ -21,7 +21,7 @@ export default function Preroll({ scene }: { scene: boolean | null }) {
       lead="Fourteen kilometres from Adivaram up to the Lakkidi gate. Scroll to ride it. Sound stays off until you turn it on."
       stats={[["Adivaram", "Start"], ["14 km", "Distance"], ["9", "Hairpins"]]}
       startLabel="Start the climb" onStart={start} scene={scene} leaving={state === "go"}
-      footer={<a className={panelStyles.link} href="/drive">Or drive it yourself →</a>}
+      footer={<a className={panelStyles.link} href="/">Or drive it yourself →</a>}
     />
   );
 }

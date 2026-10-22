@@ -3,10 +3,7 @@
 
 .top { position: fixed; z-index: 5; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 16px; padding: 16px 20px; pointer-events: none;
   background: linear-gradient(rgba(8, 20, 16, .55), transparent); }
-.where { flex: 1; text-align: center; }
-.place { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(20px, 3vw, 28px); line-height: 1.1; }
-.next { font-size: 12px; color: var(--mute); margin-top: 4px; }
-.speed { text-align: right; font-family: var(--font-serif), Georgia, serif; line-height: 1;
+.speed { margin-left: auto; text-align: right; font-family: var(--font-serif), Georgia, serif; line-height: 1;
   b { display: block; font-weight: 300; font-size: 44px; color: var(--amber); font-variant-numeric: tabular-nums; }
   small { font: 12px var(--font-sans), sans-serif; color: var(--mute); } }
 // distance along the route: "KM 4.8 / 12.4" over a hairline of progress
@@ -43,14 +40,13 @@
   svg { width: 26px; height: 26px; }
   &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
 
-// phones: nothing over the middle of the road. The place title goes, the speed
+// phones: nothing over the middle of the road. The speed
 // sits top-left, the small buttons top-right (the horn has its own big one), the driving controls along the bottom.
 @media (pointer: coarse) {
   .touch { display: block; }
   // narrow phones (360 px): room for the horn between the steer buttons and the pedals
   @media (max-width: 375px) { .steer button { width: 56px; height: 56px; } .pedals button { width: 56px; height: 78px; } .bigHorn { width: 56px; height: 56px; } }
   .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: linear-gradient(rgba(8, 20, 16, .4), transparent); }
-  .where { display: none; }
   .speed { order: -1; text-align: left; margin-right: auto; b { font-size: 34px; } }
   .km { justify-content: start; margin-top: 6px; min-width: 104px; }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;

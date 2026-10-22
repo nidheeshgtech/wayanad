@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import DriveExperience from "@/components/drive/DriveExperience";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Drive the churam · Explore Wayanad",
-  description: "Drive a Kerala state bus up the Thamarassery Churam: nine hairpins to Lakkidi, on to Kalpetta, and through the forest to the Karnataka border.",
-};
-
+/** The drive moved to the home page. */
 export default function DrivePage() {
-  return <DriveExperience />;
+  permanentRedirect("/");
 }

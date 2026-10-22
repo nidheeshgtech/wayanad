@@ -13,7 +13,8 @@ import styles from "./Drive.module.scss";
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
  * Esc) pause, H horn, C camera, R back on the road. Every on-screen button does the same as its key and lights up
  * when the key is used. Touch: big steer buttons bottom-left, horn bottom-centre, brake and accelerator bottom-right;
- * camera, reset, pause and sound small in the top-right corner. The way back to the story is in the pause menu.
+ * camera, reset, pause and sound small in the top-right corner. No place title: the km readout under the speed says
+ * where you are.
  * Readouts are written straight into the DOM each frame (no React state per frame). React state only for the
  * screens: start, pause, the Kalpetta → Sulthan Bathery card, and the finish.
  */
@@ -47,7 +48,7 @@ export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
-  const speed = useRef<HTMLElement>(null), place = useRef<HTMLDivElement>(null), next = useRef<HTMLDivElement>(null), note = useRef<HTMLDivElement>(null);
+  const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0 }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
@@ -88,8 +89,6 @@ export default function DriveHud() {
       if (km.current) km.current.textContent = game.km.toFixed(1);
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
-      if (place.current) place.current.textContent = game.place;
-      if (next.current) next.current.textContent = `${game.next} · ${game.nextM >= 1000 ? `${(game.nextM / 1000).toFixed(1)} km` : `${Math.round(game.nextM / 10) * 10} m`}`;
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -115,7 +114,6 @@ export default function DriveHud() {
     <>
       <div data-hud>
       <div className={styles.top}>
-        <div className={styles.where}><div ref={place} className={styles.place}>Adivaram</div><div ref={next} className={styles.next} /></div>
         <div className={styles.speed}>
           <b ref={speed}>0</b><small>km/h</small>
           <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
@@ -153,8 +151,7 @@ export default function DriveHud() {
           title={<>Drive the<br />churam.</>}
           lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
           stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
-          startLabel="Start driving" onStart={start}
-          footer={<a className={panelStyles.link} href="/">Back to the story</a>}
+          startLabel="Start drive" onStart={start}
           panel={<>
             <h2>Controls</h2>
             <div className={panelStyles.keyOnly}>
@@ -169,7 +166,6 @@ export default function DriveHud() {
               <ControlRow label="Steer"><kbd>◀</kbd><kbd>▶</kbd></ControlRow>
               <ControlRow label="Accelerate · brake"><kbd>▲</kbd><kbd>▼</kbd></ControlRow>
               <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
-              <ControlRow label="Back to the story"><kbd>pause</kbd></ControlRow>
             </div>
             <p>Sound the horn behind a slow vehicle and it gives way where it&apos;s safe. Oncoming traffic doesn&apos;t, on the hairpins.</p>
           </>}
@@ -187,7 +183,6 @@ export default function DriveHud() {
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}
           </div>
-          <a href="/" className={styles.ghost}>Back to the story</a>
         </div>
       )}
       {screen === "between" && (
@@ -206,7 +201,6 @@ export default function DriveHud() {
           <p className={styles.small}>Thanks for driving. See you on the plateau.</p>
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={restart} autoFocus>Drive the churam again</button>
-            <a href="/" className={styles.ghost}>Back to the story</a>
           </div>
         </div>
       )}
@@ -217,7 +211,6 @@ export default function DriveHud() {
           <p>Kerala ends at the barrier; Karnataka is on the other side. You drove {summary.current.km.toFixed(1)} km in {Math.max(1, Math.round(summary.current.min))} min.</p>
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={restart} autoFocus>Drive again</button>
-            <a href="/" className={styles.ghost}>Back to the story</a>
           </div>
         </div>
       )}
