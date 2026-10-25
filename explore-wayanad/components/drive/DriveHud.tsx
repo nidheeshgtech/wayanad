@@ -12,6 +12,8 @@ import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
 import { cleanName } from "@/lib/names";
+import CarPicker from "@/components/garage/CarPicker";
+import { getChoice, setChoice, useChoice } from "@/lib/choice";
 import styles from "./Drive.module.scss";
 
 /**
@@ -51,6 +53,7 @@ function restart() {
 
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
+  const choice = useChoice(), [garage, setGarage] = useState(false);
   const [driverName, setDriverName] = useState(""), [roster, setRoster] = useState<string[]>([]), [invited, setInvited] = useState("");
   const [shared, setShared] = useState(""), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
@@ -123,7 +126,7 @@ export default function DriveHud() {
       const name = cleanName(driverName);
       try { localStorage.setItem("wayanad-name", name); } catch {}
       setDriverName(name);
-      void joinRoom(name, new URLSearchParams(location.search).get("room"));
+      void joinRoom(name, new URLSearchParams(location.search).get("room"), getChoice());
     }
   };
   // an invite: this room's link, through the share sheet or copied
@@ -184,14 +187,20 @@ export default function DriveHud() {
           lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
           stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
           startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}
-          beforeStart={net.enabled ? (
+          beforeStart={<>
+            {net.enabled && (
+              <div className={panelStyles.nameField}>
+                <label htmlFor="driver-name">Your name</label>
+                <input id="driver-name" value={driverName} maxLength={16} autoComplete="nickname" placeholder="Shown above your car"
+                  onChange={(e) => setDriverName(e.target.value)} onKeyDown={(e) => { if (e.key !== "Enter") e.stopPropagation(); }} />
+                <small>Other drivers on the road see it. Leave it empty to drive as “Driver 123”.</small>
+              </div>
+            )}
             <div className={panelStyles.nameField}>
-              <label htmlFor="driver-name">Your name</label>
-              <input id="driver-name" value={driverName} maxLength={16} autoComplete="nickname" placeholder="Shown above your car"
-                onChange={(e) => setDriverName(e.target.value)} onKeyDown={(e) => { if (e.key !== "Enter") e.stopPropagation(); }} />
-              <small>Other drivers on the road see it. Leave it empty to drive as “Driver 123”.</small>
+              <label>Your car</label>
+              <CarPicker value={choice} onChange={setChoice} />
             </div>
-          ) : null}
+          </>}
           panel={<>
             <h2>Controls</h2>
             <div className={panelStyles.keyOnly}>
@@ -217,8 +226,10 @@ export default function DriveHud() {
           <h1>Paused</h1>
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={() => togglePause(false)} autoFocus>Resume</button>
+            <button type="button" className={styles.ghostButton} onClick={() => setGarage((g) => !g)}>{garage ? "Done" : "Change car"}</button>
             <button type="button" className={styles.ghostButton} onClick={restart}>Restart from Adivaram</button>
           </div>
+          {garage && <CarPicker value={choice} onChange={setChoice} />}
           <div className={styles.setting} role="group" aria-label="Graphics">
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}

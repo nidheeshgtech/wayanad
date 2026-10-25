@@ -13,8 +13,8 @@
  * made unique in the room ("Arjun", "Arjun#2").
  *
  * Messages (JSON):
- *  client → { t: "hello", name } once; { t: "s", s, lat, psi, v, br, leg } ~12/s
- *  server → { t: "welcome", id, name, room } · { t: "roster", players: [{ id, name }] } on joins/leaves
+ *  client → { t: "hello", name, car: { m, c } } once; { t: "s", s, lat, psi, v, br, leg } ~12/s; { t: "car", car } on a change
+ *  server → { t: "welcome", id, name, room } · { t: "roster", players: [{ id, name, car }] } on joins, leaves and car changes
  *           { t: "st", now, p: [[id, s, lat, psi, v, br], ...] } 10/s, only the nearby ones
  */
 import { cleanName } from "./names";
@@ -26,6 +26,12 @@ const NEAR = 60;          // units of road (10 m): who you're sent
 const TICK = 100;         // ms between state broadcasts
 const MAX_SPEED = 2.8;    // units/s: the car's top speed (lib/game CAR.max)
 const CORS = { "Access-Control-Allow-Origin": "*" };
+// the cars and paints a player can pick (data/cars.ts); anything else becomes the default
+const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
+const carOf = (v: unknown): { m: string; c: string } => {
+  const o = (v ?? {}) as { m?: unknown; c?: unknown };
+  return { m: CARS.includes(String(o.m)) ? String(o.m) : CARS[0], c: COLOURS.includes(String(o.c)) ? String(o.c) : COLOURS[0] };
+};
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -70,7 +76,8 @@ export class Lobby {
   }
 }
 
-type Player = { id: number; name: string; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean };
+type Car = { m: string; c: string };
+type Player = { id: number; name: string; car: Car; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean };
 
 /** One shared road: relays where everyone is to the players near them. */
 export class Room {
@@ -96,12 +103,13 @@ export class Room {
       let msg: Record<string, unknown>;
       try { msg = JSON.parse(typeof ev.data === "string" ? ev.data : ""); } catch { return; }
       if (msg.t === "hello" && !me) {
-        me = { id: this.nextId++, name: this.unique(cleanName(String(msg.name ?? ""))), ws, s: 3, lat: 0.2, psi: 0, v: 0, br: 0, leg: 0, at: Date.now(), seen: false };
+        me = { id: this.nextId++, name: this.unique(cleanName(String(msg.name ?? ""))), car: carOf(msg.car), ws, s: 3, lat: 0.2, psi: 0, v: 0, br: 0, leg: 0, at: Date.now(), seen: false };
         this.players.set(ws, me);
         ws.send(JSON.stringify({ t: "welcome", id: me.id, name: me.name, room: this.room }));
         this.roster(); this.report();
         this.timer ??= setInterval(() => this.tick(), TICK);
       } else if (msg.t === "s" && me) this.move(me, msg);
+      else if (msg.t === "car" && me) { me.car = carOf(msg.car); this.roster(); }
     });
     const leave = () => {
       if (!me) return;
@@ -136,7 +144,7 @@ export class Room {
   }
 
   private roster() {
-    const msg = JSON.stringify({ t: "roster", players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name })) });
+    const msg = JSON.stringify({ t: "roster", players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, car: p.car })) });
     for (const p of this.players.values()) { try { p.ws.send(msg); } catch { /* closing */ } }
   }
 

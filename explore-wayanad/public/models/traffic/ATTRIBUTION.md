@@ -39,6 +39,14 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
   https://sketchfab.com/3d-models/2022-maruti-suzuki-vitara-brezza-1a5cbddc8acb457e9d896d7345fd07d8 — simplified to 8 %, textures 512 px, turned to face +Z;
   maker's badges removed (tailgate emblem and name letters, hybrid badge, steering-wheel logo) and the number plates repainted
   to read WAYANAD (scripts/retouch/player-suv.mjs). Not affiliated with or endorsed by the manufacturer.
+- Player cars (data/cars.ts; shown in the game only under place names: Vythiri, Kabini, Banasura, Pookode), each by
+  BHP3D (https://sketchfab.com/BHP3D), CC BY 4.0, simplified to about 40,000 triangles, textures 512 px, turned to face +Z,
+  makers' emblems, name lettering and dealer badges removed and number plates repainted to read WAYANAD
+  (scripts/retouch/player-cars.mjs). Not affiliated with or endorsed by the manufacturers.
+  - `player-hatch.glb`: "2022 Maruti Suzuki Baleno", https://sketchfab.com/3d-models/2022-maruti-suzuki-baleno-438c1b0c1a4e4732aa1a3cbb505d19e5
+  - `player-sedan.glb`: "2022 Maruti Suzuki Swift Dzire", https://sketchfab.com/3d-models/2022-maruti-suzuki-swift-dzire-95451c00cb2d48778f67d798167e7237
+  - `player-4x4.glb`: "2022 Mahindra Scorpio-N", https://sketchfab.com/3d-models/2022-mahindra-scorpio-n-538b10f2860f44e694dc3e9d3e223bf8
+  - `player-mpv.glb`: "2022 Suzuki Ertiga", https://sketchfab.com/3d-models/2022-suzuki-ertiga-4f14afac3ac44ec4a2fb153e18452f8b
 
 People inside the vehicles (lib/occupants.ts) are simple shapes made in code for this project.
 

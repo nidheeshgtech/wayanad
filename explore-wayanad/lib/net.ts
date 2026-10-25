@@ -10,13 +10,14 @@
  * One object for the page (the HUD and the scene load in different chunks); no React state per message.
  */
 import { game } from "@/lib/game";
+import { DEFAULT_CHOICE, type Choice } from "@/data/cars";
 
 export type Snap = { t: number; s: number; lat: number; psi: number; v: number; br: number };
-export type Remote = { id: number; name: string; buf: Snap[] };
+export type Remote = { id: number; name: string; car: Choice; buf: Snap[] };
 type NetState = {
   enabled: boolean; status: "off" | "connecting" | "live" | "retrying";
   id: number; name: string; room: string;
-  roster: { id: number; name: string }[];
+  roster: { id: number; name: string; car: Choice }[];
   remotes: Map<number, Remote>;
   /** bumped on every roster change, so the HUD can poll cheaply */
   version: number;
@@ -29,26 +30,26 @@ export const net: NetState = ((globalThis as { __wayanadNet?: NetState }).__waya
   enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0,
 });
 
-let ws: WebSocket | null = null, sender: ReturnType<typeof setInterval> | null = null, retry = 0, wanted: { name: string; room: string | null } | null = null;
+let ws: WebSocket | null = null, sender: ReturnType<typeof setInterval> | null = null, retry = 0, wanted: { name: string; room: string | null; car: Choice } | null = null;
 
-/** Join a room as `name`; `invite`: a room id from an invite link. Safe to call again (rejoins). */
-export async function joinRoom(name: string, invite: string | null) {
+/** Join a room as `name` driving `car`; `invite`: a room id from an invite link. Safe to call again (rejoins). */
+export async function joinRoom(name: string, invite: string | null, car: Choice = DEFAULT_CHOICE) {
   if (!net.enabled) return;
-  wanted = { name, room: invite };
+  wanted = { name, room: invite, car };
   leaveRoom(false);
   net.status = "connecting";
   try {
     const q = wanted.room ? `?room=${encodeURIComponent(wanted.room)}` : "";
     const { room } = await (await fetch(`${BASE}/join${q}`)).json() as { room: string };
     wanted.room = room;
-    open(room, name);
+    open(room, name, car);
   } catch { schedule(); }
 }
 
-function open(room: string, name: string) {
+function open(room: string, name: string, car: Choice) {
   const sock = new WebSocket(`${BASE.replace(/^http/, "ws")}/room/${room}`);
   ws = sock;
-  sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ t: "hello", name })); };
+  sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ t: "hello", name, car: { m: car.car, c: car.colour } })); };
   sock.onmessage = (ev) => {
     let m: { t: string; [k: string]: unknown };
     try { m = JSON.parse(ev.data as string); } catch { return; }
@@ -57,15 +58,16 @@ function open(room: string, name: string) {
       net.version++;
       sender ??= setInterval(send, SEND_MS);
     } else if (m.t === "roster") {
-      net.roster = (m.players as { id: number; name: string }[]).filter((p) => p.id !== net.id);
+      net.roster = (m.players as { id: number; name: string; car?: { m: string; c: string } }[]).filter((p) => p.id !== net.id)
+        .map((p) => ({ id: p.id, name: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"] } }));
       for (const id of net.remotes.keys()) if (!net.roster.some((p) => p.id === id)) net.remotes.delete(id);
-      for (const p of net.roster) { const r = net.remotes.get(p.id); if (r) r.name = p.name; }
+      for (const p of net.roster) { const r = net.remotes.get(p.id); if (r) { r.name = p.name; r.car = p.car; } }
       net.version++;
     } else if (m.t === "st") {
       const now = performance.now();
       for (const [id, s, lat, psi, v, br] of m.p as number[][]) {
         let r = net.remotes.get(id);
-        if (!r) { r = { id, name: net.roster.find((p) => p.id === id)?.name ?? "Driver", buf: [] }; net.remotes.set(id, r); }
+        if (!r) { const who = net.roster.find((p) => p.id === id); r = { id, name: who?.name ?? "Driver", car: who?.car ?? DEFAULT_CHOICE, buf: [] }; net.remotes.set(id, r); }
         r.buf.push({ t: now, s, lat, psi, v, br });
         if (r.buf.length > 24) r.buf.splice(0, r.buf.length - 24);
       }
@@ -84,7 +86,13 @@ function schedule() {
   if (!wanted) return;
   net.status = "retrying";
   const w = wanted, delay = Math.min(15_000, 1000 * 2 ** retry++);
-  setTimeout(() => { if (wanted === w && !ws) { if (w.room) open(w.room, w.name); else void joinRoom(w.name, null); } }, delay);
+  setTimeout(() => { if (wanted === w && !ws) { if (w.room) open(w.room, w.name, w.car); else void joinRoom(w.name, null, w.car); } }, delay);
+}
+
+/** Tell the room you've changed car (the garage); remembered for reconnects. */
+export function sendCar(car: Choice) {
+  if (wanted) wanted.car = car;
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "car", car: { m: car.car, c: car.colour } }));
 }
 
 export function leaveRoom(forget = true) {

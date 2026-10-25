@@ -61,7 +61,7 @@ export function mergeInto(meshes: Mesh[], into: Object3D) {
 
 /** The whole model with its parts merged by material. Glass you can see the people through: solid "glass" becomes
  * tinted see-through, and very dark tinted glass is lightened a little. */
-function mergeByMaterial(scene: Group) {
+export function mergeByMaterial(scene: Group) {
   scene.updateMatrixWorld(true);
   scene.traverse((o) => {
     const m = (o as Mesh).material as MeshStandardMaterial | undefined;

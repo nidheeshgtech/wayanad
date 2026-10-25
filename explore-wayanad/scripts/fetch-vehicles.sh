@@ -18,5 +18,11 @@ f f6495bfbffe443e89c499a2ba8766c88 enfield-real --ratio 0.06 --size 512 --turn
 f accbf2048c9344718791588b70d2ebf8 pulsar-real --turn
 f 1a5cbddc8acb457e9d896d7345fd07d8 brezza-player --ratio 0.08 --error 0.01 --keep-parts --turn --size 512  # the car you drive: then
 #   node scripts/retouch/player-suv.mjs public/models/traffic/brezza-player.glb public/models/traffic/player-suv.glb, and delete the input (badges off)
+# the other player cars (data/cars.ts): keep each baked file as .cache/sketchfab/<name>.baked.glb, then
+#   node scripts/retouch/player-cars.mjs   (emblems off, WAYANAD plates)
+f 438c1b0c1a4e4732aa1a3cbb505d19e5 player-hatch --ratio 0.055 --error 0.01 --keep-parts --turn --size 512
+f 95451c00cb2d48778f67d798167e7237 player-sedan --ratio 0.027 --error 0.01 --keep-parts --turn --size 512
+f 538b10f2860f44e694dc3e9d3e223bf8 player-4x4 --ratio 0.03 --error 0.01 --keep-parts --turn --size 512
+f 4f14afac3ac44ec4a2fb153e18452f8b player-mpv --ratio 0.035 --error 0.01 --keep-parts --turn --size 512
 f 14d9f8a913eb4fd9b92c32b6fb0fabae tourbus-real --ratio 0.15 --error 0.008
 f 50e4b1da03494429b1265fc095f2c530 macaque --ratio 0.25 --error 0.006 --size 512 --out public/models/wildlife  # monkeys at the hairpins

@@ -14,6 +14,8 @@ import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
 import { duskness } from "@/lib/theme";
+import { paintCar } from "@/lib/carModel";
+import { carOf, colourOf, type Choice } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
 import { frameTimed } from "@/lib/perf";
 import type { ActId } from "@/data/acts";
@@ -21,7 +23,6 @@ import type { ActId } from "@/data/acts";
 /* The car you drive: a compact SUV, unbranded (CC BY — public/models/traffic/ATTRIBUTION.md; scripts/retouch/player-suv.mjs
  * takes the maker's badges off and puts WAYANAD on the plates), 4.0 m long, in units
  * of 10 m with +z forward and +x its left. Camera views (C cycles them): behind it, close behind, on the bonnet. */
-const LENGTH = 0.4;
 /** Phase one ends just past the Lakkidi gate: the car brakes by itself over the last `brake` units and stops `after`
  * units (400 m) beyond the arch, and the HUD says goodbye. */
 const GATE = { after: 40, brake: 12 };
@@ -75,8 +76,10 @@ function driver(wheel: Vector3) {
   return g;
 }
 
-export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; forest: CatmullRomCurve3 | null }) {
-  const source = use(loadVehicle("/models/traffic/player-suv.glb"));
+export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRomCurve3; forest: CatmullRomCurve3 | null; choice: Choice }) {
+  // the car you picked (data/cars.ts), in its paint (lib/carModel), drawn at its own length; it handles like the rest
+  const car = carOf(choice.car), LENGTH = car.length / 10;
+  const source = use(loadVehicle(car.file));
   const camera = useThree((s) => s.camera);
   const roads = useMemo<RoadInfo[]>(() => [
     { curve, length: curve.getLength(), widen: (t: number) => roadShapeAt(t).widen },
@@ -85,7 +88,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
 
   const rig = useMemo(() => {
     // scale the model to 4.0 m, wheels on the ground, centred
-    const wrap = new Group(), model = source.clone(true); wrap.add(model);
+    const wrap = new Group(), model = paintCar(source.clone(true), colourOf(choice.colour).hex); wrap.add(model);
     const box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), k = LENGTH / size.z;
     model.scale.setScalar(k); model.updateMatrixWorld(true);
     const b2 = new Box3().setFromObject(model), c2 = b2.getCenter(new Vector3());
@@ -150,7 +153,7 @@ export default function PlayerCar({ curve, forest }: { curve: CatmullRomCurve3; 
     const brakeGlow = glow(0xff2a14, 0.07, [tail.min.x + w * 0.1, tail.max.x - w * 0.1]);
     const reverseGlow = glow(0xfff4e8, 0.045, [tail.min.x + w * 0.3, tail.max.x - w * 0.3]);
     return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow };
-  }, [source]);
+  }, [source, LENGTH, choice.colour]);
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
