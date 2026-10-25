@@ -43,6 +43,8 @@ import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
 import PlayerCar from "../drive/PlayerCar";
 import ImpactFx from "../drive/ImpactFx";
+import RemoteCars from "../drive/RemoteCars";
+import { net } from "@/lib/net";
 
 patchAtmosphere(); // before any material compiles
 
@@ -169,6 +171,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Rain count={small ? 5000 : 9000} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar curve={curve} forest={forest?.curve ?? null} /></Suspense>}
       {mode === "drive" && <ImpactFx />}
+      {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} lite={small} />
       <PerfProbe />

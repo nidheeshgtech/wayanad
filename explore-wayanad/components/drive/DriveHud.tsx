@@ -10,6 +10,8 @@ import StartScreen, { ControlRow, panelStyles } from "@/components/ui/StartScree
 import { clock, recordClimb, shareClimb } from "@/lib/share";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { WHATSAPP } from "@/data/plan";
+import { joinRoom, net } from "@/lib/net";
+import { cleanName } from "@/lib/names";
 import styles from "./Drive.module.scss";
 
 /**
@@ -49,7 +51,9 @@ function restart() {
 
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
+  const [driverName, setDriverName] = useState(""), [roster, setRoster] = useState<string[]>([]), [invited, setInvited] = useState("");
   const [shared, setShared] = useState(""), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -90,6 +94,9 @@ export default function DriveHud() {
     const tick = () => {
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
       if (km.current) km.current.textContent = game.km.toFixed(1);
+      // multiplayer: how many drivers share your road; the pause menu's list follows the roster
+      if (room.current) room.current.textContent = !net.enabled || net.status === "off" ? "" : net.status === "live" ? `${net.roster.length + 1} driver${net.roster.length ? "s" : ""} in your room` : "Connecting…";
+      if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); }
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
@@ -108,7 +115,23 @@ export default function DriveHud() {
     return () => { cancelAnimationFrame(raf); engine(false, 0, 0); };
   }, []);
 
-  const start = () => { game.started = true; game.phase = "drive"; game.paused = false; };
+  // the name you drive under (multiplayer), remembered on this device
+  useEffect(() => { try { setDriverName(localStorage.getItem("wayanad-name") ?? ""); } catch {} }, []);
+  const start = () => {
+    game.started = true; game.phase = "drive"; game.paused = false;
+    if (net.enabled) {
+      const name = cleanName(driverName);
+      try { localStorage.setItem("wayanad-name", name); } catch {}
+      setDriverName(name);
+      void joinRoom(name, new URLSearchParams(location.search).get("room"));
+    }
+  };
+  // an invite: this room's link, through the share sheet or copied
+  const invite = async () => {
+    const url = `${location.origin}/?room=${net.room}`, nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (nav.share) { try { await nav.share({ title: "Explore Wayanad", text: "Drive the Thamarassery Churam with me:", url }); return; } catch (e) { if ((e as DOMException).name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(url); setInvited("Link copied"); setTimeout(() => setInvited(""), 2500); } catch {}
+  };
   const onward = () => { game.leg = 1; game.phase = "drive"; resetCar(3); };
   const chooseQuality = (m: QualityMode) => { setQualityMode(m); setMode(m); };
   // touch: hold to press; leaving the button lets go
@@ -124,6 +147,7 @@ export default function DriveHud() {
       <div className={styles.top}>
         <div className={styles.speed}>
           <b ref={speed}>0</b><small>km/h</small>
+          <div ref={room} className={styles.room} />
           <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
         </div>
       </div>
@@ -160,6 +184,14 @@ export default function DriveHud() {
           lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
           stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
           startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}
+          beforeStart={net.enabled ? (
+            <div className={panelStyles.nameField}>
+              <label htmlFor="driver-name">Your name</label>
+              <input id="driver-name" value={driverName} maxLength={16} autoComplete="nickname" placeholder="Shown above your car"
+                onChange={(e) => setDriverName(e.target.value)} onKeyDown={(e) => { if (e.key !== "Enter") e.stopPropagation(); }} />
+              <small>Other drivers on the road see it. Leave it empty to drive as “Driver 123”.</small>
+            </div>
+          ) : null}
           panel={<>
             <h2>Controls</h2>
             <div className={panelStyles.keyOnly}>
@@ -191,6 +223,12 @@ export default function DriveHud() {
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}
           </div>
+          {net.enabled && net.status !== "off" && (
+            <div className={styles.setting}>
+              <span>{roster.length ? `On the road with you: ${roster.join(", ")}` : "No one else on your road yet"}</span>
+              <button type="button" onClick={() => void invite()}>{invited || "Invite a friend"}</button>
+            </div>
+          )}
           <Sponsors />
         </div>
       )}

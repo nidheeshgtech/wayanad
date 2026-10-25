@@ -1,0 +1,17 @@
+{
+  "name": "explore-wayanad-multiplayer",
+  "private": true,
+  "description": "Room server for the drive: Cloudflare Worker + Durable Objects (see src/index.ts).",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "bots": "node scripts/bots.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.152.0",
+    "ws": "^8.22.0"
+  }
+}

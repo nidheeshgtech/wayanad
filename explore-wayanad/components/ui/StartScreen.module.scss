@@ -56,6 +56,12 @@
 .touchOnly { display: none; }
 @media (pointer: coarse) { .keyOnly, .start kbd { display: none; } .touchOnly { display: contents; } .start { justify-content: center; } }
 
+.nameField { display: grid; gap: 8px; max-width: 360px;
+  label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+  input { height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(14, 31, 26, .6); color: var(--ink);
+    font: 400 16px var(--font-sans), sans-serif; outline: none; &:focus { border-color: var(--amber); } &::placeholder { color: var(--dim); } }
+  small { font-size: 12px; color: var(--mute); } }
+@media (max-width: 860px) { .nameField { max-width: none; } }
 .link { font-size: 14px; color: var(--mute); text-decoration: none; padding: 8px 0; border-bottom: 1px solid transparent;
   &:hover { color: var(--ink); border-color: var(--line); } &:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; } }
 

@@ -6,6 +6,8 @@
 .speed { margin-left: auto; text-align: right; font-family: var(--font-serif), Georgia, serif; line-height: 1;
   b { display: block; font-weight: 300; font-size: 44px; color: var(--amber); font-variant-numeric: tabular-nums; }
   small { font: 12px var(--font-sans), sans-serif; color: var(--mute); } }
+// multiplayer: drivers in your room, under the km readout
+.room { margin-top: 6px; font: 400 11px/1.2 var(--font-sans), sans-serif; color: var(--mute); &:empty { display: none; } }
 // distance along the route: "KM 4.8 / 12.4" over a hairline of progress
 .km { margin-top: 10px; display: grid; grid-template-columns: auto auto auto; justify-content: end; align-items: baseline; column-gap: 4px;
   font: 500 11px/1 var(--font-sans), sans-serif; letter-spacing: .08em; color: var(--dim);

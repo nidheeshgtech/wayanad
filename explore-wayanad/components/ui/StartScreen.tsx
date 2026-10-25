@@ -10,12 +10,14 @@ import styles from "./StartScreen.module.scss";
  * says Start. So the drive never stalls on its first frames. Enter starts too. The landscape shows through, dimmed,
  * once it's built. `scene: false` (no canvas, e.g. the video tier) is ready at once.
  */
-export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy }: {
+export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy, beforeStart }: {
   eyebrow: string; title: ReactNode; lead: string; stats: [string, string][];
   startLabel: string; onStart: () => void; scene?: boolean | null;
   panel?: ReactNode; footer?: ReactNode; leaving?: boolean;
   /** the title sponsor, under the brand (data/sponsors.ts PRESENTED_BY) */
   presentedBy?: { name: string; url: string | null } | null;
+  /** shown just above the Start button (drive mode's name box) */
+  beforeStart?: ReactNode;
 }) {
   const [ready, setReady] = useState(false), bar = useRef<HTMLSpanElement>(null), pct = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -60,6 +62,7 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
           <dl className={styles.stats}>
             {stats.map(([value, label]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
           </dl>
+          {beforeStart}
           <div className={styles.actions}>
             <button type="button" className={styles.start} disabled={!ready} onClick={onStart} autoFocus={ready}>
               {ready ? <><span>{startLabel}</span><kbd aria-hidden>Enter ↵</kbd></> : (
