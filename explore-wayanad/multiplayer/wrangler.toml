@@ -1,5 +1,5 @@
 # The drive's room server (src/index.ts). `npm run dev` runs it locally on :8787; `npm run deploy` publishes it to the
-# Cloudflare account wrangler is logged in to. Then set NEXT_PUBLIC_MP_URL (wss://<name>.<account>.workers.dev) in Vercel.
+# Cloudflare account wrangler is logged in to. Then set NEXT_PUBLIC_MP_URL (https://<name>.<account>.workers.dev) in Vercel.
 name = "explore-wayanad-rooms"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
@@ -12,4 +12,4 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_classes = ["Room", "Lobby"]
+new_sqlite_classes = ["Room", "Lobby"] # SQLite-backed: the kind the Workers free plan allows
