@@ -200,6 +200,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // drawn between the last two physics steps
     const s = game.prev.s + (game.s - game.prev.s) * alpha, lat = game.prev.lat + (game.lat - game.prev.lat) * alpha, psi = game.prev.psi + (game.psi - game.prev.psi) * alpha;
     const L = road.length, t = Math.min(1, s / L);
+    game.roadLength = L;
 
     // the world follows the car: the act and its progress, so fog, light, the minimap and which world shows all match
     let act: ActId, q: number;

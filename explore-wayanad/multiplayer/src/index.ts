@@ -8,14 +8,15 @@
  * A Room is one shared churam for up to ~25 drivers (CAPACITY; an invite may take it to HARD_CAP). Players are
  * described by where they are on the road (s, lat, psi, speed, braking) — the game's own coordinates — so a state is a
  * few numbers. Each player sends ~12 a second; ten times a second the room sends each player the others within
- * NEAR units of road (600 m) — on one road, "who's near me" is just a difference in s. The server checks each update
+ * NEAR units of road (600 m) — on one road, "who's near me" is just a difference in s — and once a second everyone on
+ * the same leg, wherever they are (the minimap shows them). The server checks each update
  * against the car's top speed and keeps the last good one if a jump is impossible. Names are trimmed, cleaned, and
  * made unique in the room ("Arjun", "Arjun#2").
  *
  * Messages (JSON):
  *  client → { t: "hello", name, car: { m, c } } once; { t: "s", s, lat, psi, v, br, leg } ~12/s; { t: "car", car } on a change
  *  server → { t: "welcome", id, name, room } · { t: "roster", players: [{ id, name, car }] } on joins, leaves and car changes
- *           { t: "st", now, p: [[id, s, lat, psi, v, br], ...] } 10/s, only the nearby ones
+ *           { t: "st", now, p: [[id, s, lat, psi, v, br], ...] } 10/s, the nearby ones (everyone, once a second)
  */
 import { cleanName } from "./names";
 
@@ -24,6 +25,8 @@ export interface Env { ROOM: DurableObjectNamespace; LOBBY: DurableObjectNamespa
 const CAPACITY = 25, HARD_CAP = 30;
 const NEAR = 60;          // units of road (10 m): who you're sent
 const TICK = 100;         // ms between state broadcasts
+const ALL_EVERY = 10;     // every 10th broadcast (1/s) carries everyone on the leg, near or not
+const REPORT_EVERY = 600; // every 600th (1/min) the room tells the Lobby it's still here, so it isn't forgotten
 const MAX_SPEED = 2.8;    // units/s: the car's top speed (lib/game CAR.max)
 const CORS = { "Access-Control-Allow-Origin": "*" };
 // the cars and paints a player can pick (data/cars.ts); anything else becomes the default
@@ -48,16 +51,24 @@ export default {
   },
 };
 
-/** Which rooms exist and how full they are; hands out rooms. Rooms report their counts here. */
+/** Which rooms exist and how full they are; hands out rooms. Rooms report their counts here. The list is kept in the
+ * object's storage too: Cloudflare unloads an idle Lobby after a minute or so, and a fresh one that had forgotten the
+ * rooms would send the next player (your phone, a friend) into a new, empty room. */
 export class Lobby {
   private rooms = new Map<string, { count: number; at: number }>();
-  constructor(private state: DurableObjectState) {}
+  constructor(private state: DurableObjectState) {
+    state.blockConcurrencyWhile(async () => {
+      this.rooms = new Map(Object.entries((await state.storage.get<Record<string, { count: number; at: number }>>("rooms")) ?? {}));
+    });
+  }
+  private save() { return this.state.storage.put("rooms", Object.fromEntries(this.rooms)); }
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname === "/report") {
       const { room, count } = await req.json<{ room: string; count: number }>();
       if (count > 0) this.rooms.set(room, { count, at: Date.now() }); else this.rooms.delete(room);
+      await this.save();
       return new Response("ok");
     }
     // forget rooms that stopped reporting (crashed, evicted)
@@ -72,6 +83,7 @@ export class Lobby {
     room ??= Math.random().toString(36).slice(2, 8);
     // count the newcomer now, so a burst of joins doesn't overfill one room before it reports back
     const r = this.rooms.get(room); this.rooms.set(room, { count: (r?.count ?? 0) + 1, at: Date.now() });
+    await this.save();
     return Response.json({ room }, { headers: CORS });
   }
 }
@@ -84,6 +96,7 @@ export class Room {
   private players = new Map<WebSocket, Player>();
   private nextId = 1;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private ticks = 0;
   private room = "";
 
   constructor(private state: DurableObjectState, private env: Env) {}
@@ -132,11 +145,12 @@ export class Room {
     Object.assign(p, { s, lat: Math.max(-0.6, Math.min(0.6, lat)), psi: Math.max(-1.2, Math.min(1.2, psi)), v: Math.max(-1, Math.min(MAX_SPEED * 1.1, v)), br: n("br") ? 1 : 0, leg, at: now, seen: true });
   }
 
-  /** Ten times a second: each player gets the others on the same leg within NEAR units of road. */
+  /** Ten times a second: each player gets the others on the same leg within NEAR units of road; once a second, all of them. */
   private tick() {
-    const all = [...this.players.values()].filter((p) => p.seen), now = Date.now();
+    const all = [...this.players.values()].filter((p) => p.seen), now = Date.now(), everyone = ++this.ticks % ALL_EVERY === 0;
+    if (this.ticks % REPORT_EVERY === 0) this.report();
     for (const me of this.players.values()) {
-      const near = all.filter((o) => o !== me && o.leg === me.leg && Math.abs(o.s - me.s) < NEAR);
+      const near = all.filter((o) => o !== me && o.leg === me.leg && (everyone || Math.abs(o.s - me.s) < NEAR));
       if (!near.length && !me.seen) continue;
       const p = near.map((o) => [o.id, +o.s.toFixed(3), +o.lat.toFixed(3), +o.psi.toFixed(3), +o.v.toFixed(2), o.br]);
       try { me.ws.send(JSON.stringify({ t: "st", now, p })); } catch { /* closing */ }

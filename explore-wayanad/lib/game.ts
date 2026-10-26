@@ -34,6 +34,7 @@ const fresh = () => ({
   // for the HUD, filled in by the car each frame
   place: "Adivaram", next: "Lakkidi gate", nextM: 0, bends: 0,
   km: 0, kmTotal: 0,                          // along the road from Adivaram, and to the end of the drive
+  roadLength: 0,                              // the road you're on, units (the minimap places other drivers with it)
 });
 /** One object for the page (the HUD and the 3D scene load in different chunks). */
 export const game: ReturnType<typeof fresh> = ((globalThis as { __wayanadGame?: ReturnType<typeof fresh> }).__wayanadGame ??= fresh());

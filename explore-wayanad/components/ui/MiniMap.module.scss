@@ -9,5 +9,6 @@
 .num { fill: var(--ink); font: 500 7px var(--font-sans), sans-serif; text-anchor: middle; dominant-baseline: middle; }
 .arch { fill: var(--ink); }
 .dot { fill: var(--amber); stroke: var(--bg); stroke-width: 1.5; }
+.other { fill: var(--ink); stroke: var(--bg); stroke-width: 1.2; }
 .labels { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--dim); margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .map { transition: none; } }
