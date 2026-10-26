@@ -1,19 +1,19 @@
 /**
- * The cars a player can drive, and their paint colours. No maker names anywhere players see: each car is named after
- * a place in Wayanad. The models (CC BY, Sketchfab — public/models/traffic/ATTRIBUTION.md) have their badges taken
+ * The cars a player can drive, and their paint colours. No maker names anywhere players see: each car goes by its
+ * type. (The ids are older names, kept because saved choices and the room server use them.) The models (CC BY, Sketchfab — public/models/traffic/ATTRIBUTION.md) have their badges taken
  * off and WAYANAD on the plates (scripts/retouch/player-*.mjs). They all handle the same for now (lib/game CAR); each
  * is drawn at its own length. `paint`: the body-paint materials the colour goes on (glass, lights, tyres keep theirs).
  */
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
-export type Car = { id: CarId; name: string; kind: string; file: string; length: number; paint: RegExp };
+export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp };
 
 export const CARS: Car[] = [
-  { id: "lakkidi", name: "Lakkidi", kind: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/ },
-  { id: "vythiri", name: "Vythiri", kind: "Hatchback", file: "/models/traffic/player-hatch.glb", length: 3.99, paint: /^primary$/ },
-  { id: "kabini", name: "Kabini", kind: "Sedan", file: "/models/traffic/player-sedan.glb", length: 3.99, paint: /^primary$/ },
-  { id: "banasura", name: "Banasura", kind: "Off-road 4×4", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/ },
-  { id: "pookode", name: "Pookode", kind: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/ },
+  { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/ },
+  { id: "vythiri", name: "Hatchback", file: "/models/traffic/player-hatch.glb", length: 3.99, paint: /^primary$/ },
+  { id: "kabini", name: "Sedan", file: "/models/traffic/player-sedan.glb", length: 3.99, paint: /^primary$/ },
+  { id: "banasura", name: "Off-road 4×4", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/ },
+  { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/ },
 ];
 
 /** Paint: a little less saturated than a swatch would suggest, as car paint reads under the scene's light. */

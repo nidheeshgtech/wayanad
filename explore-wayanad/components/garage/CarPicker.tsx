@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { CARS, COLOURS, carOf, type Choice } from "@/data/cars";
+import { CARS, COLOURS, carOf, colourOf, type Choice } from "@/data/cars";
 import styles from "./CarPicker.module.scss";
 
 const CarPreview = dynamic(() => import("./CarPreview"), { ssr: false, loading: () => <div className={styles.loading}>Loading the car…</div> });
@@ -15,14 +15,14 @@ export default function CarPicker({ value, onChange }: { value: Choice; onChange
     <div className={styles.picker}>
       <div className={styles.preview}>
         <CarPreview choice={value} />
-        <div className={styles.caption}><b>{car.name}</b><span>{car.kind}</span></div>
+        <div className={styles.caption}><b>{car.name}</b><span>{colourOf(value.colour).name}</span></div>
       </div>
       <div className={styles.options}>
         <div className={styles.cars} role="radiogroup" aria-label="Car">
           {CARS.map((c) => (
             <button key={c.id} type="button" role="radio" aria-checked={c.id === value.car} onClick={() => onChange({ ...value, car: c.id })}
               onKeyDown={(e) => e.stopPropagation()}>
-              <b>{c.name}</b><small>{c.kind}</small>
+              <b>{c.name}</b>
             </button>
           ))}
         </div>
