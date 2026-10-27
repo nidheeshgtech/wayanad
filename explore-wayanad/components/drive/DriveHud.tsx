@@ -165,7 +165,7 @@ export default function DriveHud() {
       <div className={styles.buttons}>
         <button type="button" ref={ref("horn")} className={styles.hornKey} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
         <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
-        <button type="button" ref={ref("back")} {...hold((on) => { game.lookBack = on; })} title="Look back (hold B)" aria-label="Look back (hold)"><Icon name="back" /></button>
+        <button type="button" ref={ref("back")} className={styles.backKey} {...hold((on) => { game.lookBack = on; })} title="Look back (hold B)" aria-label="Look back (hold)"><Icon name="back" /></button>
         <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
         <Sound icon />
@@ -179,6 +179,7 @@ export default function DriveHud() {
           <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}><Icon name="right" /></button>
         </div>
         <button type="button" className={styles.bigHorn} onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button>
+        <button type="button" className={styles.bigBack} {...hold((on) => { game.lookBack = on; })} aria-label="Look back (hold)"><Icon name="back" /></button>
         <div className={styles.pedals}>
           <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /></button>
           <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /></button>
@@ -190,7 +191,7 @@ export default function DriveHud() {
       {screen === "start" && (
         <StartScreen
           eyebrow="Drive mode · The churam"
-          title={<>Drive the<br />churam.</>}
+          title={<>Drive to<br />Wayanad.</>}
           lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
           stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
           startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}

@@ -17,7 +17,7 @@
   u { display: block; height: 100%; background: var(--amber); transform-origin: left; transform: scaleX(0); text-decoration: none; } }
 .note { position: fixed; z-index: 5; left: 50%; top: 96px; transform: translateX(-50%); font-size: 12px; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
 
-.buttons svg, .steer svg, .pedals svg, .bigHorn svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.buttons svg, .steer svg, .pedals svg, .bigHorn svg, .bigBack svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
 
 .buttons { position: fixed; z-index: 5; right: 20px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px;
   button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--mute); background: rgba(8, 20, 16, .45); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; backdrop-filter: blur(6px);
@@ -28,7 +28,7 @@
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
 .touch { display: none; }
-.steer, .pedals, .bigHorn { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.steer, .pedals, .bigHorn, .bigBack { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 .steer, .pedals { display: flex; gap: 8px; align-items: flex-end;
   button { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); touch-action: none; backdrop-filter: blur(6px);
     svg { width: 26px; height: 26px; }
@@ -42,6 +42,11 @@
   border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); backdrop-filter: blur(6px); touch-action: manipulation;
   svg { width: 26px; height: 26px; }
   &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
+// look back (held): a smaller one above the horn
+.bigBack { left: 50%; transform: translateX(-50%); bottom: calc(94px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); backdrop-filter: blur(6px); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  svg { width: 20px; height: 20px; }
+  &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
 
 // phones: nothing over the middle of the road. The speed
 // sits top-left, the small buttons top-right (the horn has its own big one), the driving controls along the bottom.
@@ -54,7 +59,7 @@
   .km { justify-content: start; margin-top: 6px; min-width: 104px; }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;
     button { width: 32px; height: 32px; svg { width: 15px; height: 15px; } } }
-  .buttons .hornKey { display: none; }
+  .buttons .hornKey, .buttons .backKey { display: none; }
   .note { top: calc(64px + env(safe-area-inset-top, 0px)); }
 }
 

@@ -11,7 +11,7 @@ const site = process.env.VERCEL_PROJECT_PRODUCTION_URL;
 
 export const metadata: Metadata = {
   metadataBase: site ? new URL(`https://${site}`) : undefined,
-  title: "Explore Wayanad — drive the churam",
+  title: "Explore Wayanad — drive to Wayanad",
   description: "Drive up the Thamarassery Churam into Wayanad: nine hairpins in monsoon traffic, rain and mist, to the gateway at Lakkidi.",
 };
 

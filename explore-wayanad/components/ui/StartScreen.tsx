@@ -4,11 +4,12 @@ import { loading, progress } from "@/lib/loading";
 import styles from "./StartScreen.module.scss";
 
 /**
- * The title screen both pages open on, laid out like a game's: brand top-left, the chapter's title and three facts
- * bottom-left, a controls panel bottom-right (drive mode), and one button that is the loading bar until the scene is
- * fully ready — models, textures and every shader compiled (lib/loading, components/scene/Warmup) — and only then
- * says Start. So the drive never stalls on its first frames. Enter starts too. The landscape shows through, dimmed,
- * once it's built. `scene: false` (no canvas, e.g. the video tier) is ready at once.
+ * The title screen both pages open on, laid out like a game's. First a loader alone — the brand, the title and a
+ * progress bar — until the scene is fully ready: models, textures and every shader compiled (lib/loading,
+ * components/scene/Warmup), so the drive never stalls on its first frames. Then it fades away onto the title screen
+ * proper over the landscape (dimmed): the chapter's title and three facts bottom-left, the name box and car (drive
+ * mode), a controls panel bottom-right, and Start (Enter starts too). `scene: false` (no canvas, e.g. the video tier)
+ * is ready at once.
  */
 export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy, beforeStart }: {
   eyebrow: string; title: ReactNode; lead: string; stats: [string, string][];
@@ -19,7 +20,7 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
   /** shown just above the Start button (drive mode's name box) */
   beforeStart?: ReactNode;
 }) {
-  const [ready, setReady] = useState(false), bar = useRef<HTMLSpanElement>(null), pct = useRef<HTMLSpanElement>(null);
+  const [ready, setReady] = useState(false), bar = useRef<HTMLSpanElement>(null), pct = useRef<HTMLSpanElement>(null), startButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (scene === false) { setReady(true); return; }
     let raf = 0;
@@ -39,6 +40,8 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
     document.documentElement.setAttribute("data-intro", "");
     return () => document.documentElement.removeAttribute("data-intro");
   }, [leaving]);
+  // Start takes the focus without scrolling to it: the screen opens at its title (the button may be below the fold)
+  useEffect(() => { if (ready) startButton.current?.focus({ preventScroll: true }); }, [ready]);
   useEffect(() => {
     if (!ready || leaving) return;
     const key = (e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); onStart(); } };
@@ -46,14 +49,22 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
     return () => removeEventListener("keydown", key);
   }, [ready, leaving, onStart]);
 
-  return (
-    <div className={styles.screen} data-ready={ready || undefined} data-leaving={leaving || undefined} role="dialog" aria-label={eyebrow}>
-      <header className={styles.top}>
-        <span className={styles.brand}>Explore Wayanad
-          {presentedBy && <span className={styles.presented}>Presented by {presentedBy.url ? <a href={presentedBy.url} target="_blank" rel="noopener noreferrer sponsored">{presentedBy.name}</a> : presentedBy.name}</span>}
-        </span>
-        <span className={styles.status}>{ready ? "Ready" : "Loading"}</span>
-      </header>
+  const brand = (
+    <span className={styles.brand}>Explore Wayanad
+      {presentedBy && <span className={styles.presented}>Presented by {presentedBy.url ? <a href={presentedBy.url} target="_blank" rel="noopener noreferrer sponsored">{presentedBy.name}</a> : presentedBy.name}</span>}
+    </span>
+  );
+  return (<>
+    <div className={styles.loader} data-done={ready || undefined} role="status" aria-label="Loading">
+      <header className={styles.top}>{brand}<span className={styles.status}>Loading</span></header>
+      <div className={styles.loading}>
+        <p className={styles.loaderTitle}>{title}</p>
+        <div className={styles.track} aria-hidden><span ref={bar} /></div>
+        <p className={styles.loaderText}><span>Loading the road</span><span ref={pct}>0%</span></p>
+      </div>
+    </div>
+    {ready && <div className={styles.screen} data-leaving={leaving || undefined} role="dialog" aria-label={eyebrow}>
+      <header className={styles.top}>{brand}<span className={styles.status}>Ready</span></header>
       <div className={styles.body}>
         <section className={styles.intro}>
           <p className={styles.eyebrow}>{eyebrow}</p>
@@ -64,18 +75,16 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
           </dl>
           {beforeStart}
           <div className={styles.actions}>
-            <button type="button" className={styles.start} disabled={!ready} onClick={onStart} autoFocus={ready}>
-              {ready ? <><span>{startLabel}</span><kbd aria-hidden>Enter ↵</kbd></> : (
-                <><span className={styles.fill} ref={bar} aria-hidden /><span className={styles.loadText}>Loading the road</span><span ref={pct} className={styles.pct}>0%</span></>
-              )}
+            <button type="button" ref={startButton} className={styles.start} onClick={onStart}>
+              <span>{startLabel}</span><kbd aria-hidden>Enter ↵</kbd>
             </button>
             {footer}
           </div>
         </section>
         {panel && <aside className={styles.panel}>{panel}</aside>}
       </div>
-    </div>
-  );
+    </div>}
+  </>);
 }
 
 /** A controls panel row: what it does, then its keys or icons. */
