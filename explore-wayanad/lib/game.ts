@@ -31,6 +31,7 @@ const fresh = () => ({
   odometer: 0, clock: 0,                      // units driven, seconds driving
   reset: 0,                                   // bumped to put the car back in lane
   view: "chase" as View,                      // camera (C cycles): behind, close behind, on the bonnet
+  lookBack: false,                            // held (B, or the look-back button): the camera faces back down the road
   // for the HUD, filled in by the car each frame
   place: "Adivaram", next: "Lakkidi gate", nextM: 0, bends: 0,
   km: 0, kmTotal: 0,                          // along the road from Adivaram, and to the end of the drive

@@ -29,6 +29,7 @@ const VIEW_NAME: Record<View, string> = { chase: "Behind", near: "Close", hood: 
 /** Line icons for the controls (24 px grid, stroked in the text colour). */
 const ICON = {
   horn: <><path d="M3 10h3l11-5v14L6 14H3z" /><path d="m7 14 1.5 5H11l-1.2-4" /></>,
+  back: <><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
   view: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="m8 7 2-3h4l2 3" /><circle cx="12" cy="13.5" r="3.5" /></>,
   reset: <><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" /><path d="M4 4v4.5h4.5" /></>,
   pause: <path d="M8 5v14M16 5v14" />,
@@ -82,11 +83,16 @@ export default function DriveHud() {
       if (k === " " || k === "escape") { togglePause(); flash("pause"); }
       if (k === "h") { honk({ audible: true }); flash("horn"); }
       if (k === "c") { cycleView(); setView(game.view); flash("view"); }
+      if (k === "b") { game.lookBack = true; buttons.current.back?.setAttribute("data-on", "1"); }
       if (k === "r" && !game.paused) { resetCar(); flash("reset"); }
       held.add(k); apply();
     };
-    const up = (e: KeyboardEvent) => { held.delete(e.key.toLowerCase()); apply(); };
-    const blur = () => { held.clear(); apply(); };
+    const up = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (k === "b") { game.lookBack = false; buttons.current.back?.removeAttribute("data-on"); }
+      held.delete(k); apply();
+    };
+    const blur = () => { held.clear(); apply(); game.lookBack = false; };
     addEventListener("keydown", down); addEventListener("keyup", up); addEventListener("blur", blur);
     return () => { removeEventListener("keydown", down); removeEventListener("keyup", up); removeEventListener("blur", blur); };
   }, []);
@@ -159,6 +165,7 @@ export default function DriveHud() {
       <div className={styles.buttons}>
         <button type="button" ref={ref("horn")} className={styles.hornKey} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
         <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
+        <button type="button" ref={ref("back")} {...hold((on) => { game.lookBack = on; })} title="Look back (hold B)" aria-label="Look back (hold)"><Icon name="back" /></button>
         <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
         <Sound icon />
@@ -209,12 +216,14 @@ export default function DriveHud() {
               <ControlRow label="Steer"><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd></ControlRow>
               <ControlRow label="Horn"><kbd>H</kbd></ControlRow>
               <ControlRow label="Camera · back on the road"><kbd>C</kbd><kbd>R</kbd></ControlRow>
+              <ControlRow label="Look back (hold)"><kbd>B</kbd></ControlRow>
               <ControlRow label="Pause"><kbd>Space</kbd></ControlRow>
             </div>
             <div className={panelStyles.touchOnly}>
               <ControlRow label="Steer"><kbd>◀</kbd><kbd>▶</kbd></ControlRow>
               <ControlRow label="Accelerate · brake"><kbd>▲</kbd><kbd>▼</kbd></ControlRow>
               <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
+              <ControlRow label="Look back"><kbd>hold ↶</kbd></ControlRow>
             </div>
             <p>Sound the horn behind a slow vehicle and it gives way where it&apos;s safe. Oncoming traffic doesn&apos;t, on the hairpins.</p>
           </>}

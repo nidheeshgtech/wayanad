@@ -10,7 +10,7 @@
  * One object for the page (the HUD and the scene load in different chunks); no React state per message.
  */
 import { game } from "@/lib/game";
-import { DEFAULT_CHOICE, type Choice } from "@/data/cars";
+import { DEFAULT_CHOICE, carOf, type Choice } from "@/data/cars";
 
 export type Snap = { t: number; s: number; lat: number; psi: number; v: number; br: number };
 export type Remote = { id: number; name: string; car: Choice; buf: Snap[] };
@@ -118,4 +118,28 @@ export function remoteState(r: Remote, now: number, out: Snap): Snap | null {
   }
   const k = Math.min(1, Math.max(0, (t - a.t) / Math.max(1, c.t - a.t)));
   return Object.assign(out, { t, s: a.s + (c.s - a.s) * k, lat: a.lat + (c.lat - a.lat) * k, psi: a.psi + (c.psi - a.psi) * k, v: c.v, br: c.br });
+}
+
+/** Keep your car out of the other drivers': run into one ahead of you (or reverse into one behind) and you're held at
+ * the contact at their pace, and can creep round with the wheel turned, as with traffic (lib/traffic collidePlayer).
+ * The one behind gives way: a car coming up behind you is stopped on its own screen, so yours is never shoved. Cars
+ * already well inside each other (everyone starts at Adivaram; a late update) pass through until they're apart.
+ * `p` in road units, changed in place; returns the knock (0 = none). */
+const CREEP = 0.25, WIDTH = 0.09; // units/s with full lock; half a car's width, units
+export function collideRemotes(p: { s: number; lat: number; speed: number; halfL: number; halfW: number; steer: number }) {
+  if (!net.enabled || !net.remotes.size) return 0;
+  const now = performance.now(), st = {} as Snap;
+  let knock = 0;
+  for (const r of net.remotes.values()) {
+    if (!remoteState(r, now, st)) continue;
+    const reach = carOf(r.car.car).length / 20 + p.halfL, g = st.s - p.s;
+    if (Math.abs(g) >= reach || Math.abs(g) < reach * 0.5) continue;
+    if (Math.abs(st.lat - p.lat) >= WIDTH + p.halfW) continue;
+    const theirs = st.v * Math.cos(st.psi);
+    if (g > 0 && p.speed > theirs - 0.01) { p.s = st.s - reach - 0.01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer) * 1.5)); }
+    else if (g < 0 && p.speed < Math.min(0, theirs)) { p.s = st.s + reach + 0.01; p.speed = Math.min(0, theirs); } // reversing into them: stopped
+    else continue;
+    knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
+  }
+  return knock;
 }

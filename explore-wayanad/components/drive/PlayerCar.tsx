@@ -5,7 +5,8 @@ import {
   AdditiveBlending, Box3, BufferAttribute, BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
   Object3D, Quaternion, SphereGeometry, SpotLight, Sprite, SpriteMaterial, Vector3, type PerspectiveCamera,
 } from "three";
-import { CAR, game } from "@/lib/game";
+import { CAR, game, type View } from "@/lib/game";
+import { collideRemotes } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
 import { loadVehicle, mergeInto } from "@/lib/vehicleAssets";
@@ -38,6 +39,7 @@ function glowTexture() {
 }
 const VIEW = {
   chase: { back: 0.78, up: 0.2, ahead: 0.9, aimUp: 0.06 },
+  back: { back: 0.62, up: 0.17, ahead: 1.2, aimUp: 0.04 }, // looking back (held): in front of the car, facing down the road
   near: { back: 0.5, up: 0.13, ahead: 0.9, aimUp: 0.07 },
   hood: { at: new Vector3(0, 0.156, 0.05), look: new Vector3(0, 0.132, 1.2) }, // eye just ahead of the windscreen, in the car's frame
 };
@@ -155,7 +157,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow };
   }, [source, LENGTH, choice.colour]);
 
-  const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view, blend: 1, from: new Vector3(), fromQ: new Quaternion() });
+  const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
 
@@ -172,7 +174,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       if (game.leg === 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer };
-        const knock = collidePlayer(trafficControl.fleet, curve, road.widen, p);
+        const knock = Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
         if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
         // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
@@ -254,7 +256,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     spot.intensity = dark * 6;
 
     // the camera
-    const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.view, { want, look, dir } = tmp;
+    const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.lookBack ? "back" : game.view, { want, look, dir } = tmp;
     if (view !== C.view) { C.from.copy(camera.position); C.fromQ.copy(camera.quaternion); C.blend = 0; C.view = view; }
     const fov = view === "hood" ? 66 : 60;
     if (Math.abs(camera3.fov - fov) > 0.01) { camera3.fov += (fov - camera3.fov) * Math.min(1, dt * 8); camera3.updateProjectionMatrix(); }
@@ -277,6 +279,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     } else {
       const v = VIEW[view];
       dir.set(Math.sin(C.yaw), 0, Math.cos(C.yaw));
+      if (view === "back") dir.negate();
       want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back).addScaledVector(up, v.up);
       look.set(root.position.x, C.y, root.position.z).addScaledVector(dir, v.ahead).addScaledVector(up, v.aimUp);
       // keep the hillside out of the shot: lift the camera over any ground between it and the car
