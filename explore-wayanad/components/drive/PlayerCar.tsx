@@ -173,9 +173,10 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       alpha = simulate(road, dt);
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       if (game.leg === 0 && trafficControl.curve === curve) {
-        const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer };
+        const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
         const knock = Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
         if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
+        if (p.lat !== game.lat) { game.lat = p.lat; game.prev.lat = p.lat; game.psi = p.psi; }
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
         // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
         // round a vehicle you're touching stays quiet), again only if it gets clearly harder

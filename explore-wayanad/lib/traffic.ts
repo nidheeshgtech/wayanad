@@ -174,8 +174,19 @@ export function interactWithViewer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
 }
 
 /* ---- drive mode: the player's bus among the traffic ---- */
-/** `steer`: the wheel, −1…1 (lets you creep round a vehicle you're touching: collidePlayer). */
-export type Player = { s: number; lat: number; speed: number; halfL: number; halfW: number; steer?: number };
+/** `steer`: the wheel, −1…1 (lets you creep round a vehicle you're touching: collidePlayer). `psi`: heading off the
+ * road's direction (a side contact straightens it). */
+export type Player = { s: number; lat: number; speed: number; halfL: number; halfW: number; steer?: number; psi?: number };
+/** Side by side with something (overlapping more along the road than across it): pushed out sideways, heading into it
+ * straightened as at the barrier, never moved round to its nose or tail. Returns the knock, or -1 when it's end on. */
+export function sideContact(p: Player, dLat: number, side: number, endOn: number) {
+  const across = side - Math.abs(dLat);
+  if (across >= endOn) return -1;
+  const out = Math.sign(dLat) || 1, into = -p.speed * Math.sin(p.psi ?? 0) * out; // closing speed across the road
+  p.lat += out * (across + 0.005);
+  if (into > 0 && p.psi !== undefined) p.psi *= 0.3;
+  return Math.min(1, Math.max(0, into));
+}
 /** The lanes the player's bus covers: its own (left, 1) and/or the oncoming one (right, −1). */
 export const playerLanes = (p: Player): (1 | -1)[] => [...(p.lat + p.halfW > 0.02 ? [1 as const] : []), ...(p.lat - p.halfW < -0.02 ? [-1 as const] : [])];
 /** A vehicle's centre, units left of the road's centre line (oncoming traffic: negative). */
@@ -222,7 +233,8 @@ export function interactWithPlayer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
 }
 
 /** Keep the player's bus out of the vehicles: where footprints overlap (along the road and across it), the bus is put
- * back at the contact and slowed to the other vehicle's pace (head-on: stopped). Returns the knock (0 = none). */
+ * back at the contact and slowed to the other vehicle's pace (head-on: stopped), or, alongside it, pushed out
+ * sideways (sideContact). Returns the knock (0 = none). */
 const CREEP = .25; // units/s
 /* How sharply the road turns at each point (the angle between its direction 12 m back and 12 m ahead), worked out
  * once per road in 0.25-unit steps: every vehicle needs it every frame to slow for the bends, and two tangent
@@ -248,7 +260,10 @@ export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: 
   for (const v of fleet) {
     const spec = VEHICLES[v.kind], reach = spec.length / 2 + p.halfL, g = v.distance - p.s;
     if (Math.abs(g) >= reach) continue;
-    if (Math.abs(vehicleLat(v, widen, length) - p.lat) >= spec.width / 2 + p.halfW) continue;
+    const dLat = p.lat - vehicleLat(v, widen, length), side = spec.width / 2 + p.halfW;
+    if (Math.abs(dLat) >= side) continue;
+    const scrape = sideContact(p, dLat, side, reach - Math.abs(g));
+    if (scrape >= 0) { knock = Math.max(knock, scrape); continue; }
     const theirs = v.direction * v.speed; // their speed along the road, in your direction
     knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
     // nose to tail with it: you can't go through, but with the wheel turned you can creep on (up to ~9 km/h with full

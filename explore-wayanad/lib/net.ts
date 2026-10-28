@@ -11,6 +11,7 @@
  */
 import { game } from "@/lib/game";
 import { DEFAULT_CHOICE, carOf, type Choice } from "@/data/cars";
+import { sideContact, type Player } from "@/lib/traffic";
 
 export type Snap = { t: number; s: number; lat: number; psi: number; v: number; br: number };
 export type Remote = { id: number; name: string; car: Choice; buf: Snap[] };
@@ -121,22 +122,26 @@ export function remoteState(r: Remote, now: number, out: Snap): Snap | null {
 }
 
 /** Keep your car out of the other drivers': run into one ahead of you (or reverse into one behind) and you're held at
- * the contact at their pace, and can creep round with the wheel turned, as with traffic (lib/traffic collidePlayer).
+ * the contact at their pace, and can creep round with the wheel turned, as with traffic (lib/traffic collidePlayer);
+ * side by side, you're pushed out sideways.
  * The one behind gives way: a car coming up behind you is stopped on its own screen, so yours is never shoved. Cars
  * already well inside each other (everyone starts at Adivaram; a late update) pass through until they're apart.
  * `p` in road units, changed in place; returns the knock (0 = none). */
 const CREEP = 0.25, WIDTH = 0.09; // units/s with full lock; half a car's width, units
-export function collideRemotes(p: { s: number; lat: number; speed: number; halfL: number; halfW: number; steer: number }) {
+export function collideRemotes(p: Player) {
   if (!net.enabled || !net.remotes.size) return 0;
   const now = performance.now(), st = {} as Snap;
   let knock = 0;
   for (const r of net.remotes.values()) {
     if (!remoteState(r, now, st)) continue;
-    const reach = carOf(r.car.car).length / 20 + p.halfL, g = st.s - p.s;
-    if (Math.abs(g) >= reach || Math.abs(g) < reach * 0.5) continue;
-    if (Math.abs(st.lat - p.lat) >= WIDTH + p.halfW) continue;
+    const reach = carOf(r.car.car).length / 20 + p.halfL, g = st.s - p.s, dLat = p.lat - st.lat, side = WIDTH + p.halfW;
+    if (Math.abs(g) >= reach || Math.abs(dLat) >= side) continue;
+    if (Math.abs(g) < reach * 0.5 && Math.abs(dLat) < side * 0.5) continue; // well inside each other
+    const scrape = sideContact(p, dLat, side, reach - Math.abs(g));
+    if (scrape >= 0) { knock = Math.max(knock, scrape); continue; }
+    if (Math.abs(g) < reach * 0.5) continue;
     const theirs = st.v * Math.cos(st.psi);
-    if (g > 0 && p.speed > theirs - 0.01) { p.s = st.s - reach - 0.01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer) * 1.5)); }
+    if (g > 0 && p.speed > theirs - 0.01) { p.s = st.s - reach - 0.01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer ?? 0) * 1.5)); }
     else if (g < 0 && p.speed < Math.min(0, theirs)) { p.s = st.s + reach + 0.01; p.speed = Math.min(0, theirs); } // reversing into them: stopped
     else continue;
     knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
