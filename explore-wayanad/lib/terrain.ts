@@ -229,10 +229,13 @@ function rockRelief(x: number, z: number, y: number) {
   return RELIEF.depth * (0.65 * blocky + 0.35 * m - 0.5) + RELIEF.strata * Math.sin(y * 7 + n * 3);
 }
 
+/** How far the gravel shoulder lies below the asphalt, `d` from the centre of a standard-width road (units). */
+export const shoulderDrop = (d: number) => 0.025 * MathUtils.smoothstep(d, SECTION.half, SECTION.shoulder);
+
 function crossSection(d: number, bed: number, ground: number, wall = 0, x = 0, z = 0) {
   let y: number;
   if (d <= SECTION.half) y = bed;
-  else if (d <= SECTION.shoulder) y = bed - 0.025 * MathUtils.smoothstep(d, SECTION.half, SECTION.shoulder);
+  else if (d <= SECTION.shoulder) y = bed - shoulderDrop(d);
   else if (ground >= bed) {
     // uphill: a shallow drain, then the cut face rising until it meets the hillside
     if (d <= SECTION.drain) y = bed - 0.025 - 0.06 * Math.sin((Math.PI * (d - SECTION.shoulder)) / (SECTION.drain - SECTION.shoulder));

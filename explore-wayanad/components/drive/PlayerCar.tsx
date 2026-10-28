@@ -9,8 +9,9 @@ import { CAR, game, type View } from "@/lib/game";
 import { collideRemotes } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
+import { collidePeople } from "@/components/scene/Pedestrians";
 import { loadVehicle, mergeInto } from "@/lib/vehicleAssets";
-import { forestRoad, height, roadShapeAt } from "@/lib/terrain";
+import { forestRoad, height, roadShapeAt, shoulderDrop } from "@/lib/terrain";
 import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
@@ -176,6 +177,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (game.leg === 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
         const knock = Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
+        collidePeople(p, road.length);
         if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
         if (p.lat !== game.lat) { game.lat = p.lat; game.prev.lat = p.lat; game.psi = p.psi; }
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
@@ -234,6 +236,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const right = tmp.r.copy(up).cross(fwd).normalize(); n.copy(fwd).cross(right).normalize();
     rot.setFromRotationMatrix(m.makeBasis(right, n, fwd));
     root.position.copy(p).addScaledVector(n, 0.002); root.quaternion.copy(rot);
+    // on the shoulder: down on the gravel, a few cm below the asphalt, leaning out as the outer wheels drop off it
+    const track = CAR.halfW * 0.8, d = Math.abs(lat) - road.widen(t), inner = shoulderDrop(d - track), outer = shoulderDrop(d + track);
+    if (outer > 0) { root.position.y -= (inner + outer) / 2; root.rotateZ(Math.sign(lat) * Math.atan((outer - inner) / (2 * track))); }
 
     // springs: the body dips under braking, squats when pulling away, leans out of bends
     if (!game.paused) {

@@ -1,5 +1,6 @@
 import { CatmullRomCurve3, Vector3 } from "three";
 import { CAR, game } from "./game";
+import { SECTION } from "./terrain";
 
 /**
  * Drive mode's car physics (state and conventions: lib/game.ts). Fixed time step: `simulate` runs as many STEP-long
@@ -22,9 +23,17 @@ export function roadAt(road: RoadInfo, s: number) {
   return { curvature: -turn / ((t1 - t0) * L || 1e-6), grade: (pb.y - pa.y) / run };
 }
 
-/** How far from the centre line the car's centre may go on each side here (units): the asphalt plus a little shoulder. */
+/** How far past the asphalt's edge the car may go (units): ~1.5 m onto the shoulder, short of the barrier posts
+ * (SECTION.half + 0.18, components/scene/Road) on the valley side and of the drain on the uphill one. */
+export const OFF_ROAD = 0.15;
+/** How far from the centre line the car's centre may go on each side here (units): the asphalt plus the shoulder. */
 export function laneLimit(road: RoadInfo, s: number) {
-  return 0.38 + road.widen(Math.min(1, Math.max(0, s / road.length))) * 0.5 - CAR.halfW;
+  return SECTION.half + OFF_ROAD + road.widen(Math.min(1, Math.max(0, s / road.length))) - CAR.halfW;
+}
+/** 0 with all four wheels on the asphalt, 1 with the outer ones a full OFF_ROAD onto the shoulder. */
+export function offRoad(road: RoadInfo, s: number, lat: number) {
+  const edge = SECTION.half + road.widen(Math.min(1, Math.max(0, s / road.length)));
+  return Math.min(1, Math.max(0, (Math.abs(lat) + CAR.halfW - edge) / OFF_ROAD));
 }
 
 let acc = 0;
@@ -58,6 +67,7 @@ export function stepCar(road: RoadInfo, dt: number) {
   if (i.throttle > 0) a += v0 >= -0.02 ? CAR.accel * i.throttle * (1 - (Math.max(0, v0) / CAR.max) ** 1.6) : CAR.brake * i.throttle;
   if (i.brake > 0) a -= v0 > 0.02 ? CAR.brake * i.brake : CAR.accel * 0.5 * i.brake;
   a -= CAR.drag * v0 + Math.sign(v0) * 0.012 + G * grade * 0.5;
+  a -= 0.1 * v0 * offRoad(road, g.s, g.lat); // the loose gravel of the shoulder holds you back a little
   g.speed = Math.max(-CAR.reverse, Math.min(CAR.max, v0 + a * dt));
   if (i.throttle === 0 && i.brake === 0 && Math.abs(g.speed) < 0.015) g.speed = 0;
   g.accel = (g.speed - v0) / dt;

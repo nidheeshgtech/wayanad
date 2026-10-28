@@ -1,6 +1,6 @@
 "use client";
 import { timed, frameTimed } from "@/lib/perf";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
   BufferGeometry, CatmullRomCurve3, Color, ConeGeometry, CylinderGeometry, DoubleSide, Group, InstancedMesh, Matrix4,
@@ -10,7 +10,8 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { SECTION, archT, bendTs, height, placesT, roadShapeAt } from "@/lib/terrain";
 import { inTown, townPlan } from "./Town";
 import { weather } from "@/lib/weather";
-import { game } from "@/lib/game";
+import { CAR, game } from "@/lib/game";
+import { sideContact, type Player } from "@/lib/traffic";
 
 /* People on foot along the road: mostly in and around the towns (Lakkidi, Vythiri, Chundale, Kalpetta…), a sparse few on
  * the churam (never at a hairpin). They walk slowly up and down a stretch of shoulder, between the asphalt and the
@@ -26,6 +27,26 @@ const VIEW = { full: 25, small: 15 };              // drawn within this many uni
 const LANE: [number, number] = [SECTION.half + 0.07, SECTION.half + 0.13]; // walking line from the centre (posts stand at +0.18)
 const WALK = { speed: [0.1, 0.14] as [number, number], range: [2, 7] as [number, number] }; // units/s (1–1.4 m/s); half the stretch walked
 const TOWN_SHARE = 0.75, PAIR = 0.35, STAND = 0.15, UMBRELLA = 0.5;
+const BODY = 0.03; // a person's half-width, units (for the car on the shoulder)
+
+/* The people now walking (the mounted component's), and where one stands across the road: units left of the centre
+ * line, as the car's `lat`. The car can run onto the shoulder they walk (lib/carPhysics OFF_ROAD): it stops for them,
+ * and they turn round at it. */
+let walking: { people: Person[]; length: number } | null = null;
+const latOf = (p: Person, length: number) => p.side * (p.lane + roadShapeAt(Math.min(1, Math.max(0, p.s / length))).widen);
+/** Keep the car (on the main road, `length` long) out of the people on the shoulder: end on, it stops at them; alongside,
+ * it's pushed out sideways. No knock: you pull up short. `p` changed in place. */
+export function collidePeople(p: Player, length: number) {
+  if (!walking || walking.length !== length) return;
+  for (const w of walking.people) {
+    const g = w.s - p.s, reach = p.halfL + BODY;
+    if (Math.abs(g) >= reach) continue;
+    const dLat = p.lat - latOf(w, length), side = p.halfW + BODY;
+    if (Math.abs(dLat) >= side || sideContact(p, dLat, side, reach - Math.abs(g)) >= 0) continue;
+    if (g > 0 && p.speed > 0) { p.s = w.s - reach - 0.005; p.speed = 0; }
+    else if (g < 0 && p.speed < 0) { p.s = w.s + reach + 0.005; p.speed = 0; }
+  }
+}
 
 const SKIN = [0x8d5a3b, 0x7a4a2e, 0x9c6845, 0x6a3f27, 0xa87452].map((c) => new Color(c));
 const HAIR = new Color(0x141110);
@@ -127,8 +148,14 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       skirt: make(skirt, n, mat(), true), torso: make(torso, n, mat(), true), head: make(head, n, mat(0.7), false),
       hair: make(hair, n, mat(0.6), false), arms: make(arm, n * 2, mat(), false), brolly: make(brolly, n, umbrellaMat, true),
     };
-    return { group, people, parts, frame };
+    return { group, people, parts, frame, length: L };
   }), [curve, small]);
+
+  useEffect(() => {
+    const mine = { people: built.people, length: built.length };
+    walking = mine;
+    return () => { if (walking === mine) walking = null; };
+  }, [built]);
 
   const tmp = useMemo(() => ({
     base: new Matrix4(), m: new Matrix4(), local: new Matrix4(), q: new Quaternion(), pos: new Vector3(), sc: new Vector3(), up: new Vector3(0, 1, 0),
@@ -145,6 +172,10 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       // walk the stretch, turning round at either end
       if (p.speed > 0 && dt > 0) {
         p.s += p.dir * p.speed * dt; p.phase += p.speed * dt * 62;
+        // the car pulled onto the shoulder in their way: they turn round
+        if (game.started && game.leg === 0 && Math.abs(p.s - game.s) < CAR.halfL + BODY && Math.abs(latOf(p, built.length) - game.lat) < CAR.halfW + BODY) {
+          p.s -= p.dir * p.speed * dt; p.dir = p.dir === 1 ? -1 : 1;
+        }
         if (p.s > p.to) { p.s = p.to; p.dir = -1; } else if (p.s < p.from) { p.s = p.from; p.dir = 1; }
       } else p.phase += dt * 0.6;
       // well out of view last time: look again only every dozen frames (they walk on meanwhile)
