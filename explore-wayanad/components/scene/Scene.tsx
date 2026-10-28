@@ -43,6 +43,7 @@ import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
 import PlayerCar from "../drive/PlayerCar";
 import ImpactFx from "../drive/ImpactFx";
+import RearMirror from "../drive/RearMirror";
 import RemoteCars from "../drive/RemoteCars";
 import { net } from "@/lib/net";
 import { useChoice } from "@/lib/choice";
@@ -173,6 +174,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Rain count={small ? 5000 : 9000} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <ImpactFx />}
+      {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
       <Quality start={small ? 2 : 0} lite={small} />

@@ -11,6 +11,7 @@ import { clock, recordClimb, shareClimb } from "@/lib/share";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
+import { mirror } from "@/lib/mirror";
 import { cleanName } from "@/lib/names";
 import CarPicker from "@/components/garage/CarPicker";
 import { getChoice, setChoice, useChoice } from "@/lib/choice";
@@ -59,7 +60,7 @@ export default function DriveHud() {
   const [shared, setShared] = useState(""), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
-  const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null);
+  const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
@@ -108,6 +109,7 @@ export default function DriveHud() {
       if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); }
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
+      if (rim.current) { rim.current.style.opacity = mirror.amount > 0.01 ? mirror.amount.toFixed(2) : "0"; rim.current.toggleAttribute("data-on", mirror.amount > 0.5); }
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -160,6 +162,7 @@ export default function DriveHud() {
           <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
         </div>
       </div>
+      <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
 
       <div className={styles.buttons}>

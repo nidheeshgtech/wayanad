@@ -19,6 +19,7 @@ import { paintCar } from "@/lib/carModel";
 import { carOf, colourOf, type Choice } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
 import { frameTimed } from "@/lib/perf";
+import { mirror } from "@/lib/mirror";
 import type { ActId } from "@/data/acts";
 
 /* The car you drive: a compact SUV, unbranded (CC BY — public/models/traffic/ATTRIBUTION.md; scripts/retouch/player-suv.mjs
@@ -255,6 +256,16 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     for (const l of lamps.head) l.emissiveIntensity = 0.15 + dark * 2.5;
     // (always in the scene, at zero by day: switching a light on or off rebuilds every material's shader — a stall)
     spot.intensity = dark * 6;
+
+    // the rear-view mirror (lib/mirror): while reversing, or about to (the brake held at a standstill reverses), seen
+    // from just behind the boot, facing back down the road
+    const backing = game.phase === "drive" && !game.paused && !game.lookBack && (reversing || (game.input.brake > 0 && game.speed < 0.03));
+    mirror.amount += ((backing ? 1 : 0) - mirror.amount) * Math.min(1, dt * 10);
+    if (mirror.amount > 0.01) {
+      root.updateMatrixWorld();
+      mirror.camera.position.set(0, 0.13, -LENGTH / 2 - 0.03).applyMatrix4(root.matrixWorld);
+      mirror.camera.lookAt(tmp.a.set(0, 0.08, -LENGTH / 2 - 1.5).applyMatrix4(root.matrixWorld));
+    }
 
     // the camera
     const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.lookBack ? "back" : game.view, { want, look, dir } = tmp;

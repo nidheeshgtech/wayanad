@@ -15,6 +15,10 @@
   span:last-of-type { font-variant-numeric: tabular-nums; }
   i { grid-column: 1 / -1; display: block; height: 2px; margin-top: 6px; border-radius: 1px; background: rgba(238, 242, 238, .14); overflow: hidden; }
   u { display: block; height: 100%; background: var(--amber); transform-origin: left; transform: scaleX(0); text-decoration: none; } }
+// the rear-view mirror while reversing: components/drive/RearMirror draws the view into this box, this is its rim
+.mirror { position: fixed; z-index: 4; left: 50%; top: 16px; transform: translateX(-50%); width: clamp(220px, 30vw, 380px); aspect-ratio: 3.2;
+  border: 1px solid rgba(238, 242, 238, .55); border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; opacity: 0;
+  &[data-on] ~ .note { top: calc(16px + clamp(220px, 30vw, 380px) / 3.2 + 12px); } }
 .note { position: fixed; z-index: 5; left: 50%; top: 96px; transform: translateX(-50%); font-size: 12px; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
 
 .buttons svg, .steer svg, .pedals svg, .bigHorn svg, .bigBack svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
@@ -61,6 +65,9 @@
     button { width: 32px; height: 32px; svg { width: 15px; height: 15px; } } }
   .buttons .hornKey, .buttons .backKey { display: none; }
   .note { top: calc(64px + env(safe-area-inset-top, 0px)); }
+  // under the speed and km readouts, which take the top left
+  .mirror { top: calc(106px + env(safe-area-inset-top, 0px)); width: min(52vw, 210px); border-radius: 10px;
+    &[data-on] ~ .note { top: calc(106px + env(safe-area-inset-top, 0px) + min(52vw, 210px) / 3.2 + 10px); } }
 }
 
 // the in-drive screens (pause, the end of the drive): game-style modals in the start screen's language
