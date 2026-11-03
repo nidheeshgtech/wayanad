@@ -7,9 +7,9 @@ import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import StartScreen, { ControlRow, panelStyles } from "@/components/ui/StartScreen";
-import { clock, recordClimb, shareClimb } from "@/lib/share";
+import { clock, recordClimb } from "@/lib/share";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
-import { WHATSAPP } from "@/data/plan";
+import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
 import { mirror } from "@/lib/mirror";
 import { cleanName } from "@/lib/names";
@@ -57,7 +57,7 @@ export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
   const choice = useChoice(), [garage, setGarage] = useState(false);
   const [driverName, setDriverName] = useState(""), [roster, setRoster] = useState<string[]>([]), [invited, setInvited] = useState("");
-  const [shared, setShared] = useState(""), [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
@@ -189,7 +189,6 @@ export default function DriveHud() {
           <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}><Icon name="right" /></button>
         </div>
         <button type="button" className={styles.bigHorn} onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button>
-        <button type="button" className={styles.bigBack} {...hold((on) => { game.lookBack = on; })} aria-label="Look back (hold)"><Icon name="back" /></button>
         <div className={styles.pedals}>
           <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /></button>
           <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /></button>
@@ -231,7 +230,6 @@ export default function DriveHud() {
               <ControlRow label="Steer"><kbd>◀</kbd><kbd>▶</kbd></ControlRow>
               <ControlRow label="Accelerate · brake"><kbd>▲</kbd><kbd>▼</kbd></ControlRow>
               <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
-              <ControlRow label="Look back"><kbd>hold ↶</kbd></ControlRow>
             </div>
           </>}
         />
@@ -272,8 +270,7 @@ export default function DriveHud() {
           <p className={styles.eyebrow}>Lakkidi gate · end of the drive</p>
           <h1>Welcome to Wayanad.</h1>
           <div className={styles.result}>
-            <div><span>Your time</span><b>{clock(summary.current.sec)}</b></div>
-            <div><span>{summary.current.isNew ? "New best" : "Your best"}</span><b>{Number.isFinite(summary.current.best) ? clock(summary.current.best) : "—"}</b></div>
+            <div><span>Total time</span><b>{clock(summary.current.sec)}</b></div>
             <div><span>Distance</span><b>{summary.current.km.toFixed(1)} km</b></div>
           </div>
           {STAY && (
@@ -284,10 +281,9 @@ export default function DriveHud() {
               {STAY.url && <a href={STAY.url} target="_blank" rel="noopener noreferrer sponsored">See the stay</a>}
             </div>
           )}
-          <p>The road on past the gate, through Vythiri and Kalpetta to the forest and the border, opens in the next update. Thanks for driving.</p>
+          <p>Thanks for driving up the churam with us. Tell us what you thought on Instagram, and follow along: the road past the gate, through Vythiri and Kalpetta to the border, opens in the next update.</p>
           <div className={styles.row}>
-            <button type="button" className={styles.go} autoFocus
-              onClick={() => void shareClimb(summary.current.sec).then((r) => { if (r === "copied") { setShared("Link copied"); setTimeout(() => setShared(""), 2500); } })}>{shared || "Share your time"}</button>
+            <a className={styles.go} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer" autoFocus>Share your thoughts</a>
             <button type="button" className={styles.ghostButton} onClick={restart}>Drive again</button>
           </div>
         </div>

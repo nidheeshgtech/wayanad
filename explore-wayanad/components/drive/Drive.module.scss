@@ -21,7 +21,7 @@
   &[data-on] ~ .note { top: calc(16px + clamp(220px, 30vw, 380px) / 3.2 + 12px); } }
 .note { position: fixed; z-index: 5; left: 50%; top: 96px; transform: translateX(-50%); font-size: 12px; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
 
-.buttons svg, .steer svg, .pedals svg, .bigHorn svg, .bigBack svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.buttons svg, .steer svg, .pedals svg, .bigHorn svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
 
 .buttons { position: fixed; z-index: 5; right: 20px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px;
   button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--mute); background: rgba(8, 20, 16, .45); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; backdrop-filter: blur(6px);
@@ -32,7 +32,7 @@
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
 .touch { display: none; }
-.steer, .pedals, .bigHorn, .bigBack { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.steer, .pedals, .bigHorn { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 .steer, .pedals { display: flex; gap: 8px; align-items: flex-end;
   button { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); touch-action: none; backdrop-filter: blur(6px);
     svg { width: 26px; height: 26px; }
@@ -45,11 +45,6 @@
 .bigHorn { left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%;
   border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); backdrop-filter: blur(6px); touch-action: manipulation;
   svg { width: 26px; height: 26px; }
-  &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
-// look back (held): a smaller one above the horn
-.bigBack { left: 50%; transform: translateX(-50%); bottom: calc(94px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); backdrop-filter: blur(6px); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-  svg { width: 20px; height: 20px; }
   &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
 
 // phones: nothing over the middle of the road. The speed
@@ -78,8 +73,8 @@
   p { color: var(--mute); line-height: 1.55; } }
 .card .eyebrow { font: 500 11px/1.2 var(--font-sans), sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
 .small { font-size: 13px; }
-// the end of a climb: your time, your best, the distance
-.result { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(94, 122, 112, .5); border-bottom: 1px solid rgba(94, 122, 112, .5);
+// the end of a climb: the total time and the distance
+.result { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 1px solid rgba(94, 122, 112, .5); border-bottom: 1px solid rgba(94, 122, 112, .5);
   > div { display: grid; gap: 6px; padding: 14px 12px 14px 0; & + div { padding-left: 12px; border-left: 1px solid rgba(94, 122, 112, .5); } }
   span { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
   b { font-family: var(--font-serif), Georgia, serif; font-weight: 300; font-size: clamp(20px, 5.4vw, 32px); line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; } }
@@ -90,7 +85,7 @@
   a { justify-self: start; margin-top: 4px; font-size: 14px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); &:hover { border-color: var(--amber); } } }
 .sponsor { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); padding: 4px 0; &:hover { border-color: var(--amber); } }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.go { min-height: 48px; padding: 0 26px; border-radius: 999px; border: 0; background: var(--amber); color: #0e1f1a; font-weight: 500; cursor: pointer; justify-self: start;
+.go { display: inline-flex; align-items: center; text-decoration: none; min-height: 48px; padding: 0 26px; border-radius: 999px; border: 0; background: var(--amber); color: #0e1f1a; font-weight: 500; cursor: pointer; justify-self: start;
   &:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; } }
 .ghost { color: var(--mute); text-decoration: none; padding: 12px 8px; &:hover { color: var(--ink); } }
 .ghostButton { min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer;
