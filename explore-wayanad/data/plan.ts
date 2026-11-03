@@ -38,4 +38,4 @@ export const WHATSAPP = {
 };
 
 /** The drive's end card: "Share your thoughts" opens this Instagram account (follow, comment on the posts). */
-export const INSTAGRAM = { handle: "drivewayanad", url: "https://www.instagram.com/drivewayanad/" };
+export const INSTAGRAM = { handle: "drivewayanad.official", url: "https://www.instagram.com/drivewayanad.official/" };
