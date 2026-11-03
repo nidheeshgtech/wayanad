@@ -11,14 +11,18 @@ import styles from "./StartScreen.module.scss";
  * mode), a controls panel bottom-right, and Start (Enter starts too). `scene: false` (no canvas, e.g. the video tier)
  * is ready at once.
  */
-export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy, beforeStart }: {
-  eyebrow: string; title: ReactNode; lead: string; stats: [string, string][];
+export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy, beforeStart, compact = false }: {
+  /** the story's chapter line, intro and facts; the drive's title screen leaves them out (`compact`) */
+  eyebrow?: string; title: ReactNode; lead?: string; stats?: [string, string][];
   startLabel: string; onStart: () => void; scene?: boolean | null;
   panel?: ReactNode; footer?: ReactNode; leaving?: boolean;
   /** the title sponsor, under the brand (data/sponsors.ts PRESENTED_BY) */
   presentedBy?: { name: string; url: string | null } | null;
   /** shown just above the Start button (drive mode's name box) */
   beforeStart?: ReactNode;
+  /** the drive's title screen: only the title, the name box, the car, the controls and Start, all on one screen at any
+   * size (no brand bar; on phones the controls sit above Start) */
+  compact?: boolean;
 }) {
   const [ready, setReady] = useState(false), bar = useRef<HTMLSpanElement>(null), pct = useRef<HTMLSpanElement>(null), startButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -63,16 +67,16 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
         <p className={styles.loaderText}><span>Loading the road</span><span ref={pct}>0%</span></p>
       </div>
     </div>
-    {ready && <div className={styles.screen} data-leaving={leaving || undefined} role="dialog" aria-label={eyebrow}>
-      <header className={styles.top}>{brand}<span className={styles.status}>Ready</span></header>
+    {ready && <div className={styles.screen} data-leaving={leaving || undefined} data-compact={compact || undefined} role="dialog" aria-label={eyebrow ?? "Start"}>
+      {!compact && <header className={styles.top}>{brand}<span className={styles.status}>Ready</span></header>}
       <div className={styles.body}>
         <section className={styles.intro}>
-          <p className={styles.eyebrow}>{eyebrow}</p>
+          {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
           <h1 className={styles.title}>{title}</h1>
-          <p className={styles.lead}>{lead}</p>
-          <dl className={styles.stats}>
+          {lead && <p className={styles.lead}>{lead}</p>}
+          {stats && <dl className={styles.stats}>
             {stats.map(([value, label]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-          </dl>
+          </dl>}
           {beforeStart}
           <div className={styles.actions}>
             <button type="button" ref={startButton} className={styles.start} onClick={onStart}>

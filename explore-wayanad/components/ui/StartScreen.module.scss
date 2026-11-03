@@ -80,5 +80,41 @@
 }
 @media (max-width: 860px) and (max-height: 760px) { .panel { display: none; } }
 
+// the drive's title screen (compact): title, name, car, controls, Start — one screen at every size, no scrolling.
+// Desktop: those on the left, the controls panel on the right, both centred in the height. Phones and tablets: one
+// column, the controls just above Start, everything tightened to fit a phone with its browser bars showing.
+.screen[data-compact] {
+  padding-top: calc(16px + env(safe-area-inset-top, 0px)); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  .body { padding-top: 0; align-items: center; align-content: center; gap: 32px 64px; }
+  .intro { gap: 20px; }
+  .title { font-size: clamp(40px, min(6vw, 9vh), 88px); }
+  .panel { align-self: center; display: grid; }
+  // Start: the one thing to press — lit amber, breathing slowly
+  .start { animation: beckon 2.6s ease-in-out infinite; }
+}
+@media (max-width: 860px) {
+  .screen[data-compact] {
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    .body { gap: 12px; }
+    .intro { display: contents; }
+    .title { font-size: clamp(30px, 9vw, 52px); br { display: none; } }
+    .nameField { gap: 6px; input { height: 44px; } }
+    // the controls in two columns, each a label over its buttons
+    .panel { order: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; padding: 10px 16px 12px;
+      h2 { grid-column: 1 / -1; padding-bottom: 0; } }
+    .row { flex-direction: column; align-items: flex-start; gap: 4px; min-height: 0; font-size: 12px; & + .row { border-top: 0; } }
+    .keys { justify-content: flex-start; kbd { height: 24px; min-width: 26px; } }
+    .actions { order: 2; padding-top: 0; }
+    .start { height: 52px; }
+  }
+}
+@media (max-width: 860px) and (max-height: 700px) {
+  .screen[data-compact] { .body { gap: 8px; } .title { font-size: clamp(28px, 8vw, 40px); } }
+}
+
 @keyframes pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .screen, .loader, .track span { transition: none; } .status::before { animation: none; } .start { transition: none; } }
+@keyframes beckon {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 164, 65, 0), 0 8px 24px rgba(217, 164, 65, .22); }
+  50% { box-shadow: 0 0 0 6px rgba(217, 164, 65, .16), 0 8px 32px rgba(217, 164, 65, .38); }
+}
+@media (prefers-reduced-motion: reduce) { .screen, .loader, .track span { transition: none; } .status::before { animation: none; } .start, .screen[data-compact] .start { transition: none; animation: none; } }

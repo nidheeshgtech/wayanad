@@ -23,3 +23,14 @@
   .cars { grid-template-columns: repeat(3, minmax(0, 1fr)); button { padding: 7px 9px; b { font-size: 13px; } } }
   .colours button { width: 28px; height: 28px; }
 }
+// phones in portrait (the title screen must fit without scrolling): the preview beside the choices, not above them.
+// The preview's canvas is taken out of the flow, or its default 150 px height props the box open
+@media (max-width: 860px) and (max-height: 900px) {
+  .picker { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 10px; }
+  .preview { min-height: 0; > :not(.caption) { position: absolute; inset: 0; } }
+  .loading { min-height: 0; }
+  .caption b { font-size: 17px; }
+  .options { gap: 10px; }
+  .cars { grid-template-columns: repeat(2, minmax(0, 1fr)); button { padding: 7px 8px; b { font-size: 12.5px; white-space: nowrap; } } }
+  .colours { display: grid; grid-template-columns: repeat(4, 28px); gap: 8px; }
+}

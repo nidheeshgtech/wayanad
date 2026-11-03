@@ -192,11 +192,8 @@ export default function DriveHud() {
       </div>
 
       {screen === "start" && (
-        <StartScreen
-          eyebrow="Drive mode · The churam"
-          title={<>Drive to<br />Wayanad.</>}
-          lead="From Adivaram, nine hairpins up to the Lakkidi gate in traffic. Keep left; overtake on the right when the road is clear. Showers come and go."
-          stats={[["Adivaram", "From"], ["Lakkidi", "To"], ["9", "Hairpins"]]}
+        <StartScreen compact
+          title={<>Drive to <br />Wayanad.</>}
           startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}
           beforeStart={<>
             {net.enabled && (
@@ -229,7 +226,6 @@ export default function DriveHud() {
               <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
               <ControlRow label="Look back"><kbd>hold ↶</kbd></ControlRow>
             </div>
-            <p>Sound the horn behind a slow vehicle and it gives way where it&apos;s safe. Oncoming traffic doesn&apos;t, on the hairpins.</p>
           </>}
         />
       )}
