@@ -49,7 +49,7 @@ function cycleView() {
 }
 /** Back to Adivaram: the whole drive from the start. */
 function restart() {
-  Object.assign(game, { leg: 0, phase: "drive", odometer: 0, clock: 0, paused: false });
+  Object.assign(game, { leg: 0, phase: "drive", odometer: 0, clock: 0, paused: false, jumped: false });
   resetCar(3);
 }
 
@@ -117,7 +117,7 @@ export default function DriveHud() {
         const S = summary.current;
         Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock), { recorded: true }); }
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); }
       } else summary.current.recorded = false;
       setScreen((s) => (s === want ? s : want));
       raf = requestAnimationFrame(tick);
@@ -129,6 +129,13 @@ export default function DriveHud() {
   // the name you drive under (multiplayer), remembered on this device
   useEffect(() => { try { setDriverName(localStorage.getItem("wayanad-name") ?? ""); } catch {} }, []);
   const start = () => {
+    // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
+    // up from Adivaram. A climb started part-way isn't kept as your best time.
+    const at = new URLSearchParams(location.search).get("at");
+    if (at && game.kmTotal) {
+      const km = at === "end" ? game.kmTotal - 1 : Number(at);
+      if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
+    }
     game.started = true; game.phase = "drive"; game.paused = false;
     if (net.enabled) {
       const name = cleanName(driverName);
@@ -266,7 +273,7 @@ export default function DriveHud() {
           <h1>Welcome to Wayanad.</h1>
           <div className={styles.result}>
             <div><span>Your time</span><b>{clock(summary.current.sec)}</b></div>
-            <div><span>{summary.current.isNew ? "New best" : "Your best"}</span><b>{clock(summary.current.best)}</b></div>
+            <div><span>{summary.current.isNew ? "New best" : "Your best"}</span><b>{Number.isFinite(summary.current.best) ? clock(summary.current.best) : "—"}</b></div>
             <div><span>Distance</span><b>{summary.current.km.toFixed(1)} km</b></div>
           </div>
           {STAY && (

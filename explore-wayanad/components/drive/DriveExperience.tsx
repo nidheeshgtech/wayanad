@@ -15,7 +15,7 @@ const Scene = dynamic(() => import("@/components/scene/Scene"), { ssr: false });
 export default function DriveExperience() {
   const tier = useCapability();
   useEffect(() => {
-    Object.assign(game, { active: true, started: false, paused: false, leg: 0, phase: "drive", odometer: 0, clock: 0 });
+    Object.assign(game, { active: true, started: false, paused: false, leg: 0, phase: "drive", odometer: 0, clock: 0, jumped: false });
     resetCar(3);
     scrollState.act = "churam"; scrollState.progress = 0;
     setDriveWeather();

@@ -8,10 +8,10 @@ const BEST = "wayanad-best-climb";
 export const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 
 /** Records a finished climb; returns the best so far and whether this one is it. */
-export function recordClimb(sec: number): { best: number; isNew: boolean } {
+export function recordClimb(sec: number, keep = true): { best: number; isNew: boolean } {
   let best = Infinity;
   try { best = Number(localStorage.getItem(BEST)) || Infinity; } catch {}
-  const isNew = sec < best;
+  const isNew = keep && sec < best;
   if (isNew) { best = sec; try { localStorage.setItem(BEST, String(Math.round(sec))); } catch {} }
   return { best, isNew };
 }
