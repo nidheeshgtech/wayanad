@@ -15,6 +15,8 @@ import { frameTimed } from '@/lib/perf';
 import { hasOccupants, occupantMaterial, occupantsFor } from '@/lib/occupants';
 import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
+/** How far a knocked-over bike lies over (radians, ~80°: on its side, the handlebar and pegs hold it a little off flat). */
+const FALL = 1.4;
 /* Advertising panels on the buses' sides, below the windows and above the wheels, as Kerala buses carry them
  * (data/sponsors.ts BUS_SIDES, handed out over the buses in turn; unsold: "Advertise on this bus"). 4 m × 0.6 m. */
 const BUS = /bus|ksrtc/, AD = { length: .4, height: .06, y: .36, z: -.06 };
@@ -149,7 +151,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       const onRoad = game.leg === 0 && game.phase === 'drive';
       const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
       if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
-        onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player) }] : []));
+        onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : []));
       if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(fleet, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
@@ -191,6 +193,12 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // kept on the asphalt and out of the bank (eased, so the nudge itself never jumps)
       o.offset.lerp(nudgeFor(curve, v, pose, tmpNudge), o.fresh ? 1 : ease); o.fresh = false;
       o.root.position.copy(pose.position).add(o.offset); o.root.quaternion.copy(pose.rotation);
+      // a knocked-over bike: tipped about its tyres' line onto its side, away from you (falls like a weight: slow, then
+      // fast; gets up smoothly). Local +x is the vehicle's right, which is the road's −direction side
+      if (v.fall) {
+        const f = v.fall, k = (v.down ?? 0) > 0 ? f * f : f * f * (3 - 2 * f);
+        o.root.rotateZ(FALL * k * (v.fallSide ?? 1) * v.direction);
+      }
       visible++;
       if (o.people) o.people.visible = far2 < 14 ** 2; // people inside only where you could see them
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk

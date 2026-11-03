@@ -16,7 +16,14 @@ export const VEHICLES = [
 ] as const;
 /** How a vehicle is behaving toward the viewer: see interactWithViewer. `shift` (0–1) eases it toward its own road edge. */
 export type Mode = 'cruise' | 'follow' | 'yield' | 'passed' | 'caution';
-export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number; mode?: Mode; shift?: number; wait?: number };
+export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number; mode?: Mode; shift?: number; wait?: number;
+  /** a two-wheeler knocked over by the player (collidePlayer): seconds left lying on the road, which way it went over
+   * (+1: toward the road's left), and how far over it's drawn (0 upright … 1 down; eased by Traffic) */
+  down?: number; fallSide?: 1 | -1; fall?: number };
+/** Two-wheelers fall over when you hit them (the rest are solid and just stop you). */
+export const isTwoWheeler = (kind: number) => /bike|scooter/.test(VEHICLES[kind].name);
+/** A knocked-over bike: down for this long (s), then the rider picks it up (Traffic eases the bike upright) and rides on. */
+export const KNOCKED = { down: 6, min: 0.05 };
 /** Shared with the dev review panel (WeatherDebug): pause/rate, what's nearby, and the viewer's seat and give-way state.
  * stage*: dev-only hooks that put a vehicle just ahead of the seat to review a catch-up or an overtake. */
 export const trafficControl = { paused: false, rate: 1, count: 0, seat: -1, overtaking: false, following: false, held: null as string | null, horn: false, stageAhead: 0, stageMode: 'cruise' as Mode, staged: -1, stagedInfo: '',
@@ -53,8 +60,11 @@ export function createFleet(length: number, density: (d: number) => number = () 
   return Array.from({ length: n }, (_, id) => ({ id, kind: MIX[id % MIX.length], direction: id % 2 ? -1 : 1, distance: at((id + 0.5) / n), speed: 0 }));
 }
 /** Snapshot-based car following: all movement uses the same previous frame, never update-order overtaking. */
-/** Something on the road traffic must not drive into: the player's bus in drive mode. `lanes`: the lanes it covers. */
-export type Obstacle = { distance: number; length: number; lanes: (1 | -1)[] };
+/** Something on the road traffic must not drive into: the player's car in drive mode. `lanes`: the lanes it covers;
+ * `speed`: its speed along the road (+ = up it), so traffic behind a car reversing toward it backs away. */
+export type Obstacle = { distance: number; length: number; lanes: (1 | -1)[]; speed?: number };
+/** Fastest a vehicle backs away from something reversing into it (units/s; the player's reverse is CAR.reverse 0.45). */
+const BACK_AWAY = .6;
 export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = []) {
   const length = curve.getLength(), span = length - 4;
   dt = Math.min(.05, Math.max(0, dt));
@@ -68,23 +78,36 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
   }
   const bends = bendTable(curve);
   const moves = fleet.map(v => {
+    // a knocked-over bike lies where it fell; once it's back up (Traffic eases it upright) the rider sets off again
+    // (over in ~0.4 s, picked up again in ~1.2 s)
+    if (v.fall !== undefined) v.fall = (v.down ?? 0) > 0 ? Math.min(1, v.fall + dt / .4) : Math.max(0, v.fall - dt / 1.2);
+    if (v.down !== undefined && v.down > 0) { v.down = Math.max(0, v.down - dt); return { speed: 0, move: 0 }; }
+    if ((v.fall ?? 0) > 0) return { speed: 0, move: 0 };
     const spec = VEHICLES[v.kind], bend = bendAt(bends, v.distance);
     // each vehicle its own pace (±10%), held back while it gives way or takes care (interactWithViewer)
     const cap = v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
     let desired = Math.min(spec.speed * pace(v.id) * cap, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
+    const safe = .65 + Math.max(0, v.speed) * (2 + rain * 2);
     let room = stops.get(v.id) ?? Infinity;
+    // something ahead coming back at it (you reversing, or the vehicle in front backing away from you): back off at
+    // its pace, so you can reverse down the road as far as you like and the queue behind you reverses with you
+    let back = 0;
     for (const other of ahead.get(v)!) {
       const gap = ((other.distance - v.distance) * v.direction + span) % span;
       const clearance = gap - (spec.length + VEHICLES[other.kind].length) / 2;
-      const safe = .65 + v.speed * (2 + rain * 2);
       room = Math.min(room, clearance - safe);
+      if (other.speed < 0 && clearance - safe < 0) back = Math.max(back, -other.speed);
     }
     for (const o of obstacles) if (o.lanes.includes(v.direction)) {
       const gap = (o.distance - v.distance) * v.direction;
-      if (gap > 0) room = Math.min(room, gap - (spec.length + o.length) / 2 - (.65 + v.speed * (2 + rain * 2)));
+      if (gap <= 0) continue;
+      const r = gap - (spec.length + o.length) / 2 - safe, toward = -(o.speed ?? 0) * v.direction;
+      room = Math.min(room, r);
+      if (toward > 0 && r < 0) back = Math.max(back, toward + .05);
     }
+    if (back > 0 && room < 0) { const speed = -Math.min(BACK_AWAY, back); return { speed, move: Math.max(speed * dt, room) }; }
     desired = Math.min(desired, Math.max(0, room * .5));
-    const speed = Math.max(0, Math.min(desired, v.speed + dt * .12));
+    const speed = Math.max(0, Math.min(desired, Math.max(0, v.speed) + dt * .12));
     return { speed, move: Math.min(speed * dt, Math.max(0, room)) };
   });
   fleet.forEach((v,i) => { v.speed = moves[i].speed; v.distance = 2 + ((v.distance - 2 + v.direction * moves[i].move) % span + span) % span; });
@@ -262,10 +285,17 @@ export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: 
     if (Math.abs(g) >= reach) continue;
     const dLat = p.lat - vehicleLat(v, widen, length), side = spec.width / 2 + p.halfW;
     if (Math.abs(dLat) >= side) continue;
-    const scrape = sideContact(p, dLat, side, reach - Math.abs(g));
-    if (scrape >= 0) { knock = Math.max(knock, scrape); continue; }
     const theirs = v.direction * v.speed; // their speed along the road, in your direction
-    knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
+    // a bike or scooter you hit goes over, away from you (rider and all), and lies there a few seconds
+    const over = (k: number) => {
+      if (!isTwoWheeler(v.kind) || k < KNOCKED.min || (v.down ?? 0) > 0) return;
+      v.down = KNOCKED.down; v.fall ??= 0; v.speed = 0; v.mode = 'cruise'; v.shift = 0;
+      v.fallSide = -Math.sign(dLat) as 1 | -1 || 1;
+    };
+    const scrape = sideContact(p, dLat, side, reach - Math.abs(g));
+    if (scrape >= 0) { knock = Math.max(knock, scrape); over(Math.max(scrape, Math.abs(p.speed - theirs) * .5)); continue; }
+    const k = Math.min(1, Math.abs(p.speed - theirs));
+    knock = Math.max(knock, k); over(k);
     // nose to tail with it: you can't go through, but with the wheel turned you can creep on (up to ~9 km/h with full
     // lock) so the nose swings out and you pull round it; without steering you're held at its speed, as before
     if (g > 0) { p.s = v.distance - reach - .01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer ?? 0) * 1.5)); }

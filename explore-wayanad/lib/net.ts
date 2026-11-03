@@ -14,7 +14,9 @@ import { DEFAULT_CHOICE, carOf, type Choice } from "@/data/cars";
 import { sideContact, type Player } from "@/lib/traffic";
 
 export type Snap = { t: number; s: number; lat: number; psi: number; v: number; br: number };
-export type Remote = { id: number; name: string; car: Choice; buf: Snap[] };
+/** `ghost`: first met already well inside your car (everyone starts at Adivaram), so you pass through until apart;
+ * `contact`: when it last touched yours (performance.now()), so a late update that jumps it deeper stays solid. */
+export type Remote = { id: number; name: string; car: Choice; buf: Snap[]; ghost?: boolean; contact?: number };
 type NetState = {
   enabled: boolean; status: "off" | "connecting" | "live" | "retrying";
   id: number; name: string; room: string;
@@ -123,28 +125,31 @@ export function remoteState(r: Remote, now: number, out: Snap): Snap | null {
 
 /** Keep your car out of the other drivers': run into one ahead of you (or reverse into one behind) and you're held at
  * the contact at their pace, and can creep round with the wheel turned, as with traffic (lib/traffic collidePlayer);
- * side by side, you're pushed out sideways.
- * The one behind gives way: a car coming up behind you is stopped on its own screen, so yours is never shoved. Cars
- * already well inside each other (everyone starts at Adivaram; a late update) pass through until they're apart.
+ * side by side, you're pushed out sideways. End on, whoever's screen it is, the cars never go through each other: each
+ * driver sees the other a moment late (network + playback delay), so if theirs comes on into yours you're nudged
+ * along at their pace rather than letting it sink in (it used to, and once deep enough it passed right through).
+ * Only cars first met already well inside each other (everyone starts at Adivaram) pass through until they're apart.
  * `p` in road units, changed in place; returns the knock (0 = none). */
-const CREEP = 0.25, WIDTH = 0.09; // units/s with full lock; half a car's width, units
+const CREEP = 0.25, WIDTH = 0.09, STICKY = 600; // units/s with full lock; half a car's width, units; ms a contact stays solid
 export function collideRemotes(p: Player) {
   if (!net.enabled || !net.remotes.size) return 0;
   const now = performance.now(), st = {} as Snap;
   let knock = 0;
   for (const r of net.remotes.values()) {
-    if (!remoteState(r, now, st)) continue;
+    if (!remoteState(r, now, st)) { r.ghost = false; continue; }
     const reach = carOf(r.car.car).length / 20 + p.halfL, g = st.s - p.s, dLat = p.lat - st.lat, side = WIDTH + p.halfW;
-    if (Math.abs(g) >= reach || Math.abs(dLat) >= side) continue;
-    if (Math.abs(g) < reach * 0.5 && Math.abs(dLat) < side * 0.5) continue; // well inside each other
+    if (Math.abs(g) >= reach || Math.abs(dLat) >= side) { r.ghost = false; continue; }
+    if (r.ghost) continue;
+    const deep = Math.abs(g) < reach * 0.5 && Math.abs(dLat) < side * 0.5;
+    if (deep && now - (r.contact ?? -Infinity) > STICKY) { r.ghost = true; continue; } // met already inside each other
+    r.contact = now;
     const scrape = sideContact(p, dLat, side, reach - Math.abs(g));
     if (scrape >= 0) { knock = Math.max(knock, scrape); continue; }
-    if (Math.abs(g) < reach * 0.5) continue;
-    const theirs = st.v * Math.cos(st.psi);
-    if (g > 0 && p.speed > theirs - 0.01) { p.s = st.s - reach - 0.01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer ?? 0) * 1.5)); }
-    else if (g < 0 && p.speed < Math.min(0, theirs)) { p.s = st.s + reach + 0.01; p.speed = Math.min(0, theirs); } // reversing into them: stopped
-    else continue;
-    knock = Math.max(knock, Math.min(1, Math.abs(p.speed - theirs)));
+    const theirs = st.v * Math.cos(st.psi), mine = p.speed;
+    // (theirs < 0: they're reversing into you, and you go back with them)
+    if (g >= 0) { p.s = st.s - reach - 0.01; p.speed = Math.min(p.speed, theirs < 0 ? theirs : theirs + CREEP * Math.min(1, Math.abs(p.steer ?? 0) * 1.5)); }
+    else { p.s = st.s + reach + 0.01; p.speed = Math.max(p.speed, theirs); }
+    knock = Math.max(knock, Math.min(1, Math.max(0, (g >= 0 ? mine - theirs : theirs - mine))));
   }
   return knock;
 }
