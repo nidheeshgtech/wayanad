@@ -85,31 +85,60 @@
 // column, the controls just above Start, everything tightened to fit a phone with its browser bars showing.
 .screen[data-compact] {
   padding-top: calc(16px + env(safe-area-inset-top, 0px)); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  .body { padding-top: 0; align-items: center; align-content: center; gap: 32px 64px; }
-  .intro { gap: 20px; }
-  .title { font-size: clamp(40px, min(6vw, 9vh), 88px); }
-  .panel { align-self: center; display: grid; }
-  // Start: the one thing to press — lit amber, breathing slowly
-  .start { animation: beckon 2.6s ease-in-out infinite; }
+  .body { padding-top: 0; align-items: center; align-content: center; gap: 28px 64px; }
+  .intro { gap: 18px; }
+  .title { font-size: clamp(40px, min(5.4vw, 8vh), 80px); }
+  .panel { align-self: center; display: grid; gap: 0; padding: 20px; h2 { padding-bottom: 14px; } }
+  // Start: the one thing to press — big, lit amber, breathing slowly
+  .start { height: 64px; min-width: 340px; font-size: 18px; border-radius: 16px; animation: beckon 2.6s ease-in-out infinite; }
 }
+// the name: big, in the display face, with how many letters are left
+.nameField[data-big] input { height: 60px; padding: 0 64px 0 18px; font: 300 26px/1 var(--font-serif), Georgia, serif; letter-spacing: -.01em;
+  &::placeholder { font-size: 22px; } }
+.nameBox { position: relative;
+  input { width: 100%; }
+  span { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; pointer-events: none; } }
+
+// the controls: the arrow keys and what they do, then a tile per other control (icon, label, key)
+.drive { display: flex; align-items: center; gap: 16px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(94, 122, 112, .35);
+  p { display: grid; gap: 4px; padding: 0; color: var(--ink); font-size: 14px; }
+  b { font-weight: 500; }
+  small { font-size: 12px; line-height: 1.45; color: var(--mute); } }
+.arrows { display: grid; grid-template-columns: repeat(3, 32px); grid-auto-rows: 30px; gap: 4px; flex: none;
+  // ↑ over ↓, with ← and → either side: the arrow keys
+  kbd:nth-child(1) { grid-area: 1 / 2; } kbd:nth-child(2) { grid-area: 2 / 1; } kbd:nth-child(3) { grid-area: 2 / 2; } kbd:nth-child(4) { grid-area: 2 / 3; }
+  kbd { display: grid; place-items: center; border-radius: 7px; border: 1px solid var(--line); border-bottom-width: 2px; background: rgba(14, 31, 26, .55);
+    font: 500 13px var(--font-sans), sans-serif; color: var(--ink); } }
+.tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+.tip { display: grid; justify-items: center; align-content: center; gap: 6px; padding: 12px 6px 10px; border-radius: 12px; text-align: center;
+  border: 1px solid rgba(94, 122, 112, .35); background: rgba(238, 242, 238, .035);
+  > span:not(.tipIcon) { font-size: 12px; color: var(--mute); white-space: nowrap; }
+  kbd { min-width: 24px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line); font: 500 11px var(--font-sans), sans-serif; color: var(--ink); background: rgba(14, 31, 26, .5); } }
+.tipIcon { display: flex; gap: 2px; color: var(--ink);
+  svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; } }
+// keyboard: five tiles, three over two (centred)
+.keyOnly .tips { grid-template-columns: repeat(6, minmax(0, 1fr)); .tip { grid-column: span 2; } .tip:nth-child(4) { grid-column: 2 / span 2; } }
+// touch: the controls panel is one row of three tiles
+@media (pointer: coarse) { .tips { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
 @media (max-width: 860px) {
   .screen[data-compact] {
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    .body { gap: 12px; }
+    .body { gap: 12px; width: min(100%, 560px); margin-inline: auto; }
     .intro { display: contents; }
     .title { font-size: clamp(30px, 9vw, 52px); br { display: none; } }
-    .nameField { gap: 6px; input { height: 44px; } }
-    // the controls in two columns, each a label over its buttons
-    .panel { order: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; padding: 10px 16px 12px;
-      h2 { grid-column: 1 / -1; padding-bottom: 0; } }
-    .row { flex-direction: column; align-items: flex-start; gap: 4px; min-height: 0; font-size: 12px; & + .row { border-top: 0; } }
-    .keys { justify-content: flex-start; kbd { height: 24px; min-width: 26px; } }
+    .nameField { gap: 6px; }
+    .nameField[data-big] input { height: 54px; font-size: 24px; }
+    .panel { order: 1; padding: 12px; h2 { display: none; } }
+    .drive { padding-bottom: 10px; margin-bottom: 10px; }
+    .tip { padding: 10px 4px 8px; gap: 4px; }
     .actions { order: 2; padding-top: 0; }
-    .start { height: 52px; }
+    .start { height: 58px; }
   }
 }
 @media (max-width: 860px) and (max-height: 700px) {
-  .screen[data-compact] { .body { gap: 8px; } .title { font-size: clamp(28px, 8vw, 40px); } }
+  .screen[data-compact] { .body { gap: 8px; } .title { font-size: clamp(28px, 8vw, 40px); } .nameField[data-big] input { height: 50px; }
+    .nameField small { display: none; } .tip { padding: 8px 4px 6px; } .start { height: 54px; } }
 }
 
 @keyframes pulse { 50% { opacity: .35; } }

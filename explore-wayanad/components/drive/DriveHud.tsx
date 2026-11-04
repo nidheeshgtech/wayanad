@@ -6,7 +6,7 @@ import { engine } from "@/lib/engine";
 import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
-import StartScreen, { ControlRow, panelStyles } from "@/components/ui/StartScreen";
+import StartScreen, { panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb } from "@/lib/share";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
@@ -40,6 +40,16 @@ const ICON = {
   brake: <path d="m6 9 6 6 6-6" />,
 };
 const Icon = ({ name }: { name: keyof typeof ICON }) => <svg viewBox="0 0 24 24" aria-hidden>{ICON[name]}</svg>;
+/** The start screen's controls: one tile per control, its icon, a short label and (keyboard) its key. */
+const Tip = ({ icon, label, keys }: { icon: keyof typeof ICON | [keyof typeof ICON, keyof typeof ICON]; label: string; keys?: string }) => (
+  <div className={panelStyles.tip}>
+    <span className={panelStyles.tipIcon}>{Array.isArray(icon) ? <><Icon name={icon[0]} /><Icon name={icon[1]} /></> : <Icon name={icon} />}</span>
+    <span>{label}</span>
+    {keys && <kbd>{keys}</kbd>}
+  </div>
+);
+/** Short names keep the labels over the cars readable (the server allows a little more). */
+const NAME_MAX = 10;
 const QUALITY: QualityMode[] = ["auto", "high", "medium", "low"];
 
 /** The next camera view; remembered for next time. */
@@ -127,7 +137,7 @@ export default function DriveHud() {
   }, []);
 
   // the name you drive under (multiplayer), remembered on this device
-  useEffect(() => { try { setDriverName(localStorage.getItem("wayanad-name") ?? ""); } catch {} }, []);
+  useEffect(() => { try { setDriverName((localStorage.getItem("wayanad-name") ?? "").slice(0, NAME_MAX)); } catch {} }, []);
   const start = () => {
     // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
     // up from Adivaram. A climb started part-way isn't kept as your best time.
@@ -138,7 +148,7 @@ export default function DriveHud() {
     }
     game.started = true; game.phase = "drive"; game.paused = false;
     if (net.enabled) {
-      const name = cleanName(driverName);
+      const name = cleanName(driverName.slice(0, NAME_MAX));
       try { localStorage.setItem("wayanad-name", name); } catch {}
       setDriverName(name);
       void joinRoom(name, new URLSearchParams(location.search).get("room"), getChoice());
@@ -203,11 +213,14 @@ export default function DriveHud() {
           startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}
           beforeStart={<>
             {net.enabled && (
-              <div className={panelStyles.nameField}>
+              <div className={panelStyles.nameField} data-big>
                 <label htmlFor="driver-name">Your name</label>
-                <input id="driver-name" value={driverName} maxLength={16} autoComplete="nickname" placeholder="Shown above your car"
-                  onChange={(e) => setDriverName(e.target.value)} onKeyDown={(e) => { if (e.key !== "Enter") e.stopPropagation(); }} />
-                <small>Other drivers on the road see it. Leave it empty to drive as “Driver 123”.</small>
+                <div className={panelStyles.nameBox}>
+                  <input id="driver-name" value={driverName} maxLength={NAME_MAX} autoComplete="nickname" placeholder="A short name" spellCheck={false}
+                    onChange={(e) => setDriverName(e.target.value.slice(0, NAME_MAX))} onKeyDown={(e) => { if (e.key !== "Enter") e.stopPropagation(); }} />
+                  <span aria-hidden>{driverName.length}/{NAME_MAX}</span>
+                </div>
+                <small>Shown above your car to other drivers</small>
               </div>
             )}
             <div className={panelStyles.nameField}>
@@ -218,18 +231,24 @@ export default function DriveHud() {
           panel={<>
             <h2>Controls</h2>
             <div className={panelStyles.keyOnly}>
-              <ControlRow label="Accelerate"><kbd>W</kbd><kbd>↑</kbd></ControlRow>
-              <ControlRow label="Brake, reverse"><kbd>S</kbd><kbd>↓</kbd></ControlRow>
-              <ControlRow label="Steer"><kbd>A</kbd><kbd>D</kbd><kbd>←</kbd><kbd>→</kbd></ControlRow>
-              <ControlRow label="Horn"><kbd>H</kbd></ControlRow>
-              <ControlRow label="Camera · back on the road"><kbd>C</kbd><kbd>R</kbd></ControlRow>
-              <ControlRow label="Look back (hold)"><kbd>B</kbd></ControlRow>
-              <ControlRow label="Pause"><kbd>Space</kbd></ControlRow>
+              <div className={panelStyles.drive}>
+                <div className={panelStyles.arrows} aria-hidden><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+                <p><b>Drive · steer</b><small>Arrows or W A S D<br />Hold ↓ to brake, then reverse</small></p>
+              </div>
+              <div className={panelStyles.tips}>
+                <Tip icon="horn" label="Horn" keys="H" />
+                <Tip icon="view" label="Camera" keys="C" />
+                <Tip icon="reset" label="Reset" keys="R" />
+                <Tip icon="back" label="Look back" keys="B" />
+                <Tip icon="pause" label="Pause" keys="Space" />
+              </div>
             </div>
             <div className={panelStyles.touchOnly}>
-              <ControlRow label="Steer"><kbd>◀</kbd><kbd>▶</kbd></ControlRow>
-              <ControlRow label="Accelerate · brake"><kbd>▲</kbd><kbd>▼</kbd></ControlRow>
-              <ControlRow label="Horn"><kbd>middle</kbd></ControlRow>
+              <div className={panelStyles.tips}>
+                <Tip icon={["left", "right"]} label="Steer" />
+                <Tip icon={["go", "brake"]} label="Gas · brake" />
+                <Tip icon="horn" label="Horn" />
+              </div>
             </div>
           </>}
         />
