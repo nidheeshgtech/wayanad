@@ -8,6 +8,8 @@ import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import StartScreen, { panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb } from "@/lib/share";
+import { loading } from "@/lib/loading";
+import { mark } from "@/lib/stats";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
@@ -127,8 +129,9 @@ export default function DriveHud() {
         const S = summary.current;
         Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); }
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); if (!game.jumped) mark("finished"); }
       } else summary.current.recorded = false;
+      if (loading.ready) mark("loaded");
       setScreen((s) => (s === want ? s : want));
       raf = requestAnimationFrame(tick);
     };
@@ -147,6 +150,7 @@ export default function DriveHud() {
       if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
     }
     game.started = true; game.phase = "drive"; game.paused = false;
+    mark("started");
     if (net.enabled) {
       const name = cleanName(driverName.slice(0, NAME_MAX));
       try { localStorage.setItem("wayanad-name", name); } catch {}
