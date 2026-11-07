@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import DriveExperience from "@/components/drive/DriveExperience";
+import { SITE } from "@/data/site";
 
 export const metadata: Metadata = {
   title: "Explore Wayanad — drive to Wayanad",
   description: "Drive up the Thamarassery Churam into Wayanad: nine hairpins in monsoon traffic, rain and mist, to the gateway at Lakkidi.",
+  alternates: { canonical: `${SITE}/` },
   openGraph: { title: "Drive the Thamarassery Churam", description: "Nine hairpins in monsoon traffic, rain and mist, up to the Lakkidi gate. Play it in your browser.", type: "website", siteName: "Explore Wayanad" },
   twitter: { card: "summary_large_image", title: "Drive the Thamarassery Churam", description: "Nine hairpins in monsoon traffic, rain and mist, up to the Lakkidi gate." },
 };
