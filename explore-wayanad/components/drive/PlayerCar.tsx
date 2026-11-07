@@ -19,6 +19,7 @@ import { duskness } from "@/lib/theme";
 import { paintCar } from "@/lib/carModel";
 import { carOf, colourOf, type Choice } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
+import { crash, drive as scoreDrive, scrape as scoreScrape } from "@/lib/score";
 import { frameTimed } from "@/lib/perf";
 import { mirror } from "@/lib/mirror";
 import type { ActId } from "@/data/acts";
@@ -173,6 +174,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       alpha = simulate(road, dt);
+      if (game.leg === 0) scoreDrive(dt, game.s, game.speed); // points for new road, and the clean-driving streak
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       if (game.leg === 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
@@ -184,7 +186,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
         // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
         // round a vehicle you're touching stays quiet), again only if it gets clearly harder
         const T = touching.current;
-        if (knock > 0) { if (knock > T.peak + 0.12) { hit(knock); T.peak = knock; } T.clear = 0; }
+        if (knock > 0) { if (knock > T.peak + 0.12) { hit(knock); if (T.peak === 0 && knock > 0.15) crash(); T.peak = knock; } T.clear = 0; }
         else if ((T.clear += dt) > 0.4) T.peak = 0;
       }
       if (game.leg === 0 && game.s > road.length * 0.995) { game.phase = "between"; game.speed = 0; }
@@ -196,10 +198,12 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // only sees the angle, so a fast glancing hit read as a graze); sliding on along it at the same speed stays quiet
     const C2 = contact.current;
     // (one contact shows once, and again only if it gets clearly harder: grinding along doesn't keep the screen red)
+    const scoring = game.started && game.phase === "drive" && !game.paused && game.leg === 0;
     if (game.scrape > 0.04) {
       C2.loss += Math.max(0, Math.abs(speedBefore) - Math.abs(game.speed));
       const strength = Math.min(1, Math.max(game.scrape, C2.loss * 1.6));
-      if (strength > C2.peak + 0.12) { hit(strength); C2.peak = strength; }
+      if (scoring) scoreScrape(dt); // points drain while you grind along the barrier; a hard hit loses the streak
+      if (strength > C2.peak + 0.12) { hit(strength); if (scoring && strength > 0.4 && C2.peak < 0.4) crash(false); C2.peak = strength; }
     } else if (game.scrape < 0.02) { C2.loss = 0; C2.peak = 0; }
     lastScrape.current = game.scrape;
 

@@ -15,6 +15,27 @@
   span:last-of-type { font-variant-numeric: tabular-nums; }
   i { grid-column: 1 / -1; display: block; height: 2px; margin-top: 6px; border-radius: 1px; background: rgba(238, 242, 238, .14); overflow: hidden; }
   u { display: block; height: 100%; background: var(--amber); transform-origin: left; transform: scaleX(0); text-decoration: none; } }
+// the score (lib/score): a gold coin, the points, the clean-driving multiplier when there is one. Top left on a
+// desktop (the minimap is under the speed); on phones under the km readout
+.score { position: fixed; left: 20px; top: 18px; display: flex; align-items: center; gap: 8px;
+  font: 300 38px/1 var(--font-serif), Georgia, serif; color: var(--ink); font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+  &::before { content: ""; width: 22px; height: 22px; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 35% 30%, #ffe7a3, #f2b632 45%, #b57a12); box-shadow: 0 0 8px rgba(242, 182, 50, .6); }
+  em { font-style: normal; }
+  b { font: 600 13px/1 var(--font-sans), sans-serif; padding: 4px 8px; border-radius: 999px; color: #0e1f1a; background: var(--amber); &:empty { display: none; } } }
+// gains and losses floating up from the car
+.pops { position: fixed; z-index: 5; left: 50%; top: 56%; width: 0; height: 0; pointer-events: none;
+  span { position: absolute; left: 0; top: 0; white-space: nowrap; transform: translate(calc(-50% + var(--x, 0px)), 0);
+    font: 600 20px/1 var(--font-sans), sans-serif; color: #ffd36b; text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+    animation: pop .9s ease-out forwards; }
+  span[data-kind="big"] { font-size: 30px; color: #ffe08a; }
+  span[data-kind="loss"] { color: #ff7a63; }
+  span[data-kind="mult"] { font-size: 16px; padding: 5px 10px; border-radius: 999px; color: #0e1f1a; background: var(--amber); text-shadow: none; } }
+@keyframes pop {
+  0% { opacity: 0; translate: 0 8px; scale: .8; }
+  15% { opacity: 1; translate: 0 0; scale: 1.08; }
+  100% { opacity: 0; translate: 0 -70px; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .pops span { animation-duration: .6s; } }
 // the rear-view mirror while reversing: components/drive/RearMirror draws the view into this box, this is its rim
 .mirror { position: fixed; z-index: 4; left: 50%; top: 16px; transform: translateX(-50%); width: clamp(220px, 30vw, 380px); aspect-ratio: 3.2;
   border: 1px solid rgba(238, 242, 238, .55); border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; opacity: 0;
@@ -56,6 +77,8 @@
   .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: linear-gradient(rgba(8, 20, 16, .4), transparent); }
   .speed { order: -1; text-align: left; margin-right: auto; b { font-size: 34px; } }
   .km { justify-content: start; margin-top: 6px; min-width: 104px; }
+  .score { position: static; margin-top: 8px; gap: 6px; font: 500 17px/1 var(--font-sans), sans-serif;
+    &::before { width: 14px; height: 14px; } b { font-size: 11px; padding: 3px 6px; } }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;
     button { width: 32px; height: 32px; svg { width: 15px; height: 15px; } } }
   .buttons .hornKey, .buttons .backKey { display: none; }
@@ -73,6 +96,8 @@
   p { color: var(--mute); line-height: 1.55; } }
 .card .eyebrow { font: 500 11px/1.2 var(--font-sans), sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
 .small { font-size: 13px; }
+.points { color: var(--amber); }
+.tally { margin: 0; font-size: 13px; line-height: 1.5; color: var(--mute); }
 // the end of a climb: the total time and the distance
 .result { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 1px solid rgba(94, 122, 112, .5); border-bottom: 1px solid rgba(94, 122, 112, .5);
   > div { display: grid; gap: 6px; padding: 14px 12px 14px 0; & + div { padding-left: 12px; border-left: 1px solid rgba(94, 122, 112, .5); } }

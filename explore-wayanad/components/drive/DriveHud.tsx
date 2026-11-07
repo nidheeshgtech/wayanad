@@ -10,6 +10,7 @@ import StartScreen, { panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb } from "@/lib/share";
 import { loading } from "@/lib/loading";
 import { mark } from "@/lib/stats";
+import { begin, finish, resetPenalty, score } from "@/lib/score";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
@@ -63,6 +64,12 @@ function cycleView() {
 function restart() {
   Object.assign(game, { leg: 0, phase: "drive", odometer: 0, clock: 0, paused: false, jumped: false });
   resetCar(3);
+  begin(game.s);
+}
+/** R / the reset button: back in lane, for a price once you're driving. */
+function backOnRoad() {
+  if (game.started && game.phase === "drive" && !game.paused) resetPenalty();
+  resetCar();
 }
 
 export default function DriveHud() {
@@ -72,6 +79,7 @@ export default function DriveHud() {
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
+  const points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
@@ -97,7 +105,7 @@ export default function DriveHud() {
       if (k === "h") { honk({ audible: true }); flash("horn"); }
       if (k === "c") { cycleView(); setView(game.view); flash("view"); }
       if (k === "b") { game.lookBack = true; buttons.current.back?.setAttribute("data-on", "1"); }
-      if (k === "r" && !game.paused) { resetCar(); flash("reset"); }
+      if (k === "r" && !game.paused) { backOnRoad(); flash("reset"); }
       held.add(k); apply();
     };
     const up = (e: KeyboardEvent) => {
@@ -122,6 +130,16 @@ export default function DriveHud() {
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
       if (rim.current) { rim.current.style.opacity = mirror.amount > 0.01 ? mirror.amount.toFixed(2) : "0"; rim.current.toggleAttribute("data-on", mirror.amount > 0.5); }
+      // the score, its clean-driving multiplier, and each gain or loss floating up from the car
+      if (points.current) { const t = score.points.toLocaleString("en-IN"); if (points.current.textContent !== t) points.current.textContent = t; }
+      if (mult.current) { const t = score.mult > 1 ? `×${score.mult}` : ""; if (mult.current.textContent !== t) mult.current.textContent = t; }
+      for (let p = score.pops.shift(); p; p = score.pops.shift()) {
+        if (!pops.current || game.phase !== "drive") continue;
+        const el = document.createElement("span");
+        el.textContent = p.text; el.dataset.kind = p.kind; el.style.setProperty("--x", `${Math.round((Math.random() - 0.5) * 70)}px`);
+        el.addEventListener("animationend", () => el.remove());
+        pops.current.appendChild(el);
+      }
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -129,7 +147,7 @@ export default function DriveHud() {
         const S = summary.current;
         Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); if (!game.jumped) mark("finished"); }
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); finish(game.clock, !game.jumped); if (!game.jumped) mark("finished"); }
       } else summary.current.recorded = false;
       if (loading.ready) mark("loaded");
       setScreen((s) => (s === want ? s : want));
@@ -150,6 +168,7 @@ export default function DriveHud() {
       if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
     }
     game.started = true; game.phase = "drive"; game.paused = false;
+    begin(game.s);
     mark("started");
     if (net.enabled) {
       const name = cleanName(driverName.slice(0, NAME_MAX));
@@ -181,16 +200,18 @@ export default function DriveHud() {
           <b ref={speed}>0</b><small>km/h</small>
           <div ref={room} className={styles.room} />
           <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
+          <div className={styles.score} aria-label="Score"><em ref={points}>0</em><b ref={mult} /></div>
         </div>
       </div>
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
+      <div ref={pops} className={styles.pops} aria-hidden />
 
       <div className={styles.buttons}>
         <button type="button" ref={ref("horn")} className={styles.hornKey} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
         <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
         <button type="button" ref={ref("back")} className={styles.backKey} {...hold((on) => { game.lookBack = on; })} title="Look back (hold B)" aria-label="Look back (hold)"><Icon name="back" /></button>
-        <button type="button" ref={ref("reset")} onClick={() => { resetCar(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
+        <button type="button" ref={ref("reset")} onClick={() => { backOnRoad(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
         <Sound icon />
         <ThemeToggle className={styles.themeKey} />
@@ -293,9 +314,14 @@ export default function DriveHud() {
           <p className={styles.eyebrow}>Lakkidi gate · end of the drive</p>
           <h1>Welcome to Wayanad.</h1>
           <div className={styles.result}>
+            <div><span>Score</span><b className={styles.points}>{score.points.toLocaleString("en-IN")}</b></div>
             <div><span>Total time</span><b>{clock(summary.current.sec)}</b></div>
             <div><span>Distance</span><b>{summary.current.km.toFixed(1)} km</b></div>
           </div>
+          <p className={styles.tally}>
+            {score.coins} coins · {score.big}/9 hairpin coins · {score.crashes} {score.crashes === 1 ? "crash" : "crashes"}{score.bonus > 0 && <> · time bonus +{score.bonus.toLocaleString("en-IN")}</>}
+            <br />{score.isNew ? "Your best score yet" : score.best > 0 ? `Your best: ${score.best.toLocaleString("en-IN")}` : null}
+          </p>
           {STAY && (
             <div className={styles.stay}>
               <span>Where to stay tonight</span>

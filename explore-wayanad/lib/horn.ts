@@ -29,3 +29,20 @@ export function honk({ audible = false } = {}) {
     }
   }
 }
+
+/** A coin picked up: a short bright "ding" (two sine partials), a rising pair for a hairpin coin. Only with the sound on. */
+export function chime(big = false) {
+  if (!horn.sound) return;
+  ctx ??= new AudioContext();
+  if (ctx.state === "suspended") void ctx.resume();
+  const notes = big ? [[0, 1319], [0.09, 1760]] : [[0, 1568]];
+  for (const [start, f] of notes) {
+    const t = ctx.currentTime + start, gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.07, t + 0.008); gain.gain.exponentialRampToValueAtTime(0.0005, t + 0.35);
+    gain.connect(ctx.destination);
+    for (const [k, level] of [[1, 1], [2.76, 0.25]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sine"; o.frequency.value = f * k; g.gain.value = level;
+      o.connect(g); g.connect(gain); o.start(t); o.stop(t + 0.4);
+    }
+  }
+}
