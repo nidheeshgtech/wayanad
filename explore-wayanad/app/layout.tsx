@@ -11,8 +11,8 @@ const site = process.env.VERCEL_PROJECT_PRODUCTION_URL;
 
 export const metadata: Metadata = {
   metadataBase: site ? new URL(`https://${site}`) : undefined,
-  title: "Explore Wayanad — drive to Wayanad",
-  description: "Drive up the Thamarassery Churam into Wayanad: nine hairpins in monsoon traffic, rain and mist, to the gateway at Lakkidi.",
+  title: "Drive Wayanad — Thamarassery Churam 3D driving game",
+  description: "A free 3D driving game in your browser: drive up the Thamarassery Churam into Wayanad, nine hairpins in monsoon traffic, rain and mist, to the gateway at Lakkidi. Play alone or with a friend.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0E1F1A" };
