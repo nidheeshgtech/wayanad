@@ -10,8 +10,8 @@ import { carOf, colourOf, type Choice } from "@/data/cars";
 
 /* Other drivers in your room (lib/net), on the same road, in the car and paint they chose (data/cars.ts), placed with
  * the same road maths as PlayerCar (s along the curve, lat across it, psi off its direction, pitched with the slope),
- * a name above. They pass through you and through your traffic (each player has their own): no collisions over the
- * network. Only the nearest are drawn — the closest few as their actual car (lib/carModel: loaded the first time
+ * a name above. They pass through your traffic (each player has their own); you and they bump (lib/net collideRemotes),
+ * except a driver first met already inside your car, who passes through until you're apart. Only the nearest are drawn — the closest few as their actual car (lib/carModel: loaded the first time
  * someone near you drives it, then shared), the rest as a light SUV in their colour (~10 draw calls instead of ~40)
  * that reads the same at a distance; fewer of both on phones. The cars are fixed pools, so drivers coming and going
  * never allocate. Units of 10 m. */
@@ -75,8 +75,10 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
     if (game.leg === 0) for (const r of net.remotes.values()) {
       const st = remoteState(r, now, {} as Snap);
       if (!st || Math.abs(st.s - game.s) > VIEW) continue;
-      // one right where you are (everyone starts at Adivaram) would sit inside your car: not drawn until you're apart
-      if (Math.abs(st.s - game.s) < 0.45 && Math.abs(st.lat - game.lat) < 0.2) continue;
+      // one inside your car (everyone starts at Adivaram) isn't drawn until you're apart: only one passing through you
+      // (collideRemotes' ghost) or right inside — not one you're touching, nose to tail ~4 m apart (it used to vanish
+      // whenever you bumped it: this hid anything within 4.5 m)
+      if (r.ghost || (Math.abs(st.s - game.s) < 0.2 && Math.abs(st.lat - game.lat) < 0.1)) continue;
       near.push({ id: r.id, name: r.name, car: r.car, st, d: Math.abs(st.s - game.s) });
     }
     near.sort((a, b) => a.d - b.d); near.length = Math.min(near.length, pool.length);
