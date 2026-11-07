@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { game, resetCar, togglePause, VIEWS, type View } from "@/lib/game";
 import { honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
+import { ambience } from "@/lib/ambience";
+import { weather } from "@/lib/weather";
+import { nightness } from "@/lib/theme";
 import { quality, setQualityMode, type QualityMode } from "@/lib/quality";
 import Sound from "@/components/ui/Sound";
 import ThemeToggle from "@/components/ui/ThemeToggle";
@@ -10,7 +13,9 @@ import StartScreen, { panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb } from "@/lib/share";
 import { loading } from "@/lib/loading";
 import { mark } from "@/lib/stats";
+import { shareCard } from "@/lib/shareCard";
 import { begin, finish, resetPenalty, score } from "@/lib/score";
+import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } from "@/lib/badges";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
@@ -65,7 +70,7 @@ function cycleView() {
 function restart() {
   Object.assign(game, { leg: 0, phase: "drive", odometer: 0, clock: 0, paused: false, jumped: false });
   resetCar(3);
-  begin(game.s);
+  begin(game.s); startRun();
 }
 /** R / the reset button: back in lane, for a price once you're driving. */
 function backOnRoad() {
@@ -127,6 +132,7 @@ export default function DriveHud() {
       if (km.current) km.current.textContent = game.km.toFixed(1);
       // multiplayer: how many drivers share your road; the pause menu's list follows the roster
       if (room.current) room.current.textContent = !net.enabled || net.status === "off" ? "" : net.status === "live" ? `${net.roster.length + 1} driver${net.roster.length ? "s" : ""} in your room` : "Connecting…";
+      if (game.started && game.phase === "drive" && net.roster.length) award("friend"); // someone else on your road
       if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); }
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
@@ -143,19 +149,20 @@ export default function DriveHud() {
       }
       if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
+      ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
       if (game.phase !== "drive") {
         const S = summary.current;
         Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); finish(game.clock, !game.jumped); if (!game.jumped) mark("finished"); }
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); finish(game.clock, !game.jumped); if (!game.jumped) { mark("finished"); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
       } else summary.current.recorded = false;
       if (loading.ready) mark("loaded");
       setScreen((s) => (s === want ? s : want));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); engine(false, 0, 0); };
+    return () => { cancelAnimationFrame(raf); engine(false, 0, 0); ambience({ on: false, rain: 0, night: 0, hood: false, speed: 0 }); };
   }, []);
 
   // the name you drive under (multiplayer), remembered on this device
@@ -169,7 +176,7 @@ export default function DriveHud() {
       if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
     }
     game.started = true; game.phase = "drive"; game.paused = false;
-    begin(game.s);
+    begin(game.s); startRun();
     mark("started");
     if (net.enabled) {
       const name = cleanName(driverName.slice(0, NAME_MAX));
@@ -183,6 +190,16 @@ export default function DriveHud() {
     const url = `${location.origin}/?room=${net.room}`, nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
     if (nav.share) { try { await nav.share({ title: "Explore Wayanad", text: "Drive the Thamarassery Churam with me:", url }); return; } catch (e) { if ((e as DOMException).name === "AbortError") return; } }
     try { await navigator.clipboard.writeText(url); setInvited("Link copied"); setTimeout(() => setInvited(""), 2500); } catch {}
+  };
+  // the share card (lib/shareCard): your climb as a picture for WhatsApp or a story
+  const [sharing, setSharing] = useState("");
+  const shareScore = async () => {
+    setSharing("Making your card…");
+    try {
+      const r = await shareCard({ name: game.driver, points: score.points, sec: game.clock, coins: score.coins, hairpins: score.big, crashes: score.crashes, badges: earned() });
+      setSharing(r === "downloaded" ? "Saved — message copied" : "");
+      if (r === "downloaded") setTimeout(() => setSharing(""), 3000);
+    } catch { setSharing(""); }
   };
   const onward = () => { game.leg = 1; game.phase = "drive"; resetCar(3); };
   const chooseQuality = (m: QualityMode) => { setQualityMode(m); setMode(m); };
@@ -293,6 +310,7 @@ export default function DriveHud() {
             <button type="button" className={styles.ghostButton} onClick={restart}>Restart from Adivaram</button>
           </div>
           {garage && <CarPicker value={choice} onChange={setChoice} />}
+          <BadgeStrip />
           <div className={styles.setting} role="group" aria-label="Horn">
             <span>Horn</span>
             <HornPicker />
@@ -331,6 +349,7 @@ export default function DriveHud() {
             {score.coins} coins · {score.big}/9 hairpin coins · {score.crashes} {score.crashes === 1 ? "crash" : "crashes"}{score.bonus > 0 && <> · time bonus +{score.bonus.toLocaleString("en-IN")}</>}
             <br />{score.isNew ? "Your best score yet" : score.best > 0 ? `Your best: ${score.best.toLocaleString("en-IN")}` : null}
           </p>
+          <BadgeStrip />
           {STAY && (
             <div className={styles.stay}>
               <span>Where to stay tonight</span>
@@ -341,7 +360,8 @@ export default function DriveHud() {
           )}
           <p>Thanks for driving up the churam with us. Tell us what you thought on Instagram, and follow along: the road past the gate, through Vythiri and Kalpetta to the border, opens in the next update.</p>
           <div className={styles.row}>
-            <a className={styles.go} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer" autoFocus>Share your thoughts</a>
+            <button type="button" className={styles.go} onClick={() => void shareScore()} disabled={sharing === "Making your card…"} autoFocus>{sharing || "Share my score"}</button>
+            <a className={styles.ghostButton} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer">Share your thoughts</a>
             <button type="button" className={styles.ghostButton} onClick={restart}>Drive again</button>
           </div>
         </div>
@@ -357,6 +377,27 @@ export default function DriveHud() {
         </div>
       )}
     </>
+  );
+}
+
+/** All nine badges: the ones you have bright, the rest faint (hover or tap one for how to get it); new this climb
+ * marked. */
+function BadgeStrip() {
+  const have = earned(), fresh = badgeState.fresh;
+  return (
+    <div className={styles.badges} role="group" aria-label={`Badges: ${have.length} of ${BADGES.length}`}>
+      <span>Badges {have.length}/{BADGES.length}</span>
+      <ul>
+        {BADGES.map((b) => {
+          const got = have.includes(b.id);
+          return (
+            <li key={b.id} data-got={got || undefined} data-new={fresh.includes(b.id) || undefined} title={`${b.name}${got ? "" : ` — ${b.how}`}`}>
+              <span aria-hidden>{b.icon}</span><small>{b.name}</small>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

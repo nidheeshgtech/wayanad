@@ -7,6 +7,7 @@ import { loadVehicle } from "@/lib/vehicleAssets";
 import { game } from "@/lib/game";
 import { bonus, score } from "@/lib/score";
 import { chatter } from "@/lib/horn";
+import { award } from "@/lib/badges";
 
 /* Bonnet macaques at a few of the nine hairpins, where they sit on the barriers and walls of the churam watching the
  * traffic. A troop of two to four at five bends; they turn to look at whatever comes near, breathe, shuffle along now
@@ -111,7 +112,7 @@ export default function Monkeys({ curve }: { curve: CatmullRomCurve3 }) {
         const seat = seatOf(c);
         m.root.position.lerpVectors(r.from, seat, e); m.root.position.y += Math.sin(r.t * Math.PI) * 0.06; m.root.scale.setScalar(1 + (big() - 1) * e);
         if (r.t > 0.5) m.root.quaternion.copy(tmp.q);
-        if (r.t >= 1) { Object.assign(r, { stage: "ride", t: 0, dur: RIDE.ride[0] + Math.random() * (RIDE.ride[1] - RIDE.ride[0]) }); bonus(RIDE.points, "🐒 Monkey ride!"); }
+        if (r.t >= 1) { Object.assign(r, { stage: "ride", t: 0, dur: RIDE.ride[0] + Math.random() * (RIDE.ride[1] - RIDE.ride[0]) }); bonus(RIDE.points, "🐒 Monkey ride!"); award("monkey"); }
       } else if (r.stage === "ride") {
         const seat = seatOf(c); m.phase += dt;
         m.root.position.copy(seat); m.root.position.y += Math.abs(Math.sin(m.phase * 7)) * 0.002 * Math.min(1, Math.abs(game.speed));

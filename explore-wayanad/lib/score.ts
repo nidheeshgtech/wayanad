@@ -22,7 +22,7 @@ const STREAK = [[60, 3], [30, 2]] as const; // seconds clean → multiplier
 const PAR = 25 * 60, BONUS_PER_SEC = 2;      // the time bonus: under 25 minutes, 2 points a second
 const BEST = "wayanad-best-score";
 
-type Pop = { text: string; kind: "gain" | "big" | "loss" | "mult" };
+type Pop = { text: string; kind: "gain" | "big" | "loss" | "mult" | "badge" };
 const fresh = () => ({
   run: 0,                           // bumped by begin(): the coins come back
   points: 0, coins: 0, big: 0, crashes: 0,
@@ -35,6 +35,9 @@ export const score: ReturnType<typeof fresh> = ((globalThis as { __wayanadScore?
 
 const add = (n: number) => { score.points = Math.max(0, score.points + n); };
 const pop = (text: string, kind: Pop["kind"]) => { if (score.pops.length < 12) score.pops.push({ text, kind }); };
+
+/** A message floating up from the car (a badge earned: lib/badges). */
+export function announce(text: string, kind: Pop["kind"] = "badge") { pop(text, kind); }
 
 /** A new climb from road position `s` (units): everything back to zero, the coins back on the road. */
 export function begin(s: number) {

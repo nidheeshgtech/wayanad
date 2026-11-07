@@ -30,6 +30,7 @@
     animation: pop .9s ease-out forwards; }
   span[data-kind="big"] { font-size: 30px; color: #ffe08a; }
   span[data-kind="loss"] { color: #ff7a63; }
+  span[data-kind="badge"] { font-size: 17px; padding: 7px 14px; border-radius: 999px; color: var(--ink); background: rgba(14, 31, 26, .82); border: 1px solid var(--amber); text-shadow: none; animation-duration: 2.2s; }
   span[data-kind="mult"] { font-size: 16px; padding: 5px 10px; border-radius: 999px; color: #0e1f1a; background: var(--amber); text-shadow: none; } }
 @keyframes pop {
   0% { opacity: 0; translate: 0 8px; scale: .8; }
@@ -97,6 +98,17 @@
 .card .eyebrow { font: 500 11px/1.2 var(--font-sans), sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
 .small { font-size: 13px; }
 .points { color: var(--amber); }
+// the badges: nine in a row (wrapping on phones), faint until earned, a ring on the ones new this climb
+.badges { display: grid; gap: 6px;
+  > span { font: 500 11px/1.2 var(--font-sans), sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+  ul { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  li { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 10px; border: 1px solid rgba(94, 122, 112, .4); background: rgba(14, 31, 26, .5);
+    span { font-size: 20px; line-height: 1; filter: grayscale(1); opacity: .3; }
+    small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    &[data-got] { border-color: rgba(217, 164, 65, .55); span { filter: none; opacity: 1; } }
+    &[data-new] { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(217, 164, 65, .35); }
+    &[data-new]::after { content: "New"; position: absolute; top: -7px; right: -6px; padding: 1px 4px; border-radius: 6px; font: 600 9px/1.2 var(--font-sans), sans-serif; color: #0e1f1a; background: var(--amber); } } }
+@media (max-width: 520px) { .badges ul { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .tally { margin: 0; font-size: 13px; line-height: 1.5; color: var(--mute); }
 // the end of a climb: the total time and the distance
 .result { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 1px solid rgba(94, 122, 112, .5); border-bottom: 1px solid rgba(94, 122, 112, .5);
@@ -113,7 +125,7 @@
 .go { display: inline-flex; align-items: center; text-decoration: none; min-height: 48px; padding: 0 26px; border-radius: 999px; border: 0; background: var(--amber); color: #0e1f1a; font-weight: 500; cursor: pointer; justify-self: start;
   &:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; } }
 .ghost { color: var(--mute); text-decoration: none; padding: 12px 8px; &:hover { color: var(--ink); } }
-.ghostButton { min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer;
+.ghostButton { display: inline-flex; align-items: center; text-decoration: none; min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer;
   &:hover { border-color: var(--mute); } &:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; } }
 .setting { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--mute);
   span { margin-right: 6px; }

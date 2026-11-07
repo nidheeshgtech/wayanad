@@ -46,6 +46,7 @@ import ImpactFx from "../drive/ImpactFx";
 import RearMirror from "../drive/RearMirror";
 import RemoteCars from "../drive/RemoteCars";
 import Coins from "../drive/Coins";
+import Snapshot from "../drive/Snapshot";
 import { net } from "@/lib/net";
 import { useChoice } from "@/lib/choice";
 
@@ -175,6 +176,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Rain count={small ? 5000 : 9000} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <Coins curve={curve} />}
+      {mode === "drive" && <Snapshot />}
       {mode === "drive" && <ImpactFx />}
       {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}

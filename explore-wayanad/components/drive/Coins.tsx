@@ -8,6 +8,7 @@ import {
 import { CAR, game } from "@/lib/game";
 import { archT, bendTs, roadShapeAt } from "@/lib/terrain";
 import { coin, score } from "@/lib/score";
+import { countCoin } from "@/lib/badges";
 
 /* Gold coins on the churam (lib/score): rows of five laid along the road up to the Lakkidi gate — most in your lane,
  * some in the oncoming one, some weaving across it — and one big coin on the inside of each hairpin, hard to reach.
@@ -79,7 +80,7 @@ export default function Coins({ curve }: { curve: CatmullRomCurve3 }) {
     for (let i = 0; i < coins.length; i++) {
       const c = coins[i], r = c.big ? BIG.r : COIN.r;
       // picked up as the car's body passes through it
-      if (live && c.taken < 0 && Math.abs(c.s - game.s) < CAR.halfL + r && Math.abs(c.lat - game.lat) < CAR.halfW + r) { c.taken = now; coin(c.big); }
+      if (live && c.taken < 0 && Math.abs(c.s - game.s) < CAR.halfL + r && Math.abs(c.lat - game.lat) < CAR.halfW + r) { c.taken = now; coin(c.big); countCoin(); }
       const k = c.taken < 0 ? 1 : Math.max(0, 1 - (now - c.taken) / PICK);
       const spin = (game.paused ? 0 : now) * SPIN * (c.taken < 0 ? 1 : 4) + c.phase, bob = c.taken < 0 ? Math.sin(now * 2 + c.phase) * 0.006 : (1 - k) * 0.12;
       p.copy(c.at); p.y += bob;

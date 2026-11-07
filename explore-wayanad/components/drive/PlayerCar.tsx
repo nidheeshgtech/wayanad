@@ -15,7 +15,8 @@ import { forestRoad, height, roadShapeAt, shoulderDrop } from "@/lib/terrain";
 import { scrollState } from "@/lib/scrollState";
 import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
-import { duskness } from "@/lib/theme";
+import { duskness, nightness } from "@/lib/theme";
+import { tickBadges } from "@/lib/badges";
 import { paintCar } from "@/lib/carModel";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
@@ -220,7 +221,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       alpha = simulate(road, dt);
-      if (game.leg === 0) scoreDrive(dt, game.s, game.speed); // points for new road, and the clean-driving streak
+      if (game.leg === 0) { scoreDrive(dt, game.s, game.speed); tickBadges(dt, weather.rain, nightness(), game.speed); } // points for new road, the clean-driving streak, time in rain / dark
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       if (game.leg === 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
