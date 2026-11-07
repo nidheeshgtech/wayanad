@@ -1,13 +1,13 @@
 /**
- * Badges: small awards for things done on the climb, kept on this device (localStorage) — collect all nine. Earning one
- * floats "🏅 …" up from the car (lib/score's pops) with a chime; the end card and the pause menu show the set.
+ * Badges: small awards for things done on the climb, kept on this device (localStorage) — collect them all. Earning one
+ * floats "🏅 …" up from the car (lib/score's pops) with a chime; the end card and the pause menu show the set (ten).
  *
  * Counters that need time (rain, night) run per climb; coins count across every climb on the device.
  */
 import { announce } from "@/lib/score";
 import { chime } from "@/lib/horn";
 
-export type BadgeId = "finish" | "clean" | "hairpins" | "fast" | "coins" | "monkey" | "rain" | "night" | "friend";
+export type BadgeId = "finish" | "clean" | "hairpins" | "fast" | "coins" | "monkey" | "chaya" | "rain" | "night" | "friend";
 export const BADGES: { id: BadgeId; icon: string; name: string; how: string }[] = [
   { id: "finish", icon: "🏁", name: "Reached Wayanad", how: "Drive up to the Lakkidi gate" },
   { id: "clean", icon: "✨", name: "Clean climb", how: "Reach the gate without hitting a vehicle" },
@@ -15,6 +15,7 @@ export const BADGES: { id: BadgeId; icon: string; name: string; how: string }[] 
   { id: "fast", icon: "⏱️", name: "Quick climb", how: "Reach the gate in under 13 minutes" },
   { id: "coins", icon: "💰", name: "Coin collector", how: "Pick up 500 coins in all" },
   { id: "monkey", icon: "🐒", name: "Monkey rider", how: "Give a monkey a ride" },
+  { id: "chaya", icon: "☕", name: "Chai break", how: "Stop for tea at the stall below Lakkidi" },
   { id: "rain", icon: "🌧️", name: "Rain driver", how: "Drive two minutes in the rain" },
   { id: "night", icon: "🌙", name: "Night driver", how: "Drive two minutes at night" },
   { id: "friend", icon: "🤝", name: "Road buddy", how: "Drive with another player on the road" },

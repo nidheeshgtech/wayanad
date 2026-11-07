@@ -29,6 +29,7 @@ const fresh = () => ({
    * phase one, stopped just past the Lakkidi gate */
   phase: "drive" as "drive" | "between" | "finished" | "gate",
   odometer: 0, clock: 0,                      // units driven, seconds driving
+  stall: 0, tea: 0, teaRun: -1, teaWait: 0,  // the tea stall below Lakkidi (components/drive/TeaStall): where, when served, which climb, seconds stopped by it
   driver: "",                                 // the name you drive under: on your car's rear plate
   jumped: false,                              // started part-way up (?at=, for testing): the climb time isn't kept as a best
   reset: 0,                                   // bumped to put the car back in lane

@@ -85,7 +85,7 @@ export default function DriveHud() {
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
-  const points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
+  const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
@@ -147,7 +147,13 @@ export default function DriveHud() {
         el.addEventListener("animationend", () => el.remove());
         pops.current.appendChild(el);
       }
-      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : "";
+      // the tea stall below Lakkidi: a word as you come up to it, until you've had your tea this climb
+      const toStall = game.stall - game.s, teaDue = game.stall > 0 && game.teaRun !== score.run && game.phase === "drive";
+      const teaNote = !teaDue ? "" : Math.abs(toStall) < 0.45 ? (Math.abs(game.speed) < 0.03 ? "☕ Ordering a chaya…" : "☕ Stop here for a chai break") : toStall > 0 && toStall < 10 ? `☕ Tea stall in ${Math.round(toStall * 10)} m — stop for a chai break` : "";
+      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote;
+      // the tea itself, for a few seconds after it's served
+      const served = game.tea > 0 && performance.now() - game.tea < 4500;
+      if (tea.current) tea.current.toggleAttribute("data-on", served);
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
       const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -224,6 +230,10 @@ export default function DriveHud() {
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />
+      <div ref={tea} className={styles.tea} role="status" aria-live="polite">
+        <TeaGlass />
+        <div><b>Chai break at Lakkidi</b><span>A glass of chaya and a pazhampori, hot from the kettle. +50</span></div>
+      </div>
 
       <div className={styles.buttons}>
         <button type="button" ref={ref("horn")} className={styles.hornKey} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
@@ -380,7 +390,22 @@ export default function DriveHud() {
   );
 }
 
-/** All nine badges: the ones you have bright, the rest faint (hover or tap one for how to get it); new this climb
+/** A glass of tea with steam, and a pazhampori beside it (the chai-break card). */
+function TeaGlass() {
+  return (
+    <svg viewBox="0 0 96 80" aria-hidden className={styles.teaArt}>
+      <g className={styles.teaSteam} fill="none" stroke="rgba(238,242,238,.7)" strokeWidth="2.4" strokeLinecap="round">
+        <path d="M30 22c-4-5 4-8 0-14" /><path d="M40 20c-4-5 4-8 0-14" /><path d="M50 22c-4-5 4-8 0-14" />
+      </g>
+      <path d="M24 28h32l-4 44H28z" fill="rgba(217,236,242,.18)" stroke="rgba(238,242,238,.75)" strokeWidth="2" />
+      <path d="M26.5 38h27l-3.2 32H29.7z" fill="#b8742f" />
+      <path d="M26.5 38h27l-.5 5h-26z" fill="#e8c9a0" />
+      <ellipse cx="76" cy="66" rx="16" ry="8" fill="#c9832b" /><ellipse cx="74" cy="63" rx="9" ry="3.5" fill="#e3a54a" opacity=".8" />
+    </svg>
+  );
+}
+
+/** All the badges: the ones you have bright, the rest faint (hover or tap one for how to get it); new this climb
  * marked. */
 function BadgeStrip() {
   const have = earned(), fresh = badgeState.fresh;
