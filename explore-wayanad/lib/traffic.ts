@@ -65,6 +65,9 @@ export function createFleet(length: number, density: (d: number) => number = () 
 export type Obstacle = { distance: number; length: number; lanes: (1 | -1)[]; speed?: number };
 /** Fastest a vehicle backs away from something reversing into it (units/s; the player's reverse is CAR.reverse 0.45). */
 const BACK_AWAY = .6;
+/** How hard traffic brakes, and how quickly it gets going in reverse (units/s²: 1 ≈ 1 g). Speeds change at these rates,
+ * never at once (they used to drop to nothing in a frame); the gap is still kept by limiting each step to the room. */
+const BRAKE = .65, REVERSE = .45, ACCEL = .12;
 export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = []) {
   const length = curve.getLength(), span = length - 4;
   dt = Math.min(.05, Math.max(0, dt));
@@ -103,12 +106,20 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
       if (gap <= 0) continue;
       const r = gap - (spec.length + o.length) / 2 - safe, toward = -(o.speed ?? 0) * v.direction;
       room = Math.min(room, r);
-      if (toward > 0 && r < 0) back = Math.max(back, toward + .05);
+      // only a car reversing into it (you, backing down the road onto the queue behind you) makes it back away; an
+      // oncoming vehicle you drive at stops and waits — it used to reverse, and the queue behind it reversed with it
+      if (toward > 0 && (o.speed ?? 0) < 0 && r < 0) back = Math.max(back, toward + .05);
     }
-    if (back > 0 && room < 0) { const speed = -Math.min(BACK_AWAY, back); return { speed, move: Math.max(speed * dt, room) }; }
+    if (back > 0 && room < 0) {
+      // backing away: brake first if it was going forward, then pick up reverse speed gradually
+      const speed = Math.max(-Math.min(BACK_AWAY, back), v.speed - (v.speed > 0 ? BRAKE : REVERSE) * dt);
+      return { speed, move: Math.max(speed * dt, room) };
+    }
     desired = Math.min(desired, Math.max(0, room * .5));
-    const speed = Math.max(0, Math.min(desired, Math.max(0, v.speed) + dt * .12));
-    return { speed, move: Math.min(speed * dt, Math.max(0, room)) };
+    // speed up gently, brake firmly but not at once; coming out of reverse, it slows to a stop first
+    const speed = v.speed < 0 ? Math.min(0, v.speed + BRAKE * dt)
+      : v.speed < desired ? Math.min(desired, v.speed + ACCEL * dt) : Math.max(desired, v.speed - BRAKE * dt);
+    return { speed, move: speed < 0 ? speed * dt : Math.min(speed * dt, Math.max(0, room)) };
   });
   fleet.forEach((v,i) => { v.speed = moves[i].speed; v.distance = 2 + ((v.distance - 2 + v.direction * moves[i].move) % span + span) % span; });
 }

@@ -146,6 +146,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     // where the viewer's seat is on this road (traffic runs on the churam/Kalpetta road only)
     const { act, progress } = scrollState, length = curve.getLength();
     trafficControl.fleet = fleet; trafficControl.curve = curve; // drive mode: the player's bus checks itself against these
+    if (typeof window !== 'undefined') (window as unknown as { __wayanadTraffic?: unknown }).__wayanadTraffic = trafficControl; // for testing
     if (game.active) {
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
       const onRoad = game.leg === 0 && game.phase === 'drive';
