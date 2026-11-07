@@ -6,14 +6,18 @@
  */
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
-export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp };
+/** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
+ * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
+ * with no rear plate gives `at`: its height off the road and size, metres; it goes on the back of the car there. */
+export type Plate = { part?: string; material?: string; at?: { y: number; w: number; h: number } };
+export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate };
 
 export const CARS: Car[] = [
-  { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/ },
-  { id: "vythiri", name: "Hatchback", file: "/models/traffic/player-hatch.glb", length: 3.99, paint: /^primary$/ },
-  { id: "kabini", name: "Sedan", file: "/models/traffic/player-sedan.glb", length: 3.99, paint: /^primary$/ },
-  { id: "banasura", name: "Off-road 4×4", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/ },
-  { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/ },
+  { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/, plate: { material: "plate_bg.0" } },
+  { id: "vythiri", name: "Hatchback", file: "/models/traffic/player-hatch.glb", length: 3.99, paint: /^primary$/, plate: { part: "plate_reflector.1_0" } },
+  { id: "kabini", name: "Sedan", file: "/models/traffic/player-sedan.glb", length: 3.99, paint: /^primary$/, plate: { part: "boot_grille.2_0" } },
+  { id: "banasura", name: "Off-road 4×4", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/, plate: { part: "boot_scorpio_n_ext_1.2_0" } },
+  { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 
 /** Paint: a little less saturated than a swatch would suggest, as car paint reads under the scene's light. */

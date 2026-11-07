@@ -1,0 +1,9 @@
+// The horn picker: five chips in one row, in the car picker's language (thin lines, amber for what's chosen). Names
+// show where there's room; on narrow screens only the icons.
+.horns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px;
+  button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 6px 8px; border-radius: 10px;
+    border: 1px solid rgba(94, 122, 112, .5); background: rgba(14, 31, 26, .55); color: var(--ink); cursor: pointer;
+    span { font-size: 18px; line-height: 1; } small { font-size: 12px; white-space: nowrap; }
+    &[aria-checked="true"] { border-color: var(--amber); background: rgba(217, 164, 65, .12); small { color: var(--amber); } }
+    &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
+@media (max-width: 1100px) { .horns small { display: none; } }

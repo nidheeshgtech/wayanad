@@ -8,6 +8,7 @@
  *   hitting a vehicle −50
  *   on the barrier    −5 a second
  *   Reset (R)        −100
+ *   monkey ride      +20            (components/scene/Monkeys.tsx: one jumps on your car at a hairpin)
  *   the Lakkidi gate  a time bonus: 2 points for every second under 25 minutes
  *
  * Clean driving multiplies what you earn: ×2 after 30 s on the move without hitting anything, ×3 after 60 s. A crash
@@ -55,6 +56,12 @@ export function coin(big = false) {
   const n = (big ? POINTS.big : POINTS.coin) * score.mult;
   if (big) score.big++; else score.coins++;
   add(n); pop(`+${n}`, big ? "big" : "gain"); chime(big);
+}
+
+/** A one-off bonus (a monkey riding on your car), multiplied like the rest; `label` floats up with the points. */
+export function bonus(n: number, label: string) {
+  const pts = n * score.mult;
+  add(pts); pop(`${label} +${pts}`, "big");
 }
 
 /** Hit a vehicle (`penalty`), or the barrier hard (no penalty, only the streak lost). */

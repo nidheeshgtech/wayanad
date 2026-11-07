@@ -17,6 +17,7 @@ import { joinRoom, net } from "@/lib/net";
 import { mirror } from "@/lib/mirror";
 import { cleanName } from "@/lib/names";
 import CarPicker from "@/components/garage/CarPicker";
+import HornPicker from "@/components/garage/HornPicker";
 import { getChoice, setChoice, useChoice } from "@/lib/choice";
 import styles from "./Drive.module.scss";
 
@@ -173,7 +174,7 @@ export default function DriveHud() {
     if (net.enabled) {
       const name = cleanName(driverName.slice(0, NAME_MAX));
       try { localStorage.setItem("wayanad-name", name); } catch {}
-      setDriverName(name);
+      setDriverName(name); game.driver = name;
       void joinRoom(name, new URLSearchParams(location.search).get("room"), getChoice());
     }
   };
@@ -245,12 +246,16 @@ export default function DriveHud() {
                     onChange={(e) => setDriverName(e.target.value.slice(0, NAME_MAX))} onKeyDown={(e) => { if (e.key !== "Enter") e.stopPropagation(); }} />
                   <span aria-hidden>{driverName.length}/{NAME_MAX}</span>
                 </div>
-                <small>Shown above your car to other drivers</small>
+                <small>On your number plate, and above your car for other drivers</small>
               </div>
             )}
             <div className={panelStyles.nameField}>
               <label>Your car</label>
               <CarPicker value={choice} onChange={setChoice} />
+            </div>
+            <div className={panelStyles.nameField}>
+              <label>Your horn</label>
+              <HornPicker />
             </div>
           </>}
           panel={<>
@@ -288,6 +293,10 @@ export default function DriveHud() {
             <button type="button" className={styles.ghostButton} onClick={restart}>Restart from Adivaram</button>
           </div>
           {garage && <CarPicker value={choice} onChange={setChoice} />}
+          <div className={styles.setting} role="group" aria-label="Horn">
+            <span>Horn</span>
+            <HornPicker />
+          </div>
           <div className={styles.setting} role="group" aria-label="Graphics">
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}

@@ -3,7 +3,7 @@ import { use, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
   AdditiveBlending, Box3, BufferAttribute, BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
-  Object3D, Quaternion, SphereGeometry, SpotLight, Sprite, SpriteMaterial, Vector3, type PerspectiveCamera,
+  Object3D, PlaneGeometry, Quaternion, Raycaster, SphereGeometry, SpotLight, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type PerspectiveCamera,
 } from "three";
 import { CAR, game, type View } from "@/lib/game";
 import { collideRemotes } from "@/lib/net";
@@ -17,7 +17,7 @@ import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
 import { duskness } from "@/lib/theme";
 import { paintCar } from "@/lib/carModel";
-import { carOf, colourOf, type Choice } from "@/data/cars";
+import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
 import { crash, drive as scoreDrive, scrape as scoreScrape } from "@/lib/score";
 import { frameTimed } from "@/lib/perf";
@@ -68,6 +68,40 @@ function plane(points: Vector3[]) {
   return { centre: c, normal: new Vector3().crossVectors(e1, e2).normalize() };
 }
 
+/** The rear number plate (data/cars.ts `plate`): the box round that part's faces behind the middle of the car, in the
+ * car's own frame (+z forward). Names in the file lose their dots in three.js ("boot_grille.2_0" → "boot_grille2_0"). */
+function rearPlate(model: Object3D, spec: Plate) {
+  if (spec.at) {
+    // no plate in the file: on the back of the car at that height (the first surface met coming from behind)
+    const y = spec.at.y / 10, hits = new Raycaster(new Vector3(0, y, -5), new Vector3(0, 0, 1)).intersectObject(model, true);
+    if (!hits.length) return null;
+    const z = hits[0].point.z, w = spec.at.w / 20, h = spec.at.h / 20;
+    return new Box3(new Vector3(-w, y - h, z), new Vector3(w, y + h, z + 0.001));
+  }
+  const strip = (n: string) => n.replace(/[\s.:/[\]]/g, ""), want = spec.part ? strip(spec.part) : null;
+  const box = new Box3(), v = new Vector3();
+  model.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh) return;
+    const hit = want ? strip(m.name) === want || strip(m.parent?.name ?? "") === want : ([m.material].flat() as Material[]).some((x) => x.name === spec.material);
+    if (!hit) return;
+    const pos = m.geometry.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); if (v.z < 0) box.expandByPoint(v); }
+  });
+  const size = box.getSize(v);
+  return box.isEmpty() || size.x < 0.02 || size.x > 0.1 ? null : box; // a plate is 30–70 cm wide; anything else is a wrong guess
+}
+/** Your name on a white plate, in dark letters sized to fit. */
+function drawPlate(canvas: HTMLCanvasElement, name: string) {
+  const g = canvas.getContext("2d")!, W = canvas.width, H = canvas.height;
+  g.fillStyle = "#f4f4f1"; g.fillRect(0, 0, W, H);
+  g.strokeStyle = "#1b1b1b"; g.lineWidth = H * 0.06; g.strokeRect(H * 0.05, H * 0.05, W - H * 0.1, H - H * 0.1);
+  g.fillStyle = "#111"; g.textAlign = "center"; g.textBaseline = "middle";
+  let size = H * 0.66;
+  do { g.font = `700 ${size}px Arial, Helvetica, sans-serif`; size -= 2; } while (g.measureText(name).width > W * 0.86 && size > 10);
+  g.fillText(name, W / 2, H * 0.54);
+}
+
 /** A seated driver: shirt, arms to the wheel, head with hair — simple smooth shapes, seen through the glass. */
 function driver(wheel: Vector3) {
   const g = new Group(), skin = new MeshStandardMaterial({ color: 0x7a5038, roughness: 0.7 });
@@ -98,6 +132,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     model.scale.setScalar(k); model.updateMatrixWorld(true);
     const b2 = new Box3().setFromObject(model), c2 = b2.getCenter(new Vector3());
     model.position.set(-c2.x, -b2.min.y, -c2.z); model.updateMatrixWorld(true);
+    const plateBox = rearPlate(model, car.plate);
 
     const root = new Group(); root.name = "player-car";
     const body = new Group(); root.add(body); // pitches and rolls on its springs; the wheels stay on the road
@@ -157,8 +192,19 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     };
     const brakeGlow = glow(0xff2a14, 0.07, [tail.min.x + w * 0.1, tail.max.x - w * 0.1]);
     const reverseGlow = glow(0xfff4e8, 0.045, [tail.min.x + w * 0.3, tail.max.x - w * 0.3]);
-    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow };
-  }, [source, LENGTH, choice.colour]);
+    // your name over the rear plate (shown once you've started with a name; else the plate's own WAYANAD)
+    let plate: { mesh: Mesh; canvas: HTMLCanvasElement; tex: CanvasTexture; text: string } | null = null;
+    if (plateBox) {
+      const size = plateBox.getSize(new Vector3()), mid = plateBox.getCenter(new Vector3());
+      const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = Math.round(512 * Math.min(0.5, Math.max(0.18, size.y / size.x)));
+      const tex = new CanvasTexture(canvas); tex.colorSpace = SRGBColorSpace; tex.anisotropy = 8;
+      const mesh = new Mesh(new PlaneGeometry(1, 1), new MeshStandardMaterial({ map: tex, roughness: 0.55, emissive: new Color(0xffffff), emissiveMap: tex, emissiveIntensity: 0.12, polygonOffset: true, polygonOffsetFactor: -2 }));
+      mesh.scale.set(size.x, size.y, 1); mesh.position.set(mid.x, mid.y, plateBox.min.z - 0.0006); mesh.rotation.y = Math.PI; mesh.visible = false;
+      body.add(mesh);
+      plate = { mesh, canvas, tex, text: "" };
+    }
+    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate };
+  }, [source, LENGTH, choice.colour, car.plate]);
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
@@ -252,6 +298,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       sp.vr += (k * (wantR - sp.roll) - c * sp.vr) * d; sp.roll += sp.vr * d;
       body.rotation.set(sp.pitch, 0, sp.roll);
     }
+    // the plate follows the name you start with
+    const plate = rig.plate, name = game.started ? (game.driver ?? "").toUpperCase() : "";
+    if (plate && plate.text !== name) { plate.text = name; plate.mesh.visible = !!name; if (name) { drawPlate(plate.canvas, name); plate.tex.needsUpdate = true; } }
     for (const w of wheels) { w.spinner.rotation.x = game.wheel; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0; }
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
 
