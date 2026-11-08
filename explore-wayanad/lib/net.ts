@@ -7,6 +7,9 @@
  * speed, braking); ten times a second the room sends where the drivers near you are. Each remote driver keeps a short
  * buffer of those states, stamped with when they arrived, which components/drive/RemoteCars.tsx plays back a little
  * behind real time so the cars glide between updates. If the connection drops it reconnects to the same room.
+ * Private rooms (Play with friends): `createRoom` asks for a new one and gets its code ("CHAYA-472"), `joinCode` joins
+ * one by its code; `net.party` then follows the room's lobby and race (multiplayer/src/index.ts), and the host's choices
+ * go back with `partyMode`, `partyStart`, `partyLobby`, a finished climb with `partyFinish`.
  * One object for the page (the HUD and the scene load in different chunks); no React state per message.
  */
 import { game } from "@/lib/game";
@@ -17,6 +20,12 @@ export type Snap = { t: number; s: number; lat: number; psi: number; v: number; 
 /** `ghost`: first met already well inside your car (everyone starts at Adivaram), so you pass through until apart;
  * `contact`: when it last touched yours (performance.now()), so a late update that jumps it deeper stays solid. */
 export type Remote = { id: number; name: string; car: Choice; buf: Snap[]; ghost?: boolean; contact?: number };
+/** A private room: who hosts it, where its race is (`startAt` / `closeAt`: performance.now() times), who's racing
+ * this round and who has finished, in order. */
+export type Party = {
+  code: string; host: number; phase: "lobby" | "countdown" | "race" | "results" | "free"; mode: "race" | "free"; round: number;
+  startAt: number; closeAt: number; racers: number[]; results: { id: number; name: string; time?: number; points?: number }[];
+};
 type NetState = {
   enabled: boolean; status: "off" | "connecting" | "live" | "retrying";
   id: number; name: string; room: string;
@@ -24,14 +33,22 @@ type NetState = {
   remotes: Map<number, Remote>;
   /** bumped on every roster change, so the HUD can poll cheaply */
   version: number;
+  party: Party | null;
 };
 
 const BASE = (process.env.NEXT_PUBLIC_MP_URL ?? "").replace(/\/$/, "");
 const SEND_MS = 80;
 
 export const net: NetState = ((globalThis as { __wayanadNet?: NetState }).__wayanadNet ??= {
-  enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0,
+  enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0, party: null,
 });
+net.party ??= null; // (an object kept from before a hot reload)
+
+/** This tab's key: a dropped connection rejoins a private room as the same racer (and host). */
+function key() {
+  try { let k = sessionStorage.getItem("wayanad-key"); if (!k) { k = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); sessionStorage.setItem("wayanad-key", k); } return k; }
+  catch { return ""; }
+}
 
 let ws: WebSocket | null = null, sender: ReturnType<typeof setInterval> | null = null, retry = 0, wanted: { name: string; room: string | null; car: Choice } | null = null;
 
@@ -49,15 +66,46 @@ export async function joinRoom(name: string, invite: string | null, car: Choice 
   } catch { schedule(); }
 }
 
+/** Play with friends: a new private room. Resolves to an error message, or null once you're on your way in. */
+export async function createRoom(name: string, car: Choice = DEFAULT_CHOICE) { return enterPrivate(`${BASE}/create`, name, car); }
+/** Play with friends: the room with this code ("chaya 472", "CHAYA-472"). Resolves to an error message, or null. */
+export async function joinCode(code: string, name: string, car: Choice = DEFAULT_CHOICE) { return enterPrivate(`${BASE}/join?code=${encodeURIComponent(code)}`, name, car); }
+async function enterPrivate(url: string, name: string, car: Choice): Promise<string | null> {
+  if (!net.enabled) return "Multiplayer is off.";
+  try {
+    const r = await fetch(url), body = await r.json() as { room?: string; code?: string; error?: string };
+    if (!r.ok || !body.room) return body.error ?? "Couldn't reach the room. Try again.";
+    leaveRoom(true);
+    wanted = { name, room: body.room, car };
+    net.status = "connecting";
+    open(body.room, name, car);
+    return null;
+  } catch { return "No connection. Check your internet and try again."; }
+}
+
+const partySend = (m: object) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
+/** The host: race or free drive (in the lobby). */
+export const partyMode = (mode: Party["mode"]) => partySend({ t: "mode", mode });
+/** The host: start the race (a countdown for everyone) or the free drive. */
+export const partyStart = () => partySend({ t: "start" });
+/** The host: everyone back to the room's lobby (Race again, or ending a drive). */
+export const partyLobby = () => partySend({ t: "lobby" });
+/** At the Lakkidi gate in a race: your time (s) and points. */
+export const partyFinish = (time: number, points: number) => partySend({ t: "finish", time, points });
+
 function open(room: string, name: string, car: Choice) {
   const sock = new WebSocket(`${BASE.replace(/^http/, "ws")}/room/${room}`);
   ws = sock;
-  sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ t: "hello", name, car: { m: car.car, c: car.colour } })); };
+  sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ t: "hello", name, car: { m: car.car, c: car.colour }, key: key() })); };
   sock.onmessage = (ev) => {
     let m: { t: string; [k: string]: unknown };
     try { m = JSON.parse(ev.data as string); } catch { return; }
     if (m.t === "welcome") {
       Object.assign(net, { id: m.id as number, name: m.name as string, room: m.room as string, status: "live" });
+      if (m.priv) {
+        const code = (m.room as string).slice(2).toUpperCase();
+        if (net.party?.code !== code) net.party = { code, host: 0, phase: "lobby", mode: "race", round: -1, startAt: 0, closeAt: 0, racers: [], results: [] };
+      } else net.party = null;
       net.version++;
       sender ??= setInterval(send, SEND_MS);
     } else if (m.t === "roster") {
@@ -65,6 +113,13 @@ function open(room: string, name: string, car: Choice) {
         .map((p) => ({ id: p.id, name: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"] } }));
       for (const id of net.remotes.keys()) if (!net.roster.some((p) => p.id === id)) net.remotes.delete(id);
       for (const p of net.roster) { const r = net.remotes.get(p.id); if (r) { r.name = p.name; r.car = p.car; } }
+      net.version++;
+    } else if (m.t === "room" && net.party) {
+      const now = performance.now();
+      Object.assign(net.party, {
+        host: m.host, phase: m.phase, mode: m.mode, round: m.round, racers: m.racers, results: m.results,
+        startAt: now + (m.startIn as number), closeAt: (m.closeIn as number) ? now + (m.closeIn as number) : 0,
+      });
       net.version++;
     } else if (m.t === "st") {
       const now = performance.now();
@@ -99,7 +154,7 @@ export function sendCar(car: Choice) {
 }
 
 export function leaveRoom(forget = true) {
-  if (forget) wanted = null;
+  if (forget) { wanted = null; net.party = null; }
   if (sender) { clearInterval(sender); sender = null; }
   const sock = ws; ws = null; sock?.close();
   net.remotes.clear(); net.roster = []; net.status = "off"; net.version++;

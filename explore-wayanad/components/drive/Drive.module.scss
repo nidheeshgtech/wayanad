@@ -217,3 +217,13 @@
     b { padding: 3px 8px; border-radius: 999px; background: var(--amber); color: #0e1f1a; font: 700 12px/1.2 var(--font-sans), sans-serif; font-variant-numeric: tabular-nums; }
     span { overflow: hidden; text-overflow: ellipsis; } }
 }
+
+/* a private room's race start (components/drive/Party, lib/net): 3, 2, 1 in big chunky numbers, then GO! in gold */
+.countdown { position: fixed; z-index: 8; left: 50%; top: 38%; transform: translate(-50%, -50%); pointer-events: none;
+  font: 800 clamp(96px, 22vw, 200px)/1 var(--font-sans), sans-serif; color: #EEF2EE; letter-spacing: -.02em;
+  -webkit-text-stroke: 4px #0e1f1a; paint-order: stroke fill; text-shadow: 0 8px 0 rgba(8, 20, 16, .8), 0 0 40px rgba(0, 0, 0, .45);
+  &:empty { display: none; }
+  &[data-on] { animation: countPop .9s cubic-bezier(.2, 1.6, .4, 1) both; }
+  &[data-go] { color: #ffd983; text-shadow: 0 8px 0 #85590f, 0 0 60px rgba(217, 164, 65, .7); } }
+@keyframes countPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.85); } }
+@media (prefers-reduced-motion: reduce) { .countdown[data-on] { animation: none; } }

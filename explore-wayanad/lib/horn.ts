@@ -101,6 +101,18 @@ export function chime(big = false) {
   }
 }
 
+/** A race's countdown: a short beep for 3, 2, 1 and a higher, longer one for GO. Only with the sound on. */
+export function beep(go = false) {
+  if (!horn.sound) return;
+  ctx ??= new AudioContext();
+  if (ctx.state === "suspended") void ctx.resume();
+  const t = ctx.currentTime + 0.01, len = go ? 0.55 : 0.18, o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = "square"; o.frequency.value = go ? 1046 : 523;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + 0.01); g.gain.setValueAtTime(0.06, t + len - 0.05); g.gain.linearRampToValueAtTime(0, t + len);
+  const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 3000;
+  o.connect(f).connect(g).connect(ctx.destination); o.start(t); o.stop(t + len + 0.02);
+}
+
 /** A monkey: a few quick rising "ooh"s (sine glides). Only with the sound on. */
 export function chatter() {
   if (!horn.sound) return;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { game, resetCar, togglePause, VIEWS, type View } from "@/lib/game";
-import { honk, horn } from "@/lib/horn";
+import { beep, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
 import { weather } from "@/lib/weather";
@@ -18,7 +18,9 @@ import { begin, finish, resetPenalty, score } from "@/lib/score";
 import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } from "@/lib/badges";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
-import { joinRoom, net } from "@/lib/net";
+import { joinRoom, leaveRoom, net, partyFinish, partyLobby, partyStart } from "@/lib/net";
+import { FriendsCard, GIcon, Podium, PlayModes, RoomCard, type PlayMode } from "./Party";
+import partyStyles from "./Party.module.scss";
 import { gapText, ordinal, racing, standings, watch, type Row } from "@/lib/race";
 import { mirror } from "@/lib/mirror";
 import { cleanName } from "@/lib/names";
@@ -80,7 +82,10 @@ function backOnRoad() {
 }
 
 export default function DriveHud() {
-  const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate">("start");
+  const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate" | "room">("start");
+  // how to play (multiplayer): alone, on the open road with everyone, or in a private room with friends
+  const [playMode, setPlayMode] = useState<PlayMode>("open"), [friends, setFriends] = useState(false), [inviteCode, setInviteCode] = useState("");
+  const [, setPartyV] = useState(0), partySeen = useRef(""), countdown = useRef<HTMLDivElement>(null);
   const choice = useChoice(), [garage, setGarage] = useState(false);
   const [driverName, setDriverName] = useState(""), [roster, setRoster] = useState<string[]>([]), [invited, setInvited] = useState("");
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
@@ -135,7 +140,29 @@ export default function DriveHud() {
       // multiplayer: how many drivers share your road; the pause menu's list follows the roster
       if (room.current) room.current.textContent = !net.enabled || net.status === "off" ? "" : net.status === "live" ? `${net.roster.length + 1} driver${net.roster.length ? "s" : ""} in your room` : "Connecting…";
       if (game.started && game.phase === "drive" && net.roster.length) award("friend"); // someone else on your road
-      if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); }
+      if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); setPartyV(net.version); }
+      // a private room (Play with friends): follow its rounds — back to the lobby, a countdown and race, a free drive
+      const P = net.party, racer = !!P && P.racers.includes(net.id);
+      if (P && P.round >= 0) {
+        const key = `${P.round}:${P.phase}`;
+        if (key !== partySeen.current) {
+          const newRound = partySeen.current.split(":")[0] !== String(P.round);
+          partySeen.current = key;
+          if (P.phase === "lobby" && (newRound || game.started)) { restart(); game.started = false; }
+          else if ((P.phase === "countdown" || P.phase === "race") && racer && newRound) { restart(); game.started = true; }
+          else if (P.phase === "free" && newRound) { restart(); game.started = true; }
+        }
+      } else if (!P) partySeen.current = "";
+      game.hold = !!P && P.phase === "countdown" && racer;
+      // the countdown: 3, 2, 1, GO! in the middle of the screen, with a beep each
+      if (countdown.current) {
+        let text = "";
+        if (P && racer && (P.phase === "countdown" || P.phase === "race")) { const ms = P.startAt - performance.now(); text = ms > 0 ? String(Math.ceil(ms / 1000)) : ms > -900 ? "GO!" : ""; }
+        if (countdown.current.textContent !== text) {
+          countdown.current.textContent = text;
+          if (text) { beep(text === "GO!"); countdown.current.removeAttribute("data-on"); void countdown.current.offsetWidth; countdown.current.setAttribute("data-on", ""); countdown.current.toggleAttribute("data-go", text === "GO!"); }
+        }
+      }
       // the race with the others in the room (lib/race): passes float up each frame, the standings redrawn 5 times a second
       watch();
       if (performance.now() > raceAt.current) {
@@ -166,12 +193,13 @@ export default function DriveHud() {
       if (tea.current) tea.current.toggleAttribute("data-on", served);
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
       ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
-      const want = !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
+      const roomScreen = !!P && (P.phase === "lobby" || (P.phase !== "free" && !racer));
+      const want = roomScreen ? "room" : !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
       if (game.phase !== "drive") {
         const S = summary.current;
         Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" }); if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; } finish(game.clock, !game.jumped); if (!game.jumped) { mark("finished"); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" }); if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; } finish(game.clock, !game.jumped); if (P && P.mode === "race" && P.phase === "race" && racer) partyFinish(game.clock, score.points); if (!game.jumped) { mark("finished"); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
       } else summary.current.recorded = false;
       if (loading.ready) mark("loaded");
       setScreen((s) => (s === want ? s : want));
@@ -181,9 +209,27 @@ export default function DriveHud() {
     return () => { cancelAnimationFrame(raf); engine(false, 0, 0); ambience({ on: false, rain: 0, night: 0, hood: false, speed: 0 }); };
   }, []);
 
-  // the name you drive under (multiplayer), remembered on this device
-  useEffect(() => { try { setDriverName((localStorage.getItem("wayanad-name") ?? "").slice(0, NAME_MAX)); } catch {} }, []);
+  // the name you drive under (multiplayer), remembered on this device; how you played last time; an invite's room code
+  useEffect(() => {
+    try { setDriverName((localStorage.getItem("wayanad-name") ?? "").slice(0, NAME_MAX)); } catch {}
+    const q = new URLSearchParams(location.search), code = q.get("code");
+    if (code) { setInviteCode(code.toUpperCase()); setPlayMode("friends"); return; }
+    if (q.get("room")) { setPlayMode("open"); return; }
+    try { const m = localStorage.getItem("wayanad-mode") as PlayMode | null; if (m === "solo" || m === "open" || m === "friends") setPlayMode(m); } catch {}
+  }, []);
+  const choosePlayMode = (m: PlayMode) => { setPlayMode(m); try { localStorage.setItem("wayanad-mode", m); } catch {} };
+  /** The name as it'll be shown: cleaned, remembered, on your plate. */
+  const commitName = () => {
+    const name = cleanName(driverName.slice(0, NAME_MAX));
+    try { localStorage.setItem("wayanad-name", name); } catch {}
+    setDriverName(name); game.driver = name;
+    return name;
+  };
+  /** Leave a private room: back to the title screen. */
+  const leaveParty = () => { leaveRoom(true); restart(); game.started = false; setFriends(false); setInviteCode(""); };
   const start = () => {
+    // Play with friends: the room comes first (make one, or join with a code); the drive starts from its lobby
+    if (net.enabled && playMode === "friends") { commitName(); setFriends(true); return; }
     // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
     // up from Adivaram. A climb started part-way isn't kept as your best time.
     const at = new URLSearchParams(location.search).get("at");
@@ -195,10 +241,9 @@ export default function DriveHud() {
     begin(game.s); startRun();
     mark("started");
     if (net.enabled) {
-      const name = cleanName(driverName.slice(0, NAME_MAX));
-      try { localStorage.setItem("wayanad-name", name); } catch {}
-      setDriverName(name); game.driver = name;
-      void joinRoom(name, new URLSearchParams(location.search).get("room"), getChoice());
+      const name = commitName();
+      if (playMode === "open") void joinRoom(name, new URLSearchParams(location.search).get("room"), getChoice());
+      else if (net.status !== "off") leaveRoom(true);
     }
   };
   // an invite: this room's link, through the share sheet or copied
@@ -248,6 +293,7 @@ export default function DriveHud() {
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />
+      <div ref={countdown} className={styles.countdown} aria-live="assertive" />
       <div ref={tea} className={styles.tea} role="status" aria-live="polite">
         <TeaGlass />
         <div><b>Chai break at Lakkidi</b><span>A glass of chaya and a pazhampori, hot from the kettle. +50</span></div>
@@ -281,7 +327,8 @@ export default function DriveHud() {
       {screen === "start" && (
         <StartScreen compact
           title={<>Drive to <br />Wayanad.</>}
-          startLabel="Start drive" onStart={start} presentedBy={PRESENTED_BY}
+          startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${inviteCode}` : "Play with friends"}
+          onStart={start} presentedBy={PRESENTED_BY}
           beforeStart={<>
             {net.enabled && (
               <div className={panelStyles.nameField} data-big>
@@ -302,6 +349,12 @@ export default function DriveHud() {
               <label>Your horn</label>
               <HornPicker />
             </div>
+            {net.enabled && (
+              <div className={panelStyles.nameField}>
+                <label>How to play</label>
+                <PlayModes value={playMode} onChange={choosePlayMode} code={inviteCode} />
+              </div>
+            )}
           </>}
           panel={<>
             <h2>Controls</h2>
@@ -328,6 +381,10 @@ export default function DriveHud() {
           </>}
         />
       )}
+      {screen === "start" && friends && !net.party && (
+        <FriendsCard name={game.driver} car={choice} auto={inviteCode || undefined} onBack={() => { setFriends(false); setInviteCode(""); }} />
+      )}
+      {screen === "room" && <RoomCard me={choice} onLeave={leaveParty} />}
       {screen === "paused" && (
         <div className={styles.card} role="dialog" aria-label="Paused">
           <p className={styles.eyebrow}>Drive mode</p>
@@ -335,8 +392,15 @@ export default function DriveHud() {
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={() => togglePause(false)} autoFocus>Resume</button>
             <button type="button" className={styles.ghostButton} onClick={() => setGarage((g) => !g)}>{garage ? "Done" : "Change car"}</button>
-            <button type="button" className={styles.ghostButton} onClick={restart}>Restart from Adivaram</button>
+            {!(net.party && net.party.mode === "race") && <button type="button" className={styles.ghostButton} onClick={restart}>Restart from Adivaram</button>}
           </div>
+          {net.party && (
+            <div className={styles.setting} role="group" aria-label={`Room ${net.party.code}`}>
+              <span>Room {net.party.code}{net.party.host === net.id ? " · you're the host" : ""}</span>
+              {net.party.host === net.id && <button type="button" onClick={() => partyLobby()}>{net.party.mode === "race" ? "End race · back to room" : "Back to room"}</button>}
+              <button type="button" onClick={leaveParty}>Leave room</button>
+            </div>
+          )}
           {garage && <CarPicker value={choice} onChange={setChoice} />}
           <BadgeStrip />
           <div className={styles.setting} role="group" aria-label="Horn">
@@ -347,7 +411,7 @@ export default function DriveHud() {
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}
           </div>
-          {net.enabled && net.status !== "off" && (
+          {net.enabled && net.status !== "off" && !net.party && (
             <div className={styles.setting}>
               <span>{racing() ? `Race to Lakkidi: ${raceList()}` : roster.length ? `On the road with you: ${roster.join(", ")}` : "No one else on your road yet"}</span>
               <button type="button" onClick={() => void invite()}>{invited || "Invite a friend"}</button>
@@ -368,6 +432,7 @@ export default function DriveHud() {
         <div className={styles.card} role="dialog" aria-label="Lakkidi gate">
           <p className={styles.eyebrow}>Lakkidi gate · end of the drive</p>
           <h1>Welcome to Wayanad.</h1>
+          {net.party?.mode === "race" && <Podium me={choice} />}
           <div className={styles.result}>
             <div><span>Score</span><b className={styles.points}>{score.points.toLocaleString("en-IN")}</b></div>
             <div><span>Total time</span><b>{clock(summary.current.sec)}</b></div>
@@ -375,7 +440,7 @@ export default function DriveHud() {
           </div>
           <p className={styles.tally}>
             {score.coins} coins · {score.big}/9 hairpin coins · {score.crashes} {score.crashes === 1 ? "crash" : "crashes"}{score.bonus > 0 && <> · time bonus +{score.bonus.toLocaleString("en-IN")}</>}
-            {summary.current.race && <><br />You reached Lakkidi {summary.current.race} in your room</>}
+            {summary.current.race && !net.party && <><br />You reached Lakkidi {summary.current.race} in your room</>}
             <br />{score.isNew ? "Your best score yet" : score.best > 0 ? `Your best: ${score.best.toLocaleString("en-IN")}` : null}
           </p>
           <BadgeStrip />
@@ -387,12 +452,24 @@ export default function DriveHud() {
               {STAY.url && <a href={STAY.url} target="_blank" rel="noopener noreferrer sponsored">See the stay</a>}
             </div>
           )}
-          <p>Thanks for driving up the churam with us. Tell us what you thought on Instagram, and follow along: the road past the gate, through Vythiri and Kalpetta to the border, opens in the next update.</p>
+          {!net.party && <p>Thanks for driving up the churam with us. Tell us what you thought on Instagram, and follow along: the road past the gate, through Vythiri and Kalpetta to the border, opens in the next update.</p>}
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={() => void shareScore()} disabled={sharing === "Making your card…"} autoFocus>{sharing || "Share my score"}</button>
             <a className={styles.ghostButton} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer">Share your thoughts</a>
-            <button type="button" className={styles.ghostButton} onClick={restart}>Drive again</button>
+            {!net.party && <button type="button" className={styles.ghostButton} onClick={restart}>Drive again</button>}
           </div>
+          {net.party && (
+            // a private room: the host starts the next round (once the race is over) or takes everyone back to the room
+            <div className={styles.row}>
+              {net.party.host === net.id ? (<>
+                {net.party.mode === "race" && <button type="button" className={`${partyStyles.key} ${partyStyles.gold}`} onClick={partyStart} disabled={net.party.phase !== "results"}><GIcon name="play" /><span>{net.party.phase === "results" ? "Race again" : "Race again · waiting"}</span></button>}
+                <button type="button" className={`${partyStyles.key} ${partyStyles.green}`} onClick={() => partyLobby()}><GIcon name="flag" /><span>Back to room</span></button>
+              </>) : (
+                <span className={styles.small}>Waiting for the host to start the next round…</span>
+              )}
+              <button type="button" className={partyStyles.textButton} onClick={leaveParty}><GIcon name="leave" />Leave room</button>
+            </div>
+          )}
         </div>
       )}
       {screen === "finished" && (
@@ -415,7 +492,7 @@ function raceGap(r: Row, you: Row) {
   if (r.done) return "🏁";
   if (r.waiting) return "at start";
   if (r.me) return "";
-  if (you.done) return `${gapText(game.finishS - r.s).slice(1)} to go`;
+  if (you.done) return `${gapText(Math.max(0, game.finishS - r.s)).replace("+", "")} to go`;
   return gapText(r.s - you.s);
 }
 
@@ -446,13 +523,13 @@ function drawRace(box: HTMLDivElement | null, line: HTMLDivElement | null) {
     p.children[1].textContent = r.me ? "You" : r.name;
     p.children[2].textContent = raceGap(r, you);
   }
-  const after = total - me - 1, foot = items[6];
+  const after = total - 1 - Math.max(...show), foot = items[6]; // drivers below the last one shown
   foot.textContent = after > 0 ? `${after} more behind you` : "";
   // phones: "2nd/8" and the driver just ahead (or behind, when you lead)
   const ahead = rows[me - 1], behind = rows[me + 1];
   const pill = `${place}${suffix}/${total}`, text = you.done ? "🏁 at Lakkidi"
-    : ahead ? `${ahead.name} ${ahead.done ? "🏁" : `${gapText(ahead.s - you.s).slice(1)} ahead`}`
-    : behind && !behind.waiting ? `${behind.name} ${gapText(you.s - behind.s).slice(1)} behind`
+    : ahead ? `${ahead.name} ${ahead.done ? "🏁" : `${gapText(Math.abs(ahead.s - you.s)).replace("+", "")} ahead`}`
+    : behind && !behind.waiting ? `${behind.name} ${gapText(Math.abs(you.s - behind.s)).replace("+", "")} behind`
     : "leading";
   const [lb, ls] = line.children;
   if (lb.textContent !== pill) lb.textContent = pill;

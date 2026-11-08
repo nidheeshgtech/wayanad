@@ -90,7 +90,15 @@
   .title { font-size: clamp(40px, min(5.4vw, 8vh), 80px); }
   .panel { align-self: center; display: grid; gap: 0; padding: 20px; h2 { padding-bottom: 14px; } }
   // Start: the one thing to press — big, lit amber, breathing slowly
-  .start { height: 64px; min-width: 340px; font-size: 18px; border-radius: 16px; animation: beckon 2.6s ease-in-out infinite; }
+  .start { height: 64px; min-width: 340px; font-size: 18px; border-radius: 16px; animation: beckon 2.6s ease-in-out infinite;
+    // a chunky game key: glossy gold face over a lip, sinking when pressed (it glows rather than ringing: the lip is a shadow)
+    animation-name: beckonKey; border: 0; background: linear-gradient(180deg, #ffd983, #D9A441); color: #1b1405; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .4); box-shadow: 0 6px 0 #85590f, 0 12px 24px rgba(0, 0, 0, .35), inset 0 0 0 1.5px rgba(255, 255, 255, .25);
+    > span { position: relative; z-index: 1; }
+    &::after { content: ""; position: absolute; left: 8px; right: 8px; top: 4px; height: 44%; border-radius: 12px 12px 40% 40% / 12px 12px 10px 10px;
+      background: linear-gradient(rgba(255, 255, 255, .45), rgba(255, 255, 255, .04)); pointer-events: none; }
+    &:active { transform: translateY(5px); box-shadow: 0 1px 0 #85590f, 0 4px 10px rgba(0, 0, 0, .35); }
+    kbd { position: relative; z-index: 1; text-transform: none; text-shadow: none; } }
 }
 // the name: big, in the display face, with how many letters are left
 .nameField[data-big] input { height: 60px; padding: 0 64px 0 18px; font: 300 26px/1 var(--font-serif), Georgia, serif; letter-spacing: -.01em;
@@ -142,6 +150,7 @@
 }
 
 @keyframes pulse { 50% { opacity: .35; } }
+@keyframes beckonKey { 50% { filter: brightness(1.08) drop-shadow(0 0 14px rgba(217, 164, 65, .45)); } }
 @keyframes beckon {
   0%, 100% { box-shadow: 0 0 0 0 rgba(217, 164, 65, 0), 0 8px 24px rgba(217, 164, 65, .22); }
   50% { box-shadow: 0 0 0 6px rgba(217, 164, 65, .16), 0 8px 32px rgba(217, 164, 65, .38); }

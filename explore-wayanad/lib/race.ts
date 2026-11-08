@@ -22,6 +22,12 @@ const doneAt = new Map<number, number>();       // per driver (and you, id 0 →
 const lastS = new Map<number, number>();
 let run = -1;
 
+/** Who's in the race: everyone in the room, or in a private room's race this round's racers only. */
+function field() {
+  const P = net.party;
+  return P && P.mode === "race" && P.phase !== "lobby" ? net.roster.filter((p) => P.racers.includes(p.id)) : net.roster;
+}
+
 const latest = (id: number) => { const b = net.remotes.get(id)?.buf; return b?.length ? b[b.length - 1] : null; };
 const finished = (s: number) => game.finishS > 0 && s >= game.finishS;
 
@@ -38,7 +44,7 @@ export function gapText(units: number) {
 
 /** Is there a race to show: a live room with someone else in it, on the churam. */
 export function racing() {
-  return net.enabled && net.status === "live" && net.roster.length > 0 && game.leg === 0 && game.started;
+  return net.enabled && net.status === "live" && field().length > 0 && game.leg === 0 && game.started;
 }
 
 export function standings(): Standings {
@@ -47,7 +53,7 @@ export function standings(): Standings {
   if (meDone && !doneAt.has(net.id)) doneAt.set(net.id, now);
   if (!meDone) doneAt.delete(net.id);
   rows.push({ id: net.id, name: game.driver || "You", me: true, s: game.s, done: meDone, waiting: false, place: 0 });
-  for (const p of net.roster) {
+  for (const p of field()) {
     const st = latest(p.id), s = st?.s ?? 0, done = !!st && finished(s);
     if (done && !doneAt.has(p.id)) doneAt.set(p.id, now);
     if (!done) doneAt.delete(p.id);
@@ -65,7 +71,7 @@ export function watch() {
   if (!racing() || game.phase !== "drive" || game.paused) return;
   const now = performance.now();
   let place = 0;
-  for (const p of net.roster) {
+  for (const p of field()) {
     const st = latest(p.id);
     if (!st) continue;
     const before = lastS.get(p.id);

@@ -15,6 +15,7 @@ const fresh = () => ({
   active: false,
   started: false,
   paused: false,                              // Space: everything that moves holds still
+  hold: false,                                // a race's countdown (Play with friends): your car waits on the line
   leg: 0 as Leg,
   s: 3, lat: 0.2, psi: 0, speed: 0,          // units, units, radians, units/s
   prev: { s: 3, lat: 0.2, psi: 0 },           // the previous physics step, for drawing between steps

@@ -217,7 +217,8 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     if (game.reset !== lastReset.current || game.leg !== lastLeg.current) { lastReset.current = game.reset; lastLeg.current = game.leg; settle(); cam.current.ready = false; }
     let alpha = 1;
     const speedBefore = game.speed;
-    if (game.started && game.phase === "drive" && !game.paused) {
+    if (game.hold) { game.speed = 0; Object.assign(game.input, { throttle: 0, brake: 0 }); }
+    if (game.started && game.phase === "drive" && !game.paused && !game.hold) {
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       alpha = simulate(road, dt);
