@@ -1,0 +1,45 @@
+// the drive's radar (Radar.tsx): under the speed and km readouts on the right, smaller on phones
+.radar {
+  --size: 184px;
+  position: fixed; z-index: 4; right: 16px; top: max(calc(104px + env(safe-area-inset-top, 0px)), calc(var(--hud-bottom, 0px) + 10px));
+  width: var(--size); height: var(--size); pointer-events: none; opacity: 0; transform: scale(.92); transition: opacity .5s, transform .5s;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .45));
+  &[data-on] { opacity: 1; transform: none; }
+  svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  text { font-family: var(--font-sans), sans-serif; font-weight: 800; text-anchor: middle; dominant-baseline: middle; }
+  @media (max-width: 719px) { --size: 128px; right: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .radar { transition: opacity .3s; transform: none; } }
+
+// the rim
+.bezel { stroke: rgba(238, 242, 238, .22); stroke-width: 1; }
+.track { fill: none; stroke: rgba(0, 0, 0, .45); stroke-width: 7; }
+.fill { fill: none; stroke: #D9A441; stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(217, 164, 65, .7)); }
+.notch { fill: #EEF2EE; stroke: #0e1f1a; stroke-width: 1.2; stroke-linejoin: round; }
+.north { circle { fill: #0e1f1a; stroke: #EEF2EE; stroke-width: 1.4; } text { fill: #EEF2EE; font-size: 7.5px; } }
+.km { rect { fill: #0e1f1a; stroke: #D9A441; stroke-width: 1.3; } text { fill: #EEF2EE; font-size: 7.5px; letter-spacing: .04em; } }
+
+// the map (stroke widths in metres: it's drawn at map scale)
+.grid { fill: none; stroke: rgba(238, 242, 238, .07); stroke-width: 7; }
+.casing { fill: none; stroke: #0a1813; stroke-width: 78; stroke-linejoin: round; stroke-linecap: round; }
+.road { fill: none; stroke: #9fb0a8; stroke-width: 46; stroke-linejoin: round; stroke-linecap: round; }
+.done { fill: none; stroke: #D9A441; stroke-width: 46; stroke-linejoin: round; stroke-linecap: round; }
+
+// icons
+.bend { circle { fill: #0e1f1a; stroke: #D9A441; stroke-width: 1.4; } text { fill: #EEF2EE; font-size: 7px; }
+  &[data-passed] { opacity: .45; circle { stroke: #8FA89E; } } }
+.stall { circle { fill: #fbf6e6; stroke: #8a6a3a; stroke-width: 1.4; } path { fill: none; stroke: #5a3a16; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; } }
+.gate { circle { fill: #D9A441; stroke: #0e1f1a; stroke-width: 1.6; filter: drop-shadow(0 0 3px rgba(217, 164, 65, .8)); }
+  &[data-edge] circle { stroke: #EEF2EE; } }
+.flagWhite { fill: #EEF2EE; }
+.flagDark { fill: #0e1f1a; }
+.other { circle { fill: #EEF2EE; stroke: #0e1f1a; stroke-width: 1.6; } text { fill: #0e1f1a; font-size: 7px; }
+  &[data-edge] { opacity: .8; } }
+.car { path { fill: #D9A441; stroke: #0e1f1a; stroke-width: 1.8; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); } }
+.carGlow { fill: rgba(217, 164, 65, .18); stroke: rgba(217, 164, 65, .45); stroke-width: 1; }
+
+// phones: the radar is small, so only what reads at that size
+@media (max-width: 719px) {
+  .bend text { display: none; }
+  .bend circle { r: 4; }
+}

@@ -5,8 +5,8 @@ import { useCapability } from "@/hooks/useCapability";
 import { game, resetCar } from "@/lib/game";
 import { setDriveWeather } from "@/lib/weather";
 import { scrollState } from "@/lib/scrollState";
-import MiniMap from "@/components/ui/MiniMap";
 import DriveHud from "./DriveHud";
+import Radar from "./Radar";
 import styles from "./Drive.module.scss";
 
 const Scene = dynamic(() => import("@/components/scene/Scene"), { ssr: false });
@@ -26,7 +26,7 @@ export default function DriveExperience() {
     <div className={styles.page}>
       {/* phones get the light tier; the drive needs the canvas, so the video tier falls back to it too */}
       {tier && <Scene tier={tier === "video" ? "lite" : tier} mode="drive" />}
-      <MiniMap />
+      <Radar />
       <DriveHud />
     </div>
   );

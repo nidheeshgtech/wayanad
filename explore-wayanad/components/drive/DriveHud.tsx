@@ -140,7 +140,7 @@ export default function DriveHud() {
       watch();
       if (performance.now() > raceAt.current) {
         raceAt.current = performance.now() + 200; drawRace(race.current, raceLine.current);
-        // the minimap (components/ui/MiniMap) sits under the speed and km readouts, however tall they've grown
+        // the radar (components/drive/Radar) sits under the speed and km readouts, however tall they've grown
         const bottom = km.current?.parentElement?.getBoundingClientRect().bottom ?? 0;
         document.documentElement.style.setProperty("--hud-bottom", `${Math.round(bottom)}px`);
       }

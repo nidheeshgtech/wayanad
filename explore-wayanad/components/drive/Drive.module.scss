@@ -46,10 +46,17 @@
 .buttons svg, .steer svg, .pedals svg, .bigHorn svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
 
 .buttons { position: fixed; z-index: 5; right: 20px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px;
-  button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--mute); background: rgba(8, 20, 16, .45); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; backdrop-filter: blur(6px);
+  // small game keys: a glossy green face over a lip that sinks when pressed (or when its key is used)
+  button { position: relative; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--ink); border: 0; border-radius: 50%; cursor: pointer;
+    background: linear-gradient(180deg, #34604f, #173529); transition: transform .06s, box-shadow .06s;
+    box-shadow: 0 4px 0 #08190f, 0 7px 12px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .18);
     touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; // look-back is held
-    svg { width: 18px; height: 18px; }
-    &:active, &[data-on], &[aria-pressed="true"] { color: var(--bg); background: var(--amber); border-color: var(--amber); }
+    svg { position: relative; z-index: 1; width: 18px; height: 18px; stroke-width: 2.2; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .3)); }
+    &::after { content: ""; position: absolute; left: 5px; right: 5px; top: 3px; height: 45%; border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
+      background: linear-gradient(rgba(255, 255, 255, .32), rgba(255, 255, 255, .03)); pointer-events: none; }
+    &:hover { filter: brightness(1.12); }
+    &:active, &[data-on], &[aria-pressed="true"] { color: #2a1d05; background: linear-gradient(180deg, #ffd983, #D9A441); transform: translateY(3px);
+      box-shadow: 0 1px 0 #85590f, 0 3px 6px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .2); }
     &.themeKey[data-theme="dusk"], &.themeKey[data-theme="night"] { color: var(--amber); border-color: var(--amber); }
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
@@ -96,10 +103,8 @@
   .score { position: static; margin-top: 8px; gap: 6px; font: 500 17px/1 var(--font-sans), sans-serif;
     &::before { width: 14px; height: 14px; } b { font-size: 11px; padding: 3px 6px; } }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;
-    button { width: 32px; height: 32px; border: 0; color: var(--ink); background: linear-gradient(180deg, #2f5a4a, #173529);
-      box-shadow: 0 3px 0 #08190f, 0 5px 10px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .14); transition: transform .06s, box-shadow .06s;
-      svg { width: 15px; height: 15px; stroke-width: 2.2; }
-      &:active, &[data-on] { transform: translateY(2px); box-shadow: 0 1px 0 #08190f, 0 2px 5px rgba(0, 0, 0, .35); } } }
+    button { width: 32px; height: 32px; box-shadow: 0 3px 0 #08190f, 0 5px 10px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .14);
+      svg { width: 15px; height: 15px; } } }
   .buttons .hornKey, .buttons .backKey { display: none; }
   .note { top: calc(64px + env(safe-area-inset-top, 0px)); }
   // under the speed and km readouts, which take the top left
