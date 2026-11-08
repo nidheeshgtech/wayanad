@@ -219,10 +219,12 @@ export default function DriveHud() {
   };
   const onward = () => { game.leg = 1; game.phase = "drive"; resetCar(3); };
   const chooseQuality = (m: QualityMode) => { setQualityMode(m); setMode(m); };
-  // touch: hold to press; leaving the button lets go
+  // touch: hold to press; leaving the button lets go. `data-on` shows it pressed (sunk in) while held.
   const hold = (set: (on: boolean) => void) => ({
-    onPointerDown: (e: React.PointerEvent) => { (e.target as Element).setPointerCapture?.(e.pointerId); set(true); },
-    onPointerUp: () => set(false), onPointerCancel: () => set(false), onPointerLeave: () => set(false),
+    onPointerDown: (e: React.PointerEvent) => { (e.target as Element).setPointerCapture?.(e.pointerId); e.currentTarget.setAttribute("data-on", ""); set(true); },
+    onPointerUp: (e: React.PointerEvent) => { e.currentTarget.removeAttribute("data-on"); set(false); },
+    onPointerCancel: (e: React.PointerEvent) => { e.currentTarget.removeAttribute("data-on"); set(false); },
+    onPointerLeave: (e: React.PointerEvent) => { e.currentTarget.removeAttribute("data-on"); set(false); },
   });
   const ref = (name: string) => (el: HTMLButtonElement | null) => { buttons.current[name] = el; };
 
@@ -269,8 +271,8 @@ export default function DriveHud() {
         </div>
         <button type="button" className={styles.bigHorn} onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button>
         <div className={styles.pedals}>
-          <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /></button>
-          <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /></button>
+          <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /><small>Brake</small></button>
+          <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /><small>Gas</small></button>
         </div>
       </div>
 

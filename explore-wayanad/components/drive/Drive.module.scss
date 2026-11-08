@@ -54,34 +54,52 @@
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
 .touch { display: none; }
-.steer, .pedals, .bigHorn { position: fixed; z-index: 5; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
-.steer, .pedals { display: flex; gap: 8px; align-items: flex-end;
-  button { display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); touch-action: none; backdrop-filter: blur(6px);
-    svg { width: 26px; height: 26px; }
-    &:active { background: rgba(238, 242, 238, .25); } } }
+.steer, .pedals, .bigHorn { position: fixed; z-index: 5; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+.steer, .pedals { display: flex; gap: 10px; align-items: flex-end; }
 .steer { left: 14px; }
-.pedals { right: 14px;
-  button { border-radius: 18px; width: 64px; height: 84px; }
-  .gas { color: var(--amber); border-color: var(--amber); background: rgba(217, 164, 65, .18); &:active { background: rgba(217, 164, 65, .45); } } }
-// the horn: between the steer buttons and the pedals
-.bigHorn { left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 64px; height: 64px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--line); background: rgba(8, 20, 16, .45); color: var(--ink); backdrop-filter: blur(6px); touch-action: manipulation;
-  svg { width: 26px; height: 26px; }
-  &:active { color: var(--bg); background: var(--amber); border-color: var(--amber); } }
+.pedals { right: 14px; }
+// the driving controls as chunky game keys: a glossy face over a thick lip that sinks when pressed. Each key sets its
+// colours: --top / --bot the face, --lip the edge under it, --ink the icon.
+.steer button, .pedals button, .bigHorn {
+  position: relative; display: grid; place-items: center; align-content: center; gap: 3px; width: 66px; height: 66px; padding: 0;
+  border: 0; border-radius: 20px; color: var(--ink-k, #EEF2EE); background: linear-gradient(180deg, var(--top), var(--bot));
+  box-shadow: 0 6px 0 var(--lip), 0 11px 18px rgba(0, 0, 0, .45), inset 0 0 0 1.5px rgba(255, 255, 255, .14), inset 0 -3px 0 rgba(0, 0, 0, .16);
+  touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform .06s ease-out, box-shadow .06s ease-out;
+  svg { position: relative; z-index: 1; width: 30px; height: 30px; stroke-width: 3; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .28)); }
+  small { position: relative; z-index: 1; font: 800 10px/1 var(--font-sans), sans-serif; letter-spacing: .14em; text-transform: uppercase; }
+  // the shine across the top of the face
+  &::after { content: ""; position: absolute; left: 5px; right: 5px; top: 3px; height: 44%; border-radius: 16px 16px 50% 50% / 16px 16px 12px 12px;
+    background: linear-gradient(rgba(255, 255, 255, .42), rgba(255, 255, 255, .04)); pointer-events: none; }
+  &:active, &[data-on] { transform: translateY(5px); filter: brightness(1.1);
+    box-shadow: 0 1px 0 var(--lip), 0 3px 8px rgba(0, 0, 0, .4), inset 0 0 0 1.5px rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .16); } }
+.steer button { --top: #3b6a58; --bot: #1d4135; --lip: #0a1f18; }
+// pedals: taller, ridged like a pedal, labelled
+.pedals button { width: 66px; height: 90px; border-radius: 18px;
+  background: repeating-linear-gradient(180deg, transparent 0 10px, rgba(0, 0, 0, .1) 10px 12px) 0 55% / 100% 40% no-repeat, linear-gradient(180deg, var(--top), var(--bot)); }
+.pedals .brake { --top: #e2735d; --bot: #ad3f2e; --lip: #64201a; }
+.pedals .gas { --top: #ffd983; --bot: #D9A441; --lip: #85590f; --ink-k: #2a1d05; small { text-shadow: 0 1px 0 rgba(255, 255, 255, .35); } svg { filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .4)); } }
+// the horn: round and cream, between the steer keys and the pedals
+.bigHorn { position: fixed; left: 50%; translate: -50% 0; border-radius: 50%; touch-action: manipulation;
+  --top: #fbf6e6; --bot: #d8cfb6; --lip: #8a816a; --ink-k: #0e1f1a;
+  svg { filter: none; }
+  &::after { border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%; } }
 
 // phones: nothing over the middle of the road. The speed
 // sits top-left, the small buttons top-right (the horn has its own big one), the driving controls along the bottom.
 @media (pointer: coarse) {
   .touch { display: block; }
   // narrow phones (360 px): room for the horn between the steer buttons and the pedals
-  @media (max-width: 375px) { .steer button { width: 56px; height: 56px; } .pedals button { width: 56px; height: 78px; } .bigHorn { width: 56px; height: 56px; } }
+  @media (max-width: 375px) { .steer button { width: 56px; height: 56px; } .pedals button { width: 56px; height: 78px; } .bigHorn { width: 56px; height: 56px; } .steer, .pedals { gap: 8px; } }
   .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: linear-gradient(rgba(8, 20, 16, .4), transparent); }
   .speed { order: -1; text-align: left; margin-right: auto; b { font-size: 34px; } }
   .km { justify-content: start; margin-top: 6px; min-width: 104px; }
   .score { position: static; margin-top: 8px; gap: 6px; font: 500 17px/1 var(--font-sans), sans-serif;
     &::before { width: 14px; height: 14px; } b { font-size: 11px; padding: 3px 6px; } }
   .buttons { top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; bottom: auto; gap: 6px;
-    button { width: 32px; height: 32px; svg { width: 15px; height: 15px; } } }
+    button { width: 32px; height: 32px; border: 0; color: var(--ink); background: linear-gradient(180deg, #2f5a4a, #173529);
+      box-shadow: 0 3px 0 #08190f, 0 5px 10px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .14); transition: transform .06s, box-shadow .06s;
+      svg { width: 15px; height: 15px; stroke-width: 2.2; }
+      &:active, &[data-on] { transform: translateY(2px); box-shadow: 0 1px 0 #08190f, 0 2px 5px rgba(0, 0, 0, .35); } } }
   .buttons .hornKey, .buttons .backKey { display: none; }
   .note { top: calc(64px + env(safe-area-inset-top, 0px)); }
   // under the speed and km readouts, which take the top left
