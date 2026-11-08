@@ -138,7 +138,12 @@ export default function DriveHud() {
       if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); }
       // the race with the others in the room (lib/race): passes float up each frame, the standings redrawn 5 times a second
       watch();
-      if (performance.now() > raceAt.current) { raceAt.current = performance.now() + 200; drawRace(race.current, raceLine.current); }
+      if (performance.now() > raceAt.current) {
+        raceAt.current = performance.now() + 200; drawRace(race.current, raceLine.current);
+        // the minimap (components/ui/MiniMap) sits under the speed and km readouts, however tall they've grown
+        const bottom = km.current?.parentElement?.getBoundingClientRect().bottom ?? 0;
+        document.documentElement.style.setProperty("--hud-bottom", `${Math.round(bottom)}px`);
+      }
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
       if (rim.current) { rim.current.style.opacity = mirror.amount > 0.01 ? mirror.amount.toFixed(2) : "0"; rim.current.toggleAttribute("data-on", mirror.amount > 0.5); }
@@ -231,11 +236,11 @@ export default function DriveHud() {
           <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
           <div className={styles.score} aria-label="Score"><em ref={points}>0</em><b ref={mult} /></div>
           <div ref={race} className={styles.race} aria-label="Race to Lakkidi" hidden>
-            <b />
+            <header><i aria-hidden /><span>Race</span><b><em /><sup /><small /></b></header>
             {[0, 1, 2, 3, 4].map((i) => <p key={i}><i /><span /><em /></p>)}
             <small />
           </div>
-          <div ref={raceLine} className={styles.raceLine} />
+          <div ref={raceLine} className={styles.raceLine} hidden><b /><span /></div>
         </div>
       </div>
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
@@ -414,32 +419,42 @@ function raceGap(r: Row, you: Row) {
 
 /** The race panel (desktop: the first three, then the driver just ahead of you and you, and how many are behind you)
  * and its one-line form (phones: the driver just ahead). */
+let lastPlace = 0;
 function drawRace(box: HTMLDivElement | null, line: HTMLDivElement | null) {
   if (!box || !line) return;
-  if (!racing()) { box.hidden = true; if (line.textContent) line.textContent = ""; return; }
-  const { rows, me, total } = standings(), you = rows[me], place = `${ordinal(me + 1)} of ${total}`;
-  box.hidden = false;
+  if (!racing()) { box.hidden = true; line.hidden = true; lastPlace = 0; return; }
+  const { rows, me, total } = standings(), you = rows[me], place = me + 1, suffix = ordinal(place).slice(String(place).length);
+  box.hidden = false; line.hidden = false;
   const items = box.children, show = [0, 1, 2].filter((i) => i < total);
   if (me >= 3) { if (me - 1 >= 3) show.push(me - 1); show.push(me); } // the one to catch, and you
-  items[0].textContent = `Race · ${place}`;
+  // the header: your place, big; it flashes when you move up
+  const head = items[0] as HTMLElement, [num, sup, of] = head.querySelectorAll("b > *");
+  num.textContent = String(place); sup.textContent = suffix; of.textContent = `/${total}`;
+  if (lastPlace && place < lastPlace) for (const el of [head, line]) { el.removeAttribute("data-flash"); void el.offsetWidth; el.setAttribute("data-flash", ""); }
+  lastPlace = place;
   for (let i = 0; i < 5; i++) {
     const p = items[i + 1] as HTMLElement, at = show[i], r = rows[at];
     p.hidden = !r;
     if (!r) continue;
     p.toggleAttribute("data-me", r.me);
     p.toggleAttribute("data-gap", i > 0 && at > show[i - 1] + 1); // places skipped above this one
+    if (r.place <= 3) p.dataset.medal = String(r.place); else delete p.dataset.medal;
+    p.dataset.dir = r.me ? "" : r.done ? "done" : r.waiting ? "" : r.s > you.s ? "ahead" : "behind";
     p.children[0].textContent = String(r.place);
     p.children[1].textContent = r.me ? "You" : r.name;
     p.children[2].textContent = raceGap(r, you);
   }
   const after = total - me - 1, foot = items[6];
   foot.textContent = after > 0 ? `${after} more behind you` : "";
+  // phones: "2nd/8" and the driver just ahead (or behind, when you lead)
   const ahead = rows[me - 1], behind = rows[me + 1];
-  const text = you.done ? `🏁 ${place}`
-    : ahead ? `${place} · ${ahead.name} ${ahead.done ? "🏁" : `${gapText(ahead.s - you.s).slice(1)} ahead`}`
-    : behind && !behind.waiting ? `${place} · ${behind.name} ${gapText(you.s - behind.s).slice(1)} behind`
-    : place;
-  if (line.textContent !== text) line.textContent = text;
+  const pill = `${place}${suffix}/${total}`, text = you.done ? "🏁 at Lakkidi"
+    : ahead ? `${ahead.name} ${ahead.done ? "🏁" : `${gapText(ahead.s - you.s).slice(1)} ahead`}`
+    : behind && !behind.waiting ? `${behind.name} ${gapText(you.s - behind.s).slice(1)} behind`
+    : "leading";
+  const [lb, ls] = line.children;
+  if (lb.textContent !== pill) lb.textContent = pill;
+  if (ls.textContent !== text) ls.textContent = text;
 }
 
 /** The whole race in a line, for the pause menu. */

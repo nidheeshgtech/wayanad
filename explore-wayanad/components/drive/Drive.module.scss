@@ -146,24 +146,51 @@
     &[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
-/* the race with the others in your room (lib/race): a small panel under the score; on phones one line */
-.race { position: fixed; left: 20px; top: 62px; display: grid; gap: 3px; min-width: 176px; padding: 8px 10px; text-align: left;
-  border: 1px solid rgba(94, 122, 112, .55); border-radius: 10px; background: rgba(8, 24, 20, .55); backdrop-filter: blur(6px);
-  font: 400 12px/1.35 var(--font-sans), sans-serif; color: var(--mute);
+/* the race with the others in your room (lib/race): a leaderboard under the score; on phones a pill */
+.race { position: fixed; left: 20px; top: 62px; width: 220px; display: grid; gap: 4px; padding: 0 0 10px; text-align: left; overflow: hidden;
+  border: 1px solid rgba(217, 164, 65, .4); border-radius: 4px 16px 4px 16px;
+  background: linear-gradient(160deg, rgba(14, 31, 26, .9), rgba(8, 20, 16, .78)); backdrop-filter: blur(8px); box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+  font: 500 12px/1.2 var(--font-sans), sans-serif; color: var(--ink);
   &[hidden] { display: none; }
-  > b { margin-bottom: 2px; font: 500 10px/1.2 var(--font-sans), sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
-  p { margin: 0; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: baseline;
+  > header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding: 8px 12px 7px;
+    border-bottom: 1px solid rgba(217, 164, 65, .35); background: linear-gradient(90deg, rgba(217, 164, 65, .24), transparent 85%);
+    > i { flex: none; width: 18px; height: 12px; border-radius: 1px; transform: skewX(-12deg); box-shadow: 0 0 0 1px rgba(238, 242, 238, .45);
+      background: repeating-conic-gradient(#EEF2EE 0 25%, #0e1f1a 0 50%) 0 0 / 6px 6px; }
+    > span { font: 600 10px/1 var(--font-sans), sans-serif; letter-spacing: .24em; text-transform: uppercase; color: var(--amber); }
+    > b { margin-left: auto; display: flex; align-items: flex-start; font-weight: 400;
+      em { font: 300 26px/1 var(--font-serif), Georgia, serif; font-style: normal; font-variant-numeric: tabular-nums; }
+      sup { margin: 2px 0 0 1px; font: 600 10px/1 var(--font-sans), sans-serif; text-transform: uppercase; color: var(--amber); }
+      small { align-self: flex-end; margin: 0 0 2px 3px; font: 500 12px/1 var(--font-sans), sans-serif; color: var(--mute); } }
+    &[data-flash] { animation: raceUp 1s ease-out; } }
+  p { position: relative; margin: 0 8px; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 8px 3px 3px; border-radius: 6px;
     &[hidden] { display: none; }
-    &[data-me] { margin: 1px -6px; padding: 3px 6px; border-radius: 6px; background: rgba(217, 164, 65, .2); box-shadow: inset 3px 0 var(--amber);
-      color: var(--ink); font-weight: 600; i { color: var(--amber); } }
-    &[data-gap] { margin-top: 4px; padding-top: 5px; border-top: 1px dashed rgba(94, 122, 112, .6); }
-    i { font-style: normal; color: var(--dim); }
-    span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    em { font-style: normal; font-variant-numeric: tabular-nums; } }
-  > small { margin-top: 2px; font-size: 11px; color: var(--dim); &:empty { display: none; } } }
+    i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(238, 242, 238, .3);
+      font: 700 11px/1 var(--font-sans), sans-serif; font-style: normal; font-variant-numeric: tabular-nums; }
+    span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+    em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--mute); }
+    &[data-dir="ahead"] em { color: #f0c470; }
+    &[data-dir="behind"] em { color: var(--dim); }
+    &[data-medal="1"] i { border: 0; color: #2a1d05; background: linear-gradient(135deg, #ffe39a, #D9A441 55%, #a06c18); box-shadow: 0 0 10px rgba(217, 164, 65, .55); }
+    &[data-medal="2"] i { border: 0; color: #18231f; background: linear-gradient(135deg, #f6f9f8, #b8c7c0 55%, #75877f); }
+    &[data-medal="3"] i { border: 0; color: #2a1405; background: linear-gradient(135deg, #f2bd8e, #b87333 55%, #774519); }
+    &[data-gap] { margin-top: 12px;
+      &::before { content: "• • •"; position: absolute; left: 0; right: 0; top: -12px; text-align: center; font-size: 7px; letter-spacing: 2px; color: var(--dim); } }
+    &[data-me] { margin: 2px 4px; padding: 6px 10px 6px 7px; border-radius: 4px 12px 4px 12px; color: #0e1f1a;
+      background: linear-gradient(90deg, #D9A441, rgba(217, 164, 65, .6)); box-shadow: 0 4px 16px rgba(217, 164, 65, .35);
+      i { border: 0; color: var(--amber); background: #0e1f1a; box-shadow: none; }
+      span { font-size: 13px; letter-spacing: .12em; }
+      em { color: #0e1f1a; } } }
+  > small { margin: 2px 14px 0; font: 500 11px/1.2 var(--font-sans), sans-serif; color: var(--dim);
+    &::before { content: "▾ "; color: var(--line); }
+    &:empty { display: none; } } }
+@keyframes raceUp { from { background-color: rgba(217, 164, 65, .75); } to { background-color: transparent; } }
 .raceLine { display: none; }
 @media (pointer: coarse) {
   .race, .race[hidden] { display: none; }
-  .raceLine { display: block; margin-top: 6px; font: 500 12px/1.2 var(--font-sans), sans-serif; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); white-space: nowrap;
-    &:empty { display: none; } }
+  .raceLine { display: inline-flex; align-items: center; gap: 7px; margin-top: 7px; padding: 3px 10px 3px 3px; max-width: 54vw; border-radius: 999px;
+    border: 1px solid rgba(217, 164, 65, .45); background: rgba(8, 20, 16, .72); font: 500 12px/1.2 var(--font-sans), sans-serif; color: var(--ink); white-space: nowrap;
+    &[hidden] { display: none; }
+    &[data-flash] { animation: raceUp 1s ease-out; }
+    b { padding: 3px 8px; border-radius: 999px; background: var(--amber); color: #0e1f1a; font: 700 12px/1.2 var(--font-sans), sans-serif; font-variant-numeric: tabular-nums; }
+    span { overflow: hidden; text-overflow: ellipsis; } }
 }

@@ -1,5 +1,5 @@
 .map {
-  position: fixed; z-index: 4; right: 20px; top: calc(110px + env(safe-area-inset-top, 0px)); pointer-events: none;
+  position: fixed; z-index: 4; right: 20px; top: max(calc(110px + env(safe-area-inset-top, 0px)), calc(var(--hud-bottom, 0px) + 12px)); pointer-events: none;
   padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: rgba(8, 24, 20, .55); backdrop-filter: blur(6px);
   opacity: 0; transition: opacity .5s;
   @media (max-width: 719px) { transform: scale(.5); transform-origin: top right; right: 12px; }
