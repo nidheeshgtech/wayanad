@@ -19,6 +19,7 @@ import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } f
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, net } from "@/lib/net";
+import { gapText, ordinal, racing, standings, watch, type Row } from "@/lib/race";
 import { mirror } from "@/lib/mirror";
 import { cleanName } from "@/lib/names";
 import CarPicker from "@/components/garage/CarPicker";
@@ -85,9 +86,10 @@ export default function DriveHud() {
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
+  const race = useRef<HTMLDivElement>(null), raceLine = useRef<HTMLDivElement>(null), raceAt = useRef(0);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
-  const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
+  const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "" }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
   // the camera you used last time
@@ -134,6 +136,9 @@ export default function DriveHud() {
       if (room.current) room.current.textContent = !net.enabled || net.status === "off" ? "" : net.status === "live" ? `${net.roster.length + 1} driver${net.roster.length ? "s" : ""} in your room` : "Connecting…";
       if (game.started && game.phase === "drive" && net.roster.length) award("friend"); // someone else on your road
       if (net.version !== seenVersion.current) { seenVersion.current = net.version; setRoster(net.roster.map((p) => p.name)); }
+      // the race with the others in the room (lib/race): passes float up each frame, the standings redrawn 5 times a second
+      watch();
+      if (performance.now() > raceAt.current) { raceAt.current = performance.now() + 200; drawRace(race.current, raceLine.current); }
       if (kmTotal.current && game.kmTotal) kmTotal.current.textContent = ` / ${game.kmTotal.toFixed(1)}`;
       if (kmBar.current && game.kmTotal) kmBar.current.style.transform = `scaleX(${Math.min(1, game.km / game.kmTotal)})`;
       if (rim.current) { rim.current.style.opacity = mirror.amount > 0.01 ? mirror.amount.toFixed(2) : "0"; rim.current.toggleAttribute("data-on", mirror.amount > 0.5); }
@@ -161,7 +166,7 @@ export default function DriveHud() {
         const S = summary.current;
         Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true }); finish(game.clock, !game.jumped); if (!game.jumped) { mark("finished"); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
+        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" }); if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; } finish(game.clock, !game.jumped); if (!game.jumped) { mark("finished"); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
       } else summary.current.recorded = false;
       if (loading.ready) mark("loaded");
       setScreen((s) => (s === want ? s : want));
@@ -225,6 +230,12 @@ export default function DriveHud() {
           <div ref={room} className={styles.room} />
           <div className={styles.km} aria-label="Distance along the churam"><span>KM</span> <em ref={km}>0.0</em><span ref={kmTotal}> / 0.0</span><i><u ref={kmBar} /></i></div>
           <div className={styles.score} aria-label="Score"><em ref={points}>0</em><b ref={mult} /></div>
+          <div ref={race} className={styles.race} aria-label="Race to Lakkidi" hidden>
+            <b />
+            {[0, 1, 2, 3, 4].map((i) => <p key={i}><i /><span /><em /></p>)}
+            <small />
+          </div>
+          <div ref={raceLine} className={styles.raceLine} />
         </div>
       </div>
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
@@ -331,7 +342,7 @@ export default function DriveHud() {
           </div>
           {net.enabled && net.status !== "off" && (
             <div className={styles.setting}>
-              <span>{roster.length ? `On the road with you: ${roster.join(", ")}` : "No one else on your road yet"}</span>
+              <span>{racing() ? `Race to Lakkidi: ${raceList()}` : roster.length ? `On the road with you: ${roster.join(", ")}` : "No one else on your road yet"}</span>
               <button type="button" onClick={() => void invite()}>{invited || "Invite a friend"}</button>
             </div>
           )}
@@ -357,6 +368,7 @@ export default function DriveHud() {
           </div>
           <p className={styles.tally}>
             {score.coins} coins · {score.big}/9 hairpin coins · {score.crashes} {score.crashes === 1 ? "crash" : "crashes"}{score.bonus > 0 && <> · time bonus +{score.bonus.toLocaleString("en-IN")}</>}
+            {summary.current.race && <><br />You reached Lakkidi {summary.current.race} in your room</>}
             <br />{score.isNew ? "Your best score yet" : score.best > 0 ? `Your best: ${score.best.toLocaleString("en-IN")}` : null}
           </p>
           <BadgeStrip />
@@ -388,6 +400,52 @@ export default function DriveHud() {
       )}
     </>
   );
+}
+
+/** One driver's gap in the race: to you (+ ahead, − behind), 🏁 at the top, or still at the start. Once you're at the
+ * top, the others' distance still to go. */
+function raceGap(r: Row, you: Row) {
+  if (r.done) return "🏁";
+  if (r.waiting) return "at start";
+  if (r.me) return "";
+  if (you.done) return `${gapText(game.finishS - r.s).slice(1)} to go`;
+  return gapText(r.s - you.s);
+}
+
+/** The race panel (desktop: the first three, then the driver just ahead of you and you, and how many are behind you)
+ * and its one-line form (phones: the driver just ahead). */
+function drawRace(box: HTMLDivElement | null, line: HTMLDivElement | null) {
+  if (!box || !line) return;
+  if (!racing()) { box.hidden = true; if (line.textContent) line.textContent = ""; return; }
+  const { rows, me, total } = standings(), you = rows[me], place = `${ordinal(me + 1)} of ${total}`;
+  box.hidden = false;
+  const items = box.children, show = [0, 1, 2].filter((i) => i < total);
+  if (me >= 3) { if (me - 1 >= 3) show.push(me - 1); show.push(me); } // the one to catch, and you
+  items[0].textContent = `Race · ${place}`;
+  for (let i = 0; i < 5; i++) {
+    const p = items[i + 1] as HTMLElement, at = show[i], r = rows[at];
+    p.hidden = !r;
+    if (!r) continue;
+    p.toggleAttribute("data-me", r.me);
+    p.toggleAttribute("data-gap", i > 0 && at > show[i - 1] + 1); // places skipped above this one
+    p.children[0].textContent = String(r.place);
+    p.children[1].textContent = r.me ? "You" : r.name;
+    p.children[2].textContent = raceGap(r, you);
+  }
+  const after = total - me - 1, foot = items[6];
+  foot.textContent = after > 0 ? `${after} more behind you` : "";
+  const ahead = rows[me - 1], behind = rows[me + 1];
+  const text = you.done ? `🏁 ${place}`
+    : ahead ? `${place} · ${ahead.name} ${ahead.done ? "🏁" : `${gapText(ahead.s - you.s).slice(1)} ahead`}`
+    : behind && !behind.waiting ? `${place} · ${behind.name} ${gapText(you.s - behind.s).slice(1)} behind`
+    : place;
+  if (line.textContent !== text) line.textContent = text;
+}
+
+/** The whole race in a line, for the pause menu. */
+function raceList() {
+  const { rows, me } = standings();
+  return rows.map((r) => `${r.place} ${r.me ? "You" : r.name}${r.me ? "" : ` ${raceGap(r, rows[me])}`}`).join(" · ");
 }
 
 /** A glass of tea with steam, and a pazhampori beside it (the chai-break card). */

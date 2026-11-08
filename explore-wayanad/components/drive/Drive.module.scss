@@ -145,3 +145,25 @@
   button { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--mute); cursor: pointer;
     &[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
+
+/* the race with the others in your room (lib/race): a small panel under the score; on phones one line */
+.race { position: fixed; left: 20px; top: 62px; display: grid; gap: 3px; min-width: 176px; padding: 8px 10px; text-align: left;
+  border: 1px solid rgba(94, 122, 112, .55); border-radius: 10px; background: rgba(8, 24, 20, .55); backdrop-filter: blur(6px);
+  font: 400 12px/1.35 var(--font-sans), sans-serif; color: var(--mute);
+  &[hidden] { display: none; }
+  > b { margin-bottom: 2px; font: 500 10px/1.2 var(--font-sans), sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
+  p { margin: 0; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: baseline;
+    &[hidden] { display: none; }
+    &[data-me] { margin: 1px -6px; padding: 3px 6px; border-radius: 6px; background: rgba(217, 164, 65, .2); box-shadow: inset 3px 0 var(--amber);
+      color: var(--ink); font-weight: 600; i { color: var(--amber); } }
+    &[data-gap] { margin-top: 4px; padding-top: 5px; border-top: 1px dashed rgba(94, 122, 112, .6); }
+    i { font-style: normal; color: var(--dim); }
+    span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    em { font-style: normal; font-variant-numeric: tabular-nums; } }
+  > small { margin-top: 2px; font-size: 11px; color: var(--dim); &:empty { display: none; } } }
+.raceLine { display: none; }
+@media (pointer: coarse) {
+  .race, .race[hidden] { display: none; }
+  .raceLine { display: block; margin-top: 6px; font: 500 12px/1.2 var(--font-sans), sans-serif; color: var(--ink); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); white-space: nowrap;
+    &:empty { display: none; } }
+}
