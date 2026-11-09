@@ -6,17 +6,20 @@ import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/v
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, VEHICLES, vehiclePose, type Player, type Vehicle } from '@/lib/traffic';
 import { CAR, game } from '@/lib/game';
-import { honking } from '@/lib/horn';
+import { honk, honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
 import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
 import { duskness } from '@/lib/theme';
 import { frameTimed } from '@/lib/perf';
+import { net } from '@/lib/net';
 import { hasOccupants, occupantMaterial, occupantsFor } from '@/lib/occupants';
 import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 /** How far a knocked-over bike lies over (radians, ~80°: on its side, the handlebar and pegs hold it a little off flat). */
 const FALL = 1.4;
+/** In a private race only every RACE_KEEP-th vehicle stays on the road (a quarter of the traffic). */
+const RACE_KEEP = 4;
 /* Advertising panels on the buses' sides, below the windows and above the wheels, as Kerala buses carry them
  * (data/sponsors.ts BUS_SIDES, handed out over the buses in turn; unsold: "Advertise on this bus"). 4 m × 0.6 m. */
 const BUS = /bus|ksrtc/, AD = { length: .4, height: .06, y: .36, z: -.06 };
@@ -76,6 +79,8 @@ function footprintOk(curve: CatmullRomCurve3, v: Vehicle) {
 }
 export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; small: boolean }) {
   const models = use(loadAssets()), last = useRef<number | null>(null);
+  // a race in a private room (lib/net party): only one vehicle in RACE_KEEP stays on the road, so it's a race, not a jam
+  const thin = useRef<{ on: boolean; live: Vehicle[]; keep: Set<Vehicle> | null }>({ on: false, live: [], keep: null });
   // a vehicle may give way only where it can stand at its edge, here and a little further on
   const fitsAtEdge = useMemo(() => (v: Vehicle) => edgeRoom(v.kind) > 0 && [0, .8, 1.6].every(d => footprintOk(curve, { ...v, distance: v.distance + d, shift: 1 })), [curve]);
   const zones = useMemo(() => passingZones(curve,widen),[curve]);
@@ -139,21 +144,27 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       }
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
-    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0 };
+    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useFrame(({ camera }, dt) => frameTimed('traffic', () => {
     // where the viewer's seat is on this road (traffic runs on the churam/Kalpetta road only)
     const { act, progress } = scrollState, length = curve.getLength();
-    trafficControl.fleet = fleet; trafficControl.curve = curve; // drive mode: the player's bus checks itself against these
+    const P = net.party, racing = game.active && !!P && P.mode === 'race' && (P.phase === 'countdown' || P.phase === 'race');
+    if (racing !== thin.current.on || !thin.current.live.length) {
+      const live = racing ? fleet.filter(v => v.id % RACE_KEEP === 0) : fleet;
+      thin.current = { on: racing, live, keep: racing ? new Set(live) : null };
+    }
+    const live = thin.current.live, keep = thin.current.keep;
+    trafficControl.fleet = live; trafficControl.curve = curve; // drive mode: the player's bus checks itself against these
     if (typeof window !== 'undefined') (window as unknown as { __wayanadTraffic?: unknown }).__wayanadTraffic = trafficControl; // for testing
     if (game.active) {
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
       const onRoad = game.leg === 0 && game.phase === 'drive';
       const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
-      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
+      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
         onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : []));
-      if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(fleet, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
+      if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(live, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
     if (!game.active && !trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, viewer);
@@ -176,6 +187,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
     for (let i = 0; i < fleet.length; i++) {
       const v = fleet[i], o = objects[i];
+      if (keep && !keep.has(v)) { if (o.root.visible) { o.root.visible = false; o.fresh = true; } continue; } // off the road for the race
       // well out of range last time: look again only every dozen frames (nothing closes 15 units in a fifth of a
       // second), instead of working out its exact pose every frame for nothing — most of the fleet, most of the time
       if (o.skip > 0) { o.skip--; continue; }
@@ -200,13 +212,23 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         const f = v.fall, k = (v.down ?? 0) > 0 ? f * f : f * f * (3 - 2 * f);
         o.root.rotateZ(FALL * k * (v.fallSide ?? 1) * v.direction);
       }
+      // jolted by a hard hit: the tail knocked aside and wobbling back, a hop off the bump; the driver leans on the horn
+      const jt = v.joltT;
+      if (jt !== undefined && jt < 2.5) {
+        const kick = v.joltKick ?? 0;
+        o.root.rotateY(kick * 0.3 * (v.joltSide ?? 1) * Math.exp(-jt * 2.2) * Math.cos(jt * 6));
+        o.root.position.y += kick * 0.025 * Math.max(0, Math.sin(jt * 16)) * Math.exp(-jt * 7);
+        if (!o.honked && jt > 0.35) { o.honked = true; honk({ audible: true, preview: true, kind: /bus|truck|lorry/i.test(VEHICLES[v.kind].name) ? 'bus' : 'car' }); }
+      } else if (o.honked && !((v.jolt ?? 0) > 0)) o.honked = false;
       visible++;
       if (o.people) o.people.visible = far2 < 14 ** 2; // people inside only where you could see them
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
-      for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist + dusk) * .35 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6;
-      // the little lamp quads only when they're lit (rain, mist, a dark sky): in daylight they were two draw calls a
-      // vehicle for a glow nobody could see
-      for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit;
+      // stopped after a hit: every lamp blinking, like hazards
+      const hazard = (v.jolt ?? 0) > 0 && Math.floor((v.joltT ?? 0) * 2.6) % 2 === 0;
+      for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist + dusk) * .35 : hazard ? 3 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6;
+      // the little lamp quads only when they're lit (rain, mist, a dark sky, hazards): in daylight they were two draw
+      // calls a vehicle for a glow nobody could see
+      for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit || hazard;
     }
     trafficControl.count = visible;
   }));

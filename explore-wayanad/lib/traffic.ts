@@ -19,7 +19,12 @@ export type Mode = 'cruise' | 'follow' | 'yield' | 'passed' | 'caution';
 export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number; mode?: Mode; shift?: number; wait?: number;
   /** a two-wheeler knocked over by the player (collidePlayer): seconds left lying on the road, which way it went over
    * (+1: toward the road's left), and how far over it's drawn (0 upright … 1 down; eased by Traffic) */
-  down?: number; fallSide?: 1 | -1; fall?: number };
+  down?: number; fallSide?: 1 | -1; fall?: number;
+  /** a car, bus or lorry hit hard by the player: seconds left stopped (hazards blinking), seconds since the hit, how hard
+   * (0–1) and which way its tail was knocked (Traffic draws the jolt: a wobble that settles, a hop) */
+  jolt?: number; joltT?: number; joltKick?: number; joltSide?: 1 | -1 };
+/** Hit harder than this (closing speed, units/s ≈ 11 km/h) a car, bus or lorry jolts and stops this long. */
+export const JOLT = { min: 0.3, stop: 3.2 };
 /** Two-wheelers fall over when you hit them (the rest are solid and just stop you). */
 export const isTwoWheeler = (kind: number) => /bike|scooter/.test(VEHICLES[kind].name);
 /** A knocked-over bike: down for this long (s), then the rider picks it up (Traffic eases the bike upright) and rides on. */
@@ -85,6 +90,8 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     // (over in ~0.4 s, picked up again in ~1.2 s)
     if (v.fall !== undefined) v.fall = (v.down ?? 0) > 0 ? Math.min(1, v.fall + dt / .4) : Math.max(0, v.fall - dt / 1.2);
     if (v.down !== undefined && v.down > 0) { v.down = Math.max(0, v.down - dt); return { speed: 0, move: 0 }; }
+    if (v.joltT !== undefined) v.joltT += dt;
+    if ((v.jolt ?? 0) > 0) { v.jolt = Math.max(0, v.jolt! - dt); return { speed: 0, move: 0 }; } // shaken: stopped a moment
     if ((v.fall ?? 0) > 0) return { speed: 0, move: 0 };
     const spec = VEHICLES[v.kind], bend = bendAt(bends, v.distance);
     // each vehicle its own pace (±10%), held back while it gives way or takes care (interactWithViewer)
@@ -307,6 +314,10 @@ export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: 
     if (scrape >= 0) { knock = Math.max(knock, scrape); over(Math.max(scrape, Math.abs(p.speed - theirs) * .5)); continue; }
     const k = Math.min(1, Math.abs(p.speed - theirs));
     knock = Math.max(knock, k); over(k);
+    // a car, bus or lorry hit hard: knocked askew, it stops a moment with its hazards on (and a horn: Traffic)
+    if (!isTwoWheeler(v.kind) && k > JOLT.min && !((v.jolt ?? 0) > 0)) {
+      Object.assign(v, { jolt: JOLT.stop, joltT: 0, joltKick: k, joltSide: (dLat >= 0 ? -1 : 1) * (g > 0 ? 1 : -1), speed: 0, mode: 'cruise', shift: 0 });
+    }
     // nose to tail with it: you can't go through, but with the wheel turned you can creep on (up to ~9 km/h with full
     // lock) so the nose swings out and you pull round it; without steering you're held at its speed, as before
     if (g > 0) { p.s = v.distance - reach - .01; p.speed = Math.min(p.speed, Math.max(0, theirs) + CREEP * Math.min(1, Math.abs(p.steer ?? 0) * 1.5)); }

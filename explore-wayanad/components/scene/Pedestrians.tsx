@@ -35,18 +35,24 @@ const BODY = 0.03; // a person's half-width, units (for the car on the shoulder)
 let walking: { people: Person[]; length: number } | null = null;
 const latOf = (p: Person, length: number) => p.side * (p.lane + roadShapeAt(Math.min(1, Math.max(0, p.s / length))).widen);
 /** Keep the car (on the main road, `length` long) out of the people on the shoulder: end on, it stops at them; alongside,
- * it's pushed out sideways. No knock: you pull up short. `p` changed in place. */
+ * it's pushed out sideways. Hit faster than a walk, the person goes over onto the shoulder (away from the road), lies a
+ * moment and gets up again (FALL). `p` changed in place; returns how hard someone was knocked over (0: nobody new). */
 export function collidePeople(p: Player, length: number) {
-  if (!walking || walking.length !== length) return;
+  let knocked = 0;
+  if (!walking || walking.length !== length) return knocked;
   for (const w of walking.people) {
     const g = w.s - p.s, reach = p.halfL + BODY;
     if (Math.abs(g) >= reach) continue;
     const dLat = p.lat - latOf(w, length), side = p.halfW + BODY;
     if (Math.abs(dLat) >= side || sideContact(p, dLat, side, reach - Math.abs(g)) >= 0) continue;
+    if (Math.abs(p.speed) > FALL.speed && !((w.down ?? 0) > 0)) { w.down = FALL.down; w.fall ??= 0; knocked = Math.max(knocked, Math.min(1, Math.abs(p.speed))); }
     if (g > 0 && p.speed > 0) { p.s = w.s - reach - 0.005; p.speed = 0; }
     else if (g < 0 && p.speed < 0) { p.s = w.s + reach + 0.005; p.speed = 0; }
   }
+  return knocked;
 }
+/** Knocked over by the car: above this speed (units/s, ~4 km/h), down this long (s), then up again over `up` s. */
+const FALL = { speed: 0.12, down: 2.6, over: 0.35, up: 0.9, angle: 1.45 };
 
 const SKIN = [0x8d5a3b, 0x7a4a2e, 0x9c6845, 0x6a3f27, 0xa87452].map((c) => new Color(c));
 const HAIR = new Color(0x141110);
@@ -58,6 +64,8 @@ const UMBRELLA_COLOR = [0x151515, 0x151515, 0x151515, 0x1d2a4a, 0x4a1d24].map((c
 type Person = {
   s: number; from: number; to: number; dir: 1 | -1; speed: number; side: 1 | -1; lane: number; scale: number;
   phase: number; skip: number; umbrella: boolean; skin: Color; lower: Color; upper: Color; brolly: Color; woman: boolean; stand: boolean; yaw: number;
+  /** knocked over by the car: seconds left lying down, and how far over (0 standing … 1 down) */
+  down?: number; fall?: number;
 };
 
 function rng(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
@@ -154,11 +162,12 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
   useEffect(() => {
     const mine = { people: built.people, length: built.length };
     walking = mine;
+    (window as unknown as { __wayanadPeople?: unknown }).__wayanadPeople = mine; // for testing
     return () => { if (walking === mine) walking = null; };
   }, [built]);
 
   const tmp = useMemo(() => ({
-    base: new Matrix4(), m: new Matrix4(), local: new Matrix4(), q: new Quaternion(), pos: new Vector3(), sc: new Vector3(), up: new Vector3(0, 1, 0),
+    base: new Matrix4(), m: new Matrix4(), local: new Matrix4(), q: new Quaternion(), q2: new Quaternion(), pos: new Vector3(), sc: new Vector3(), up: new Vector3(0, 1, 0),
     shoulder: new Vector3(), open: 0,
   }), []);
 
@@ -169,8 +178,12 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
     T.open += ((weather.rain > 0.2 ? 1 : 0) - T.open) * Math.min(1, dt * 1.5);
     let i = 0, b = 0;
     for (const p of people) {
+      // knocked over: down (falling like a weight), lying a moment, then getting up; no walking meanwhile
+      if ((p.down ?? 0) > 0) { p.down = Math.max(0, p.down! - dt); p.fall = Math.min(1, (p.fall ?? 0) + dt / FALL.over); }
+      else if ((p.fall ?? 0) > 0) p.fall = Math.max(0, p.fall! - dt / FALL.up);
+      const over = p.fall ?? 0;
       // walk the stretch, turning round at either end
-      if (p.speed > 0 && dt > 0) {
+      if (p.speed > 0 && dt > 0 && !over) {
         p.s += p.dir * p.speed * dt; p.phase += p.speed * dt * 62;
         // the car pulled onto the shoulder in their way: they turn round
         if (game.started && game.leg === 0 && Math.abs(p.s - game.s) < CAR.halfL + BODY && Math.abs(latOf(p, built.length) - game.lat) < CAR.halfW + BODY) {
@@ -184,10 +197,12 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       const d = p.lane + roadShapeAt(t).widen, x = c.x + left.x * p.side * d, z = c.z + left.z * p.side * d;
       const far2 = (x - camera.position.x) ** 2 + (z - camera.position.z) ** 2;
       if (far2 > view * view) { if (far2 > (view + 10) ** 2) p.skip = 12; continue; }
-      const walking = p.speed > 0, step = Math.sin(p.phase);
+      const walking = p.speed > 0 && !over, step = Math.sin(p.phase);
       const yaw = walking ? Math.atan2(tan.x * p.dir, tan.z * p.dir) : p.yaw;
       T.pos.set(x, height(x, z) + (walking ? Math.abs(step) * 0.0025 : 0), z);
       T.q.setFromAxisAngle(T.up, yaw);
+      // over onto the shoulder, away from the road: tipped about the road's line at their feet
+      if (over) { const k = (p.down ?? 0) > 0 ? over * over : over * over * (3 - 2 * over); T.q2.setFromAxisAngle(tan, -p.side * FALL.angle * k); T.q.premultiply(T.q2); }
       T.base.compose(T.pos, T.q, T.sc.setScalar(p.scale));
       for (const part of [parts.skirt, parts.torso, parts.head, parts.hair]) part.setMatrixAt(i, T.base);
       parts.skirt.setColorAt(i, p.lower); parts.torso.setColorAt(i, p.upper); parts.head.setColorAt(i, p.skin); parts.hair.setColorAt(i, HAIR);

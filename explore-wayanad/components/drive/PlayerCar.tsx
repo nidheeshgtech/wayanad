@@ -20,7 +20,7 @@ import { tickBadges } from "@/lib/badges";
 import { paintCar } from "@/lib/carModel";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
-import { crash, drive as scoreDrive, scrape as scoreScrape } from "@/lib/score";
+import { announce, crash, drive as scoreDrive, scrape as scoreScrape } from "@/lib/score";
 import { frameTimed } from "@/lib/perf";
 import { mirror } from "@/lib/mirror";
 import type { ActId } from "@/data/acts";
@@ -227,7 +227,8 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (game.leg === 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
         const knock = Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
-        collidePeople(p, road.length);
+        // someone knocked over on the shoulder: a jolt, the streak lost and points off, and a word
+        if (collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }
         if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
         if (p.lat !== game.lat) { game.lat = p.lat; game.prev.lat = p.lat; game.psi = p.psi; }
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
