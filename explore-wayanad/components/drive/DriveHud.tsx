@@ -52,6 +52,8 @@ const ICON = {
   go: <path d="m6 15 6-6 6 6" />,
   brake: <path d="m6 9 6 6 6-6" />,
   expand: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
+  gear: <><circle cx="12" cy="12" r="3" /><path d="M12 2.5v2.6M12 18.9v2.6M4.6 4.6l1.9 1.9M17.5 17.5l1.9 1.9M2.5 12h2.6M18.9 12h2.6M4.6 19.4l1.9-1.9M17.5 6.5l1.9-1.9" /><circle cx="12" cy="12" r="6.6" /></>,
+  quit: <><path d="M10 4H5.5a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 5.5 20H10" /><path d="m15 8 4 4-4 4M19 12H9" /></>,
   shrink: <path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" />,
 };
 const Icon = ({ name }: { name: keyof typeof ICON }) => <svg viewBox="0 0 24 24" aria-hidden>{ICON[name]}</svg>;
@@ -67,10 +69,12 @@ const Tip = ({ icon, label, keys }: { icon: keyof typeof ICON | [keyof typeof IC
 const NAME_MAX = 10;
 const QUALITY: QualityMode[] = ["auto", "high", "medium", "low"];
 
+/** Where the camera view is remembered: phones keep their own (they start close behind, the car bigger on a small screen). */
+const viewKey = () => (typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? "drive-view-touch" : "drive-view");
 /** The next camera view; remembered for next time. */
 function cycleView() {
   game.view = VIEWS[(VIEWS.indexOf(game.view) + 1) % VIEWS.length];
-  try { localStorage.setItem("drive-view", game.view); } catch {}
+  try { localStorage.setItem(viewKey(), game.view); } catch {}
 }
 /** Back to Adivaram: the whole drive from the start. */
 function restart() {
@@ -124,7 +128,14 @@ export default function DriveHud() {
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
   // the camera you used last time
-  useEffect(() => { try { const v = localStorage.getItem("drive-view") as View | null; if (v && VIEWS.includes(v)) { game.view = v; setView(v); } } catch {} }, []);
+  useEffect(() => {
+    let v: View | null = null;
+    try { v = localStorage.getItem(viewKey()) as View | null; } catch {}
+    if (!v || !VIEWS.includes(v)) v = viewKey() === "drive-view-touch" ? "near" : null;
+    if (v) { game.view = v; setView(v); }
+  }, []);
+  // phones: the settings menu (the top row's other keys live in it)
+  const [menu, setMenu] = useState(false);
 
   // keyboard
   useEffect(() => {
@@ -267,6 +278,8 @@ export default function DriveHud() {
     setDriverName(name); game.driver = name;
     return name;
   };
+  /** Quit (settings menu): out of any room and full screen, back to the title screen. */
+  const quit = () => { setMenu(false); if (net.status !== "off") leaveRoom(true); goFull(false); restart(); game.started = false; setFriends(false); setInviteCode(""); };
   /** Leave a private room: back to the title screen. */
   const leaveParty = () => { leaveRoom(true); restart(); game.started = false; setFriends(false); setInviteCode(""); };
   const start = () => {
@@ -351,14 +364,26 @@ export default function DriveHud() {
 
       <div className={styles.buttons}>
         <button type="button" ref={ref("horn")} className={styles.hornKey} onClick={() => { honk({ audible: true }); flash("horn"); }} title="Horn (H)" aria-label="Horn"><Icon name="horn" /></button>
-        <button type="button" ref={ref("view")} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
+        <button type="button" className={styles.gearKey} onClick={() => setMenu((m) => !m)} aria-expanded={menu} title="Settings" aria-label="Settings"><Icon name="gear" /></button>
+        <button type="button" ref={ref("view")} className={styles.deskKey} onClick={() => { cycleView(); setView(game.view); flash("view"); }} title={`Camera: ${VIEW_NAME[view]} (C)`} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button>
         <button type="button" ref={ref("back")} className={styles.backKey} {...hold((on) => { game.lookBack = on; })} title="Look back (hold B)" aria-label="Look back (hold)"><Icon name="back" /></button>
-        <button type="button" ref={ref("reset")} onClick={() => { backOnRoad(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
-        <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
-        {canFull && <button type="button" onClick={() => goFull(!isFull)} title={isFull ? "Exit full screen" : "Full screen"} aria-label={isFull ? "Exit full screen" : "Full screen"}><Icon name={isFull ? "shrink" : "expand"} /></button>}
-        <Sound icon />
+        <button type="button" ref={ref("reset")} className={styles.deskKey} onClick={() => { backOnRoad(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
+        <button type="button" ref={ref("pause")} className={styles.deskKey} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
+        {canFull && <button type="button" className={styles.deskKey} onClick={() => goFull(!isFull)} title={isFull ? "Exit full screen" : "Full screen"} aria-label={isFull ? "Exit full screen" : "Full screen"}><Icon name={isFull ? "shrink" : "expand"} /></button>}
+        <Sound icon className={styles.deskKey} />
         <ThemeToggle className={styles.themeKey} />
       </div>
+      {menu && (<>
+        <div className={styles.menuVeil} onClick={() => setMenu(false)} aria-hidden />
+        <div className={styles.menu} role="menu" aria-label="Settings">
+          <div className={styles.tile}><button type="button" onClick={() => { cycleView(); setView(game.view); }} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button><small>Camera · {VIEW_NAME[view]}</small></div>
+          <div className={styles.tile}><button type="button" onClick={() => { backOnRoad(); setMenu(false); }} aria-label="Back on the road"><Icon name="reset" /></button><small>Back on road</small></div>
+          <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); togglePause(true); }} aria-label="Pause"><Icon name="pause" /></button><small>Pause</small></div>
+          <div className={styles.tile}><Sound icon /><small>Sound</small></div>
+          {canFull && <div className={styles.tile}><button type="button" aria-pressed={isFull} onClick={() => goFull(!isFull)} aria-label="Full screen"><Icon name={isFull ? "shrink" : "expand"} /></button><small>Full screen</small></div>}
+          <div className={styles.tile} data-quit><button type="button" onClick={quit} aria-label="Quit game"><Icon name="quit" /></button><small>Quit game</small></div>
+        </div>
+      </>)}
 
       {/* touch controls (shown on touch screens) */}
       <div className={styles.touch}>

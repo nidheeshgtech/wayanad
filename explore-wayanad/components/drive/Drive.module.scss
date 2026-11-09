@@ -96,7 +96,14 @@
 @media (pointer: coarse) {
   .touch { display: block; }
   // narrow phones (360 px): room for the horn between the steer buttons and the pedals
-  @media (max-width: 375px) { .steer button { width: 56px; height: 56px; } .pedals button { width: 56px; height: 78px; } .bigHorn { width: 56px; height: 56px; } .steer, .pedals { gap: 8px; } }
+  // big thumb keys (no horn key between them on phones: the horn is H on a keyboard only)
+  .bigHorn { display: none; }
+  .steer button { width: 80px; height: 80px; border-radius: 22px; svg { width: 34px; height: 34px; } }
+  .pedals button { width: 80px; height: 110px; border-radius: 20px; svg { width: 34px; height: 34px; } small { font-size: 11px; } }
+  @media (max-width: 375px) { .steer button { width: 70px; height: 70px; } .pedals button { width: 70px; height: 98px; } .steer, .pedals { gap: 8px; } }
+  // the top row: only settings and the theme; the rest are in the settings menu
+  .buttons .deskKey { display: none; }
+  .buttons .gearKey { display: grid; }
   .top { padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; background: linear-gradient(rgba(8, 20, 16, .4), transparent); }
   .speed { order: -1; text-align: left; margin-left: 0; margin-right: auto; b { font-size: 34px; } }
   .km { justify-content: start; margin-top: 6px; min-width: 104px; }
@@ -250,8 +257,8 @@
   .mirror { top: calc(12px + env(safe-area-inset-top, 0px)); }
   .steer, .pedals, .bigHorn { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .steer { left: max(14px, env(safe-area-inset-left, 0px)); }
-  .pedals { right: max(14px, env(safe-area-inset-right, 0px)); button { height: 80px; } }
-  .bigHorn { left: auto; translate: none; right: calc(max(14px, env(safe-area-inset-right, 0px)) + 66px * 2 + 10px * 2); width: 58px; height: 58px; }
+  .pedals { right: max(14px, env(safe-area-inset-right, 0px)); button { width: 84px; height: 108px; } }
+  .steer button { width: 84px; height: 84px; }
   .tea { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -263,3 +270,21 @@
   i { font-style: normal; display: inline-grid; place-items: center; width: 22px; height: 18px; border-radius: 5px; background: rgba(238, 242, 238, .15); color: var(--ink); }
   button { flex: none; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(238, 242, 238, .1); color: var(--ink); cursor: pointer; } }
 @keyframes tipIn { from { opacity: 0; transform: translate(-50%, -10px); } }
+
+/* settings (phones): one key in the top row opens a menu of the rest — camera, back on the road, pause, sound, full
+   screen, quit */
+@media not all and (pointer: coarse) { .buttons .gearKey { display: none; } }
+.menuVeil { position: fixed; inset: 0; z-index: 12; }
+.menu { position: fixed; z-index: 13; top: calc(58px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+  width: min(300px, calc(100vw - 24px)); padding: 12px; border-radius: 20px; border: 2px solid rgba(217, 164, 65, .6);
+  background: linear-gradient(170deg, #1a4234, #0a1f18); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); animation: menuIn .2s ease-out;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@keyframes menuIn { from { opacity: 0; transform: translateY(-8px) scale(.97); } }
+.tile { display: grid; justify-items: center; gap: 6px;
+  button { position: relative; display: grid; place-items: center; width: 54px; height: 54px; padding: 0; border: 0; border-radius: 16px; color: var(--ink); cursor: pointer;
+    background: linear-gradient(180deg, #34604f, #173529); box-shadow: 0 4px 0 #08190f, inset 0 0 0 1px rgba(255, 255, 255, .14);
+    svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    &:active { transform: translateY(3px); box-shadow: 0 1px 0 #08190f; }
+    &[aria-pressed="true"] { color: #2a1d05; background: linear-gradient(180deg, #ffd983, #D9A441); box-shadow: 0 4px 0 #85590f; } }
+  small { font: 700 10.5px/1.15 var(--font-sans), sans-serif; letter-spacing: .04em; color: var(--mute); text-align: center; }
+  &[data-quit] button { color: #fff; background: linear-gradient(180deg, #e2735d, #ad3f2e); box-shadow: 0 4px 0 #64201a; } }
