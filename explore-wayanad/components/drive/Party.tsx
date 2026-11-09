@@ -107,7 +107,7 @@ function invite(P: Party) {
 export function RoomCard({ me, onLeave }: { me: Choice; onLeave: () => void }) {
   const P = net.party, [copied, setCopied] = useState(false);
   if (!P) return null;
-  const list = drivers(me), host = P.host === net.id, slots = Math.min(PRIVATE_CAP, Math.max(4, list.length + 1));
+  const list = drivers(me), host = P.host === net.id, slots = Math.min(PRIVATE_CAP, Math.max(2, list.length + 1)); // you, then one Invite (more as people join)
   const racing = P.phase === "countdown" || P.phase === "race" || P.phase === "results";
   const share = async () => {
     const { url, text } = invite(P), nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
@@ -163,7 +163,7 @@ export function RoomCard({ me, onLeave }: { me: Choice; onLeave: () => void }) {
             ))}
           </div>
           {host ? (
-            <button type="button" className={`${styles.key} ${styles.gold} ${styles.big} ${styles.startKey}`} onClick={partyStart} autoFocus>
+            <button type="button" className={`${styles.key} ${styles.gold} ${styles.big} ${styles.startKey}`} onClick={partyStart} autoFocus={!matchMedia("(pointer: coarse)").matches /* phones: don't scroll the room past its top */}>
               <GIcon name="play" /><span>{P.mode === "race" ? "Start race" : "Start driving"}</span>
               {list.length < 2 && <small>waiting for friends? you can start anyway</small>}
             </button>
