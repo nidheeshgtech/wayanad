@@ -19,7 +19,7 @@ import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } f
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, leaveRoom, net, partyFinish, partyLobby, partyStart } from "@/lib/net";
-import { FriendsCard, GIcon, Podium, PlayModes, RoomCard, type PlayMode } from "./Party";
+import { FriendsCard, GIcon, Podium, PlayModes, RoomCard, showCode, type PlayMode } from "./Party";
 import partyStyles from "./Party.module.scss";
 import { gapText, ordinal, racing, standings, watch, type Row } from "@/lib/race";
 import { mirror } from "@/lib/mirror";
@@ -343,7 +343,7 @@ export default function DriveHud() {
       {screen === "start" && (
         <StartScreen compact
           title={<>Drive to <br />Wayanad.</>}
-          startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${inviteCode}` : "Play with friends"}
+          startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
           onStart={start} presentedBy={PRESENTED_BY}
           beforeStart={<>
             {net.enabled && (
@@ -414,7 +414,7 @@ export default function DriveHud() {
           </div>
           {net.party && (
             <div className={styles.setting} role="group" aria-label={`Room ${net.party.code}`}>
-              <span>Room {net.party.code}{net.party.host === net.id ? " · you're the host" : ""}</span>
+              <span>Room {showCode(net.party.code)}{net.party.host === net.id ? " · you're the host" : ""}</span>
               {net.party.host === net.id && <button type="button" onClick={() => partyLobby()}>{net.party.mode === "race" ? "End race · back to room" : "Back to room"}</button>}
               <button type="button" onClick={leaveParty}>Leave room</button>
             </div>

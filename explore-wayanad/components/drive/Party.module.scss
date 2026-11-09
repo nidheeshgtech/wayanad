@@ -22,7 +22,6 @@ $ink-dark: #1b1405;
 .gold { --top: #{$gold-top}; --bot: #{$gold}; --lip: #{$gold-lip}; color: $ink-dark; text-shadow: 0 1px 0 rgba(255, 255, 255, .35); }
 .green { --top: #{$green-top}; --bot: #{$green}; --lip: #{$green-lip}; }
 .red { --top: #e2735d; --bot: #ad3f2e; --lip: #64201a; }
-.whatsapp { --top: #43c46a; --bot: #1f8f45; --lip: #0d4d24; }
 .big { min-height: 60px; font-size: 17px; border-radius: 16px; .icon { width: 24px; height: 24px; } }
 
 .textButton { justify-self: center; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 0; background: none; cursor: pointer;

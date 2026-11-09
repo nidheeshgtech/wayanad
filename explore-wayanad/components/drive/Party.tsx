@@ -13,6 +13,8 @@ import styles from "./Party.module.scss";
  * The room itself (lib/net `party`) is the server's; these only show it and send the host's choices. */
 
 export type PlayMode = "solo" | "open" | "friends";
+/** A room code as shown: six digits in two threes ("482 913"); older codes as they are. */
+export const showCode = (c: string) => (/^\d{6}$/.test(c) ? `${c.slice(0, 3)} ${c.slice(3)}` : c);
 export const PRIVATE_CAP = 8;
 
 /** Line icons on a 24 grid, drawn thick for the game look. */
@@ -38,7 +40,7 @@ export function PlayModes({ value, onChange, code }: { value: PlayMode; onChange
   const modes: [PlayMode, keyof typeof PATHS, string, string][] = [
     ["solo", "solo", "Solo", "Just you"],
     ["open", "open", "Open road", "With everyone"],
-    ["friends", "friends", "Friends", code ? `Room ${code}` : "Private room"],
+    ["friends", "friends", "Friends", code ? `Room ${showCode(code)}` : "Private room"],
   ];
   return (
     <div className={styles.modes} role="radiogroup" aria-label="How to play">
@@ -73,7 +75,7 @@ export function FriendsCard({ name, car, auto, onBack }: { name: string; car: Ch
           </button>
           <div className={styles.or}><span>or join one</span></div>
           <form className={styles.join} onSubmit={(e) => { e.preventDefault(); void go("join"); }}>
-            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 14))} placeholder="CHAYA-472" aria-label="Room code"
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 14))} placeholder="482 913" aria-label="Room code" inputMode="numeric"
               autoCapitalize="characters" autoComplete="off" spellCheck={false} onKeyDown={(e) => e.stopPropagation()} />
             <button type="submit" className={`${styles.key} ${styles.green}`} disabled={!!busy}><GIcon name="enter" /><span>{busy === "join" ? "Joining…" : "Join"}</span></button>
           </form>
@@ -95,7 +97,7 @@ const hostName = (P: Party, me: Choice) => drivers(me).find((d) => d.id === P.ho
 /** The room's link and a message to send it with. */
 function invite(P: Party) {
   const url = `${location.origin}/?code=${P.code}`;
-  return { url, text: `Race me up the Thamarassery Churam! 🏁 Join my room ${P.code}` };
+  return { url, text: `Race me up the Thamarassery Churam! 🏁 Join my room ${showCode(P.code)}` };
 }
 
 /** The room's lobby. Re-rendered by the HUD whenever the room changes (lib/net `version`). */
@@ -112,17 +114,15 @@ export function RoomCard({ me, onLeave }: { me: Choice; onLeave: () => void }) {
   const copy = async () => {
     try { await navigator.clipboard.writeText(invite(P).url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
   };
-  const whatsapp = () => { const { url, text } = invite(P); window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\n${url}`)}`, "_blank", "noopener"); };
   return (
     <div className={styles.veil}>
-      <div className={`${styles.card} ${styles.room}`} role="dialog" aria-label={`Room ${P.code}`}>
+      <div className={`${styles.card} ${styles.room}`} role="dialog" aria-label={`Room ${showCode(P.code)}`}>
         <header className={styles.ribbon}><GIcon name="flag" /><span>Your room</span><em>{list.length}/{PRIVATE_CAP}</em></header>
 
         <div className={styles.ticket}>
           <small>Room code</small>
-          <b>{P.code}</b>
+          <b>{showCode(P.code)}</b>
           <div className={styles.shareRow}>
-            <button type="button" className={`${styles.key} ${styles.whatsapp}`} onClick={whatsapp}><GIcon name="share" /><span>WhatsApp</span></button>
             <button type="button" className={`${styles.key} ${styles.green}`} onClick={() => void copy()}><GIcon name="copy" /><span>{copied ? "Copied!" : "Copy link"}</span></button>
           </div>
         </div>

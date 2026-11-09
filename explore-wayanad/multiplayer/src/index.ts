@@ -4,8 +4,8 @@
  *  GET /join?room=<id>   → the Lobby picks a room: the one asked for (an invite link) if it has space, else the fullest
  *                          room that isn't full, else a new one. Returns { room }.
  *  GET /room/<id>        → WebSocket upgrade into that Room.
- *  GET /create           → a private room for friends: the Lobby makes up a code ("CHAYA-472") and keeps the room out
- *                          of the public ones. Returns { room, code }; the room's id is "p-" + the code in lower case.
+ *  GET /create           → a private room for friends: the Lobby makes up a six-digit code ("482913", shown "482 913")
+ *                          and keeps the room out of the public ones. Returns { room, code }; the room's id is "p-" + code.
  *  GET /join?code=<code> → that private room, if it exists and has space: { room, code }; 404 / 409 otherwise.
  *
  * A private room (up to PRIVATE_CAP drivers) also runs the race: its first player is the host, who picks Race or Free
@@ -42,12 +42,15 @@ const COUNTDOWN = 3000;      // ms: 3, 2, 1, GO
 const CLOSE_AFTER = 90_000;  // ms after the first finisher that a race's results close
 const HOST_GRACE = 30_000;   // ms a dropped host keeps the crown
 const EMPTY_KEEP = 15 * 60_000; // ms an empty private room's code still works (a host sharing the link may drop out meanwhile)
-// private room codes: a word from the road and three digits, easy to read out over a call
+// private room codes: six digits (a number pad on phones, easy to read out over a call). Rooms made with the old
+// codes (a word and three digits, from WORDS) still parse until they expire.
 const WORDS = ["CHAYA", "PUTTU", "APPAM", "KAPPA", "MANGO", "TIGER", "MONKEY", "CHURAM", "KABINI", "JEEP", "MIST", "RAIN",
   "COFFEE", "PEPPER", "BAMBOO", "PEACOCK", "HAIRPIN", "LAKKIDI", "VYTHIRI", "BANANA", "TEAKWOOD", "MONSOON", "HORNBILL", "ELEPHANT"];
 const codeOf = (raw: string) => {
-  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, ""), m = s.match(/^([A-Z]+)(\d{3})$/);
-  return m ? `${m[1]}-${m[2]}` : null;
+  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (/^\d{6}$/.test(s)) return s;
+  const m = s.match(/^([A-Z]+)(\d{3})$/);
+  return m && WORDS.includes(m[1]) ? `${m[1]}-${m[2]}` : null;
 };
 const NEAR = 60;          // units of road (10 m): who you're sent
 const TICK = 100;         // ms between state broadcasts
@@ -114,7 +117,7 @@ export class Lobby {
     if (url.pathname === "/create") {
       if (this.limited(req, "create", 10)) return json({ error: "Too many rooms made. Try again in a minute." }, 429);
       for (let i = 0; i < 50; i++) {
-        const code = `${WORDS[Math.floor(Math.random() * WORDS.length)]}-${100 + Math.floor(Math.random() * 900)}`, room = `p-${code.toLowerCase()}`;
+        const code = String(100000 + Math.floor(Math.random() * 900000)), room = `p-${code}`;
         if (this.rooms.has(room)) continue;
         this.rooms.set(room, { count: 0, at: now });
         await this.save();
