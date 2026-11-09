@@ -7,6 +7,7 @@ import {
 } from "three";
 import { SECTION, archT, height, roadShapeAt } from "@/lib/terrain";
 import { CLOUD_SHADOW_GLSL, cloudShadowUniforms, wetUniform } from "@/lib/weather";
+import { DAPPLE_GLSL, dappleUniforms } from "@/lib/dapple";
 
 /* True scale, 1 unit = 10 m. Curve points sit 0.6 above the road bed (a convention from the prototype). */
 const LIFT = 0.012; // asphalt sits a hand's width proud of the band, which is shaded identically beneath it
@@ -44,14 +45,14 @@ function asphalt() {
   };
   const m = new MeshStandardMaterial({ color: 0x86867f, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
   const color = load("asphalt-color", true), normal = load("asphalt-normal", false);
-  m.customProgramCacheKey = () => "explore-wayanad-asphalt-4";
+  m.customProgramCacheKey = () => "explore-wayanad-asphalt-5";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform, ...cloudShadowUniforms });
+    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform, ...cloudShadowUniforms, ...dappleUniforms });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRoad = aRoad;\nvRoadXZ = (modelMatrix * vec4(transformed, 1.0)).xz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;\n${CLOUD_SHADOW_GLSL}`)
+      .replace("#include <common>", `#include <common>\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;\n${CLOUD_SHADOW_GLSL}\n${DAPPLE_GLSL}`)
       .replace("#include <map_fragment>", `
         vec2 aUv = vec2(vRoad.x * uWidth, vRoad.y) * uTile;
         diffuseColor.rgb *= texture2D(tAsphalt, aUv).rgb;
@@ -71,6 +72,7 @@ function asphalt() {
         diffuseColor.rgb *= (0.86 + 0.28 * drift) * (1.0 - 0.1 * track) * mix(1.0, 0.82, patchMask);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.34, 0.27, 0.2), crumble * 0.75 + rim * 0.12); // soil and grit at the edge
         diffuseColor.rgb *= 1.0 - 0.45 * cloudShadow(vRoadXZ);
+        diffuseColor.rgb *= mix(1.0 + 0.95 * uDapple, 1.0 - 0.35 * uDapple, leafShade(vRoadXZ)); // sunlight through the trees
         // markings, widths in road-fractions: edge lines 15 cm, centre dashes 10 cm, 4.5 m on / 4.5 m off
         float edge = 1.0 - smoothstep(0.018, 0.026, min(vRoad.x, 1.0 - vRoad.x) - 0.02);
         float centre = (1.0 - smoothstep(0.004, 0.008, abs(vRoad.x - 0.5))) * step(0.5, fract(vRoad.y / 0.9));

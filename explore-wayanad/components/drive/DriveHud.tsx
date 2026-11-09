@@ -100,6 +100,7 @@ export default function DriveHud() {
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const race = useRef<HTMLDivElement>(null), raceLine = useRef<HTMLDivElement>(null), raceAt = useRef(0);
+  const streaks = useRef<HTMLDivElement>(null);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "" }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -144,6 +145,12 @@ export default function DriveHud() {
     let raf = 0;
     const tick = () => {
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
+      // speed streaks at the screen's edges, stronger the faster you go (a little flicker so they seem to rush past)
+      if (streaks.current) {
+        const on = game.started && game.phase === "drive" && !game.paused ? game.speedFx : 0;
+        streaks.current.style.opacity = on > 0.02 ? (on * (0.55 + Math.random() * 0.15)).toFixed(3) : "0";
+        if (on > 0.02) streaks.current.style.setProperty("--spin", `${(Math.random() * 6).toFixed(1)}deg`);
+      }
       if (km.current) km.current.textContent = game.km.toFixed(1);
       // multiplayer: how many drivers share your road; the pause menu's list follows the roster
       if (room.current) room.current.textContent = !net.enabled || net.status === "off" ? "" : net.status === "live" ? `${net.roster.length + 1} driver${net.roster.length ? "s" : ""} in your room` : "Connecting…";
@@ -298,6 +305,7 @@ export default function DriveHud() {
           <div ref={raceLine} className={styles.raceLine} hidden><b /><span /></div>
         </div>
       </div>
+      <div ref={streaks} className={styles.streaks} aria-hidden />
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />

@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { scrollState } from "@/lib/scrollState";
 import { game } from "@/lib/game";
 import { stepWeather, weather } from "@/lib/weather";
+import { stepDapple } from "@/lib/dapple";
 import { duskness, nightness, stepTheme } from "@/lib/theme";
 import { BackSide, Color, DirectionalLight, Mesh, Object3D, PMREMGenerator, Scene, ShaderMaterial, SphereGeometry, Texture, Vector3 } from "three";
 
@@ -73,6 +74,7 @@ export default function Lighting({ sunRef, shadows }: { sunRef: React.MutableRef
     if (!game.paused) stepWeather(dt, scrollState.act === "churam" ? scrollState.progress : 1, game.active ? game.odometer / 100 : 0);
     stepTheme(dt);
     const e = duskness(), n = nightness();
+    stepDapple(game.paused ? 0 : dt, weather.sun, weather.rain, n, e);
     // the low sun goes down and the moon comes up: hide the swap under the darkest moment of the fade
     SUN_DIR.copy(n < 0.5 ? SUN_DUSK : MOON);
     if (n < 0.5) SUN_DIR.copy(SUN_DAY).lerp(SUN_DUSK, e).normalize();

@@ -89,7 +89,8 @@ export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "st
       gl={{ antialias: true, powerPreference: "high-performance" }} // MSAA is cheap on phone (tile) GPUs and removes the jagged edges
       shadows={small ? false : "soft"}
       onCreated={({ gl }) => { gl.toneMappingExposure = 1.0; }}
-      style={{ position: "fixed", inset: 0, zIndex: 0 }}
+      // desktop: a light grade — richer greens, a touch more contrast (a CSS filter: no extra render pass; phones skip it)
+      style={{ position: "fixed", inset: 0, zIndex: 0, filter: small ? undefined : "saturate(1.12) contrast(1.05)" }}
     >
       <Suspense fallback={null}>
         <World small={small} mode={mode} />

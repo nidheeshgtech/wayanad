@@ -31,6 +31,9 @@ import type { ActId } from "@/data/acts";
 /** Phase one ends just past the Lakkidi gate: the car brakes by itself over the last `brake` units and stops `after`
  * units (400 m) beyond the arch, and the HUD says goodbye. */
 const GATE = { after: 40, brake: 12 };
+/** Speed felt: from `from` units/s (~32 km/h) over `span` to full (~90 km/h); the view widens by `fov` degrees, the chase
+ * camera sits `back` (a fraction) further behind. The speed streaks at the screen's edges (DriveHud) read game.speedFx. */
+const SPEED_FX = { from: 0.9, span: 1.6, fov: 12, back: 0.18 };
 /** A soft round glow for the lamp sprites (one texture for all). */
 let glowTex: CanvasTexture | null = null;
 function glowTexture() {
@@ -332,7 +335,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // the camera
     const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.lookBack ? "back" : game.view, { want, look, dir } = tmp;
     if (view !== C.view) { C.from.copy(camera.position); C.fromQ.copy(camera.quaternion); C.blend = 0; C.view = view; }
-    const fov = view === "hood" ? 66 : 60;
+    // speed (game.speedFx, 0 below ~32 km/h … 1 at ~90): the view widens, the chase camera drops back, the road rumbles
+    if (!game.paused) game.speedFx += (Math.min(1, Math.max(0, (Math.abs(game.speed) - SPEED_FX.from) / SPEED_FX.span)) - game.speedFx) * Math.min(1, dt * 3);
+    const fx = view === "back" ? 0 : game.speedFx, fov = (view === "hood" ? 66 : 60) + fx * SPEED_FX.fov;
     if (Math.abs(camera3.fov - fov) > 0.01) { camera3.fov += (fov - camera3.fov) * Math.min(1, dt * 8); camera3.updateProjectionMatrix(); }
     // the chase camera looks a little toward where the road goes (its direction ~12 m ahead), not only where the car
     // points, so on a hairpin the way out comes into view as you turn instead of the bank
@@ -354,7 +359,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const v = VIEW[view];
       dir.set(Math.sin(C.yaw), 0, Math.cos(C.yaw));
       if (view === "back") dir.negate();
-      want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back).addScaledVector(up, v.up);
+      want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back * (1 + fx * SPEED_FX.back)).addScaledVector(up, v.up * (1 - fx * 0.12));
       look.set(root.position.x, C.y, root.position.z).addScaledVector(dir, v.ahead).addScaledVector(up, v.aimUp);
       // keep the hillside out of the shot: lift the camera over any ground between it and the car
       // (eased: rises quickly, settles slowly, so the shot never pops)
@@ -371,6 +376,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // fading with lib/impact; ~6 cm and a fraction of a degree at full strength
     const k = impact.shake, st = impact.time * 26;
     if (k > 0.002) want.add(tmp.a.set(Math.sin(st * 1.3) + 0.5 * Math.sin(st * 2.9 + 0.7), 0.8 * (Math.sin(st * 1.7 + 1.1) + 0.5 * Math.sin(st * 3.3)), 0).multiplyScalar(k * 0.006));
+    if (fx > 0.01 && !game.paused) { const rt = performance.now() / 1000; want.y += (Math.sin(rt * 37) + 0.6 * Math.sin(rt * 23 + 1.3)) * fx * 0.0012; }
     camera.position.copy(want); camera.lookAt(look);
     if (k > 0.002) camera.rotateZ(Math.sin(st * 1.1 + 0.3) * k * 0.012);
     if (C.blend < 1) {

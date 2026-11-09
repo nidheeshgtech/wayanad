@@ -1,4 +1,5 @@
 import { CLOUD_SHADOW_GLSL, cloudShadowUniforms, wetUniform } from "@/lib/weather";
+import { DAPPLE_GLSL, dappleUniforms } from "@/lib/dapple";
 import { ESTATES, ESTATE_GLSL, estateUniforms } from "@/lib/estates";
 
 const ESTATES_ROW = ESTATES.row.toFixed(3);
@@ -36,9 +37,9 @@ export function groundMaterial() {
     uGroundScale: { value: GROUND_SCALE }, uRockScale: { value: ROCK_SCALE }, uWet: wetUniform,
   };
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 });
-  m.customProgramCacheKey = () => "explore-wayanad-ground-7";
+  m.customProgramCacheKey = () => "explore-wayanad-ground-8";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms, estateUniforms, cloudShadowUniforms);
+    Object.assign(shader.uniforms, uniforms, estateUniforms, cloudShadowUniforms, dappleUniforms);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute float aRoadDist;\nvarying vec3 vWorldPos;\nvarying vec3 vWorldNormal;\nvarying float vRoadDist;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -58,6 +59,7 @@ export function groundMaterial() {
         uniform float uGroundScale, uRockScale, uWet;
         #define CLIFF_SCALE ${CLIFF_SCALE}
         ${ESTATE_GLSL}
+        ${DAPPLE_GLSL}
         ${CLOUD_SHADOW_GLSL}`)
       .replace("#include <map_fragment>", `
         vec3 wN = normalize(vWorldNormal);
@@ -100,7 +102,8 @@ export function groundMaterial() {
         vec3 teaGreen = vec3(0.14, 0.31, 0.035) * (0.75 + 0.6 * lum) * mix(0.85, 0.7 + 0.3 * sin(teaRow * 3.14159), rows);
         albedo = mix(albedo, mix(teaGreen, vec3(0.09, 0.07, 0.05), smoothstep(0.82, 0.92, teaRow) * rows), tea);
         diffuseColor.rgb *= albedo * mix(1.0, mix(0.85, 0.7, 1.0 - flatness), uWet) // damp: darker, rock most
-          * (1.0 - 0.45 * cloudShadow(vWorldPos.xz)); // a passing cloud's shadow`)
+          * (1.0 - 0.45 * cloudShadow(vWorldPos.xz)) // a passing cloud's shadow
+          * (1.0 - uDapple * 0.42 * leafShade(vWorldPos.xz) * (1.0 - smoothstep(0.6, 1.6, vRoadDist))); // leaf shadows by the road`)
       .replace("#include <roughnessmap_fragment>", `float rockRough = mix(texture2D(tCliffR, vWorldPos.xz * CLIFF_SCALE).r * 0.4 + 0.55, 0.45, streak * 0.6) * mix(1.0, 0.55, uWet);
         float roughnessFactor = mix(mix(rockRough, 0.9, mossy * 0.6), mix(0.95, 0.85, uWet), flatness); // rock: damp streaks glossier, moss matte`)
       .replace("#include <normal_fragment_maps>", `

@@ -227,3 +227,11 @@
   &[data-go] { color: #ffd983; text-shadow: 0 8px 0 #85590f, 0 0 60px rgba(217, 164, 65, .7); } }
 @keyframes countPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.85); } }
 @media (prefers-reduced-motion: reduce) { .countdown[data-on] { animation: none; } }
+
+/* speed streaks (DriveHud, game.speedFx): thin rays toward the edges, clear in the middle; opacity set per frame */
+.streaks { position: fixed; inset: -10%; z-index: 3; pointer-events: none; opacity: 0;
+  background: repeating-conic-gradient(from var(--spin, 0deg) at 50% 52%, rgba(255, 255, 255, 0) 0deg 2.2deg, rgba(235, 242, 238, .32) 2.4deg 2.6deg, rgba(255, 255, 255, 0) 2.8deg 7deg);
+  -webkit-mask-image: radial-gradient(ellipse 46% 40% at 50% 52%, transparent 55%, rgba(0, 0, 0, .9) 100%);
+  mask-image: radial-gradient(ellipse 46% 40% at 50% 52%, transparent 55%, rgba(0, 0, 0, .9) 100%);
+}
+@media (prefers-reduced-motion: reduce) { .streaks { display: none; } }

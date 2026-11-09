@@ -25,6 +25,7 @@ const fresh = () => ({
   input: { throttle: 0, brake: 0, steer: 0 }, // from keys / touch: 0–1, 0–1, −1…1
   assist: 0.65,                               // how much of the road's own curve is steered for you (0 = all yours)
   braking: false, scrape: 0, bump: 0,         // for lights, camera shake and sound
+  speedFx: 0,                                 // how fast it feels, 0–1 (PlayerCar): a wider view, speed streaks
   wheel: 0,                                   // wheel rotation, radians (rolls with distance)
   /** "between": the Kalpetta → Sulthan Bathery card is up; "finished": stopped at the border gate; "gate": the end of
    * phase one, stopped just past the Lakkidi gate */
