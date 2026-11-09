@@ -150,3 +150,47 @@ $ink-dark: #1b1405;
     &[data-still] { opacity: .6; span { font-size: 12px; color: var(--mute); } } } }
 
 @media (prefers-reduced-motion: reduce) { .card, .slots li { animation: none; } .startKey { animation: none; } .waiting i { animation: none; opacity: .7; } }
+
+// ---- voice chat (Party.tsx VoicePanel, VoiceHud) ----
+.voice { display: grid; gap: 10px; padding: 12px 14px 14px; border-radius: 16px; border: 2px solid rgba(94, 122, 112, .45); background: rgba(10, 26, 21, .55);
+  > header { display: flex; align-items: center; gap: 8px; color: $gold-top; .icon { width: 18px; height: 18px; }
+    b { font: 800 12px/1 var(--font-sans), sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+    em { margin-left: auto; font: 700 12px/1 var(--font-sans), sans-serif; font-style: normal; color: var(--mute); } }
+  > p { font-size: 13px; line-height: 1.45; color: var(--mute); }
+  > .key { justify-self: start; } }
+.micMode { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, .3);
+  button { min-height: 36px; border: 0; border-radius: 9px; cursor: pointer; background: none; color: var(--mute); font: 800 12px/1 var(--font-sans), sans-serif; letter-spacing: .06em; text-transform: uppercase;
+    &[aria-checked="true"] { color: $ink-dark; background: linear-gradient(180deg, $gold-top, $gold); box-shadow: 0 2px 0 $gold-lip; } } }
+.fx { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px;
+  button { display: grid; justify-items: center; gap: 3px; padding: 7px 2px; border-radius: 11px; cursor: pointer; color: var(--ink); border: 2px solid rgba(94, 122, 112, .45); background: rgba(14, 33, 27, .8);
+    span { font-size: 20px; line-height: 1; } small { font: 700 10px/1 var(--font-sans), sans-serif; }
+    &[aria-checked="true"] { border-color: $gold; background: linear-gradient(180deg, rgba(217, 164, 65, .3), rgba(60, 46, 14, .75)); small { color: $gold-top; } } } }
+.talkers { display: flex; flex-wrap: wrap; gap: 6px;
+  > span, > button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 99px; border: 1.5px solid rgba(94, 122, 112, .5); background: rgba(14, 33, 27, .8);
+    color: var(--ink); font: 700 12px/1 var(--font-sans), sans-serif; cursor: pointer; transition: box-shadow .15s, border-color .15s;
+    .icon { width: 14px; height: 14px; }
+    &[data-talking] { border-color: #6fe08a; box-shadow: 0 0 0 3px rgba(111, 224, 138, .25); }
+    &[data-muted] { opacity: .55; }
+    &[data-failed] { border-color: #e2735d; } }
+  > span { cursor: default; } }
+.voiceRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+// on the road: the talk key (bottom left, above the steer keys on phones) and who's talking (top centre)
+.talkKey { position: fixed; z-index: 6; left: 20px; bottom: calc(110px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; align-content: center; gap: 2px;
+  width: 66px; height: 66px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: var(--ink); touch-action: none; -webkit-tap-highlight-color: transparent;
+  background: linear-gradient(180deg, $green-top, $green); box-shadow: 0 5px 0 $green-lip, 0 9px 16px rgba(0, 0, 0, .4), inset 0 0 0 1.5px rgba(255, 255, 255, .14);
+  .icon { width: 24px; height: 24px; } small { font: 800 9px/1 var(--font-sans), sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+  kbd { position: absolute; right: -4px; top: -4px; padding: 2px 6px; border-radius: 6px; font: 700 10px var(--font-sans), sans-serif; color: #0e1f1a; background: var(--ink); }
+  &[data-live] { color: #0d2a14; background: linear-gradient(180deg, #8ff0a6, #3fb862); box-shadow: 0 2px 0 #1d6a33, 0 0 18px rgba(111, 224, 138, .55); transform: translateY(3px); }
+  &[data-speaking] { box-shadow: 0 2px 0 #1d6a33, 0 0 0 6px rgba(111, 224, 138, .3), 0 0 24px rgba(111, 224, 138, .7); } }
+@media (pointer: coarse) {
+  .talkKey { left: 14px; bottom: calc(18px + 80px + 18px + env(safe-area-inset-bottom, 0px)); kbd { display: none; } }
+  @media (max-width: 375px) { .talkKey { bottom: calc(18px + 70px + 16px + env(safe-area-inset-bottom, 0px)); width: 60px; height: 60px; } }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .talkKey { left: max(14px, env(safe-area-inset-left, 0px)); bottom: calc(14px + 84px + 12px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; }
+}
+.talkingNow { position: fixed; z-index: 7; left: 50%; top: calc(132px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); display: flex; gap: 6px; pointer-events: none;
+  span { padding: 6px 12px; border-radius: 99px; background: rgba(13, 42, 20, .85); border: 1.5px solid #6fe08a; color: #dfffe6; font: 800 12px/1 var(--font-sans), sans-serif; letter-spacing: .04em; } }
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) { .talkingNow { top: calc(56px + env(safe-area-inset-top, 0px)); } }
+@media (pointer: coarse) and (orientation: portrait) { .talkingNow { top: calc(262px + env(safe-area-inset-top, 0px)); } }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createRoom, joinCode, leaveRoom, net, partyLobby, partyMode, partyStart, type Party } from "@/lib/net";
+import { VOICE_FX, holdTalk, joinVoice, leaveVoice, setOpenMic, setVoiceFx, toggleMute, voice } from "@/lib/voice";
 import { carOf, colourOf, type Choice } from "@/data/cars";
 import { clock } from "@/lib/share";
 import styles from "./Party.module.scss";
@@ -32,6 +33,8 @@ const PATHS = {
   back: <path d="M15 18l-6-6 6-6" />,
   leave: <><path d="M14 4h4.5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H14" /><path d="M9 7l-5 5 5 5M4 12h11" /></>,
   play: <path d="M8 5.5v13l10.5-6.5z" />,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" /></>,
+  micOff: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M4 4l16 16" /></>,
 };
 export const GIcon = ({ name }: { name: keyof typeof PATHS }) => <svg viewBox="0 0 24 24" aria-hidden className={styles.icon}>{PATHS[name]}</svg>;
 
@@ -142,6 +145,8 @@ export function RoomCard({ me, onLeave }: { me: Choice; onLeave: () => void }) {
           })}
         </ul>
 
+        <VoicePanel />
+
         {racing ? (
           <div className={styles.status}>
             <b>Race in progress</b>
@@ -167,7 +172,7 @@ export function RoomCard({ me, onLeave }: { me: Choice; onLeave: () => void }) {
           )}
         </>)}
         {net.status !== "live" && <p className={styles.error}>Reconnecting…</p>}
-        <button type="button" className={styles.textButton} onClick={() => { leaveRoom(true); onLeave(); }}><GIcon name="leave" />Leave room</button>
+        <button type="button" className={styles.textButton} onClick={() => { leaveVoice(); leaveRoom(true); onLeave(); }}><GIcon name="leave" />Leave room</button>
       </div>
     </div>
   );
@@ -198,4 +203,77 @@ export function Podium({ me }: { me: Choice }) {
       </ol>
     </div>
   );
+}
+
+/** Re-render while the voice state changes (lib/voice bumps `version`). */
+function useVoice() {
+  const [, set] = useState(0);
+  useEffect(() => { let v = -1; const t = setInterval(() => { if (voice.version !== v) { v = voice.version; set(v); } }, 150); return () => clearInterval(t); }, []);
+  return voice;
+}
+const nameOf = (id: number) => (id === net.id ? "You" : net.roster.find((p) => p.id === id)?.name ?? "Driver");
+
+/** Voice chat in the room's lobby: join, hold-to-talk or open mic, an effect, who's on (tap to mute). */
+function VoicePanel() {
+  const v = useVoice(), ids = net.voiceIds, others = ids.filter((id) => id !== net.id);
+  return (
+    <section className={styles.voice} aria-label="Voice chat">
+      <header><GIcon name="mic" /><b>Voice chat</b><em>{ids.length}/4</em></header>
+      {!v.on ? (<>
+        <p>Talk to your friends while you drive. Up to 4. Straight between phones, nothing recorded.</p>
+        <button type="button" className={`${styles.key} ${styles.green}`} disabled={v.joining || ids.length >= 4} onClick={() => void joinVoice()}>
+          <GIcon name="mic" /><span>{v.joining ? "Starting the mic…" : ids.length >= 4 ? "Voice is full" : "Join voice"}</span>
+        </button>
+      </>) : (<>
+        <div className={styles.micMode} role="radiogroup" aria-label="Microphone">
+          <button type="button" role="radio" aria-checked={!v.open} onClick={() => setOpenMic(false)}>Hold to talk</button>
+          <button type="button" role="radio" aria-checked={v.open} onClick={() => setOpenMic(true)}>Open mic</button>
+        </div>
+        <div className={styles.fx} role="radiogroup" aria-label="Voice effect">
+          {VOICE_FX.map((f) => <button key={f.id} type="button" role="radio" aria-checked={v.fx === f.id} onClick={() => setVoiceFx(f.id)}><span>{f.icon}</span><small>{f.name}</small></button>)}
+        </div>
+        <div className={styles.talkers}>
+          <span data-talking={v.meTalking || undefined}><GIcon name="mic" />You</span>
+          {others.map((id) => {
+            const p = v.peers.get(id), muted = v.muted.has(id);
+            return (
+              <button key={id} type="button" data-talking={(p?.talking && !muted) || undefined} data-muted={muted || undefined} data-failed={p?.state === "failed" || undefined}
+                onClick={() => toggleMute(id)} title={muted ? "Unmute" : "Mute"}>
+                <GIcon name={muted ? "micOff" : "mic"} />{nameOf(id)}{p?.state === "failed" ? " · can't connect" : !p || p.state === "connecting" ? " · …" : ""}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.voiceRow}>
+          {!v.open && <button type="button" className={`${styles.key} ${styles.gold}`} {...pressHold()}><GIcon name="mic" /><span>Hold to talk</span></button>}
+          <button type="button" className={styles.textButton} onClick={leaveVoice}><GIcon name="leave" />Leave voice</button>
+        </div>
+      </>)}
+      {v.error && <p className={styles.error}>{v.error}</p>}
+      {v.full && <p className={styles.error}>Voice is full (4 talking).</p>}
+    </section>
+  );
+}
+
+/** Hold-to-talk handlers for a key. */
+function pressHold() {
+  return {
+    onPointerDown: (e: React.PointerEvent) => { try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch {} holdTalk(true); },
+    onPointerUp: () => holdTalk(false), onPointerCancel: () => holdTalk(false), onPointerLeave: () => holdTalk(false),
+  };
+}
+
+/** On the road, while on voice: the talk key (hold; with an open mic it mutes) and who's talking. */
+export function VoiceHud() {
+  const v = useVoice();
+  if (!v.on) return null;
+  const talking = [...v.peers].filter(([id, p]) => p.talking && !v.muted.has(id)).map(([id]) => nameOf(id));
+  const live = v.open ? !v.holding : v.holding;
+  return (<>
+    {talking.length > 0 && <div className={styles.talkingNow} aria-live="polite">{talking.map((n) => <span key={n}>🔊 {n}</span>)}</div>}
+    <button type="button" className={styles.talkKey} data-live={live || undefined} data-speaking={v.meTalking || undefined} {...pressHold()}
+      aria-label={v.open ? "Hold to mute" : "Hold to talk"} title={v.open ? "Hold to mute (V)" : "Hold to talk (V)"}>
+      <GIcon name={live ? "mic" : "micOff"} /><small>{v.open ? (v.holding ? "Muted" : "Mic on") : v.holding ? "Talking" : "Hold"}</small><kbd>V</kbd>
+    </button>
+  </>);
 }

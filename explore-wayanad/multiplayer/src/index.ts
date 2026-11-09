@@ -27,17 +27,22 @@
  *  client → { t: "hello", name, car: { m, c }, key } once; { t: "s", s, lat, psi, v, br, leg, ts } ~12/s; { t: "car", car } on a change
  *           private rooms, the host: { t: "mode", mode: "race" | "free" } · { t: "start" } · { t: "lobby" }
  *           private rooms, a racer at the gate: { t: "finish", time, points }
+ *           private rooms, voice chat: { t: "voice", on } joins or leaves it; { t: "rtc", to, data } a WebRTC offer, answer
+ *           or ICE candidate for another talker (relayed as is: the voices themselves go phone to phone, never through here)
  *  server → { t: "welcome", id, name, room, priv } · { t: "roster", players: [{ id, name, car }] } on joins, leaves and car changes
  *           { t: "st", now, p: [[id, s, lat, psi, v, br, ts], ...] } 10/s, the nearby ones (everyone, once a second);
  *           ts: the sender's clock when it sent that state (repeated each tick until a newer one comes)
  *           private rooms: { t: "room", host, phase, mode, round, startIn, closeIn, racers: [id], results: [{ id, name, time, points }] }
  *           on every change (phase: "lobby" | "countdown" | "race" | "results" | "free"; startIn / closeIn in ms from now)
+ *           private rooms: { t: "voice", ids: [id] } who's on voice, on every change; { t: "voiceFull" } (VOICE_CAP talkers);
+ *           { t: "rtc", from, data } from another talker
  */
 import { cleanName } from "./names";
 
 export interface Env { ROOM: DurableObjectNamespace; LOBBY: DurableObjectNamespace }
 
 const CAPACITY = 25, HARD_CAP = 30, PRIVATE_CAP = 8;
+const VOICE_CAP = 4;         // talkers in a private room's voice chat (each phone connects to each other one)
 const COUNTDOWN = 3000;      // ms: 3, 2, 1, GO
 const CLOSE_AFTER = 90_000;  // ms after the first finisher that a race's results close
 const HOST_GRACE = 30_000;   // ms a dropped host keeps the crown
@@ -153,7 +158,7 @@ export class Lobby {
 }
 
 type Car = { m: string; c: string };
-type Player = { id: number; key: string; name: string; car: Car; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean; ts: number };
+type Player = { id: number; key: string; name: string; car: Car; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean; ts: number; voice?: boolean };
 type Phase = "lobby" | "countdown" | "race" | "results" | "free";
 /** A driver in this round's race, by key: their time and points once at the gate (`order`: when they got there). */
 type Racer = { name: string; time?: number; points?: number; order?: number };
@@ -205,16 +210,18 @@ export class Room {
           if (!this.hostKey || (key === this.hostKey && this.hostTimer)) { this.hostKey = key; if (this.hostTimer) { clearTimeout(this.hostTimer); this.hostTimer = null; } }
           const r = this.racers.get(key); if (r) r.name = me.name;
         }
-        this.roster(); this.report(); this.state_();
+        this.roster(); this.report(); this.state_(); if (this.priv) this.voices();
         this.timer ??= setInterval(() => this.tick(), TICK);
       } else if (msg.t === "s" && me) this.move(me, msg);
       else if (msg.t === "car" && me) { me.car = carOf(msg.car); this.roster(); }
+      else if (this.priv && me && (msg.t === "voice" || msg.t === "rtc")) this.talk(me, msg);
       else if (this.priv && me) this.party(me, msg);
     });
     const leave = () => {
       if (!me) return;
       const gone = me;
       this.players.delete(ws); me = null;
+      if (gone.voice) this.voices();
       if (this.priv) {
         // the host's crown waits a while for them, then goes to whoever's been here longest
         if (gone.key === this.hostKey && ![...this.players.values()].some((p) => p.key === gone.key)) {
@@ -256,6 +263,23 @@ export class Room {
       const p = near.map((o) => [o.id, +o.s.toFixed(3), +o.lat.toFixed(3), +o.psi.toFixed(3), +o.v.toFixed(2), o.br, o.ts]);
       try { me.ws.send(JSON.stringify({ t: "st", now, p })); } catch { /* closing */ }
     }
+  }
+
+  /** Voice chat: who's on it (at most VOICE_CAP), and the WebRTC handshakes between them, passed along unread. */
+  private talk(me: Player, m: Record<string, unknown>) {
+    if (m.t === "voice") {
+      const on = !!m.on;
+      if (on && !me.voice && [...this.players.values()].filter((p) => p.voice).length >= VOICE_CAP) { try { me.ws.send(JSON.stringify({ t: "voiceFull" })); } catch { /* closing */ } return; }
+      if (me.voice !== on) { me.voice = on; this.voices(); }
+    } else if (m.t === "rtc" && me.voice) {
+      const to = [...this.players.values()].find((p) => p.id === m.to && p.voice), data = m.data;
+      if (!to || JSON.stringify(data ?? null).length > 24_000) return;
+      try { to.ws.send(JSON.stringify({ t: "rtc", from: me.id, data })); } catch { /* closing */ }
+    }
+  }
+  private voices() {
+    const msg = JSON.stringify({ t: "voice", ids: [...this.players.values()].filter((p) => p.voice).map((p) => p.id) });
+    for (const p of this.players.values()) { try { p.ws.send(msg); } catch { /* closing */ } }
   }
 
   /** A private room's own messages: the host's choices, and racers reaching the gate. */

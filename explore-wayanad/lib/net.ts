@@ -36,14 +36,21 @@ type NetState = {
   /** bumped on every roster change, so the HUD can poll cheaply */
   version: number;
   party: Party | null;
+  /** voice chat in a private room (lib/voice): who's on it; set by the room, read by lib/voice through `onVoice` */
+  voiceIds: number[];
+  onVoice?: () => void;
+  onVoiceFull?: () => void;
+  onRtc?: (from: number, data: unknown) => void;
+  onWelcome?: () => void;
 };
 
 const BASE = (process.env.NEXT_PUBLIC_MP_URL ?? "").replace(/\/$/, "");
 const SEND_MS = 80;
 
 export const net: NetState = ((globalThis as { __wayanadNet?: NetState }).__wayanadNet ??= {
-  enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0, party: null,
+  enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0, party: null, voiceIds: [],
 });
+net.voiceIds ??= [];
 net.party ??= null; // (an object kept from before a hot reload)
 
 /** This tab's key: a dropped connection rejoins a private room as the same racer (and host). */
@@ -86,6 +93,9 @@ async function enterPrivate(url: string, name: string, car: Choice): Promise<str
 }
 
 const partySend = (m: object) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
+/** Voice chat: join or leave it; a WebRTC message for another talker. */
+export const sendVoice = (on: boolean) => partySend({ t: "voice", on });
+export const sendRtc = (to: number, data: unknown) => partySend({ t: "rtc", to, data });
 /** The host: race or free drive (in the lobby). */
 export const partyMode = (mode: Party["mode"]) => partySend({ t: "mode", mode });
 /** The host: start the race (a countdown for everyone) or the free drive. */
@@ -110,12 +120,17 @@ function open(room: string, name: string, car: Choice) {
       } else net.party = null;
       net.version++;
       sender ??= setInterval(send, SEND_MS);
+      net.onWelcome?.();
     } else if (m.t === "roster") {
       net.roster = (m.players as { id: number; name: string; car?: { m: string; c: string } }[]).filter((p) => p.id !== net.id)
         .map((p) => ({ id: p.id, name: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"] } }));
       for (const id of net.remotes.keys()) if (!net.roster.some((p) => p.id === id)) net.remotes.delete(id);
       for (const p of net.roster) { const r = net.remotes.get(p.id); if (r) { r.name = p.name; r.car = p.car; } }
       net.version++;
+    } else if (m.t === "voice") {
+      net.voiceIds = (m.ids as number[]) ?? []; net.version++; net.onVoice?.();
+    } else if (m.t === "voiceFull") { net.onVoiceFull?.();
+    } else if (m.t === "rtc") { net.onRtc?.(m.from as number, m.data);
     } else if (m.t === "room" && net.party) {
       const now = performance.now();
       Object.assign(net.party, {
@@ -168,6 +183,7 @@ export function sendCar(car: Choice) {
 
 export function leaveRoom(forget = true) {
   if (forget) { wanted = null; net.party = null; }
+  net.voiceIds = []; net.onVoice?.();
   if (sender) { clearInterval(sender); sender = null; }
   const sock = ws; ws = null; sock?.close();
   net.remotes.clear(); net.roster = []; net.status = "off"; net.version++;

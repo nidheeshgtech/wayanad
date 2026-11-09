@@ -9,6 +9,9 @@ let rumble: GainNode | null = null, pulse: OscillatorNode | null = null, rumbleB
 let whoosh: GainNode | null = null, whooshBand: BiquadFilterNode | null = null, noiseBuf: AudioBuffer | null = null;
 let lastThrottle = 0, wasBoosting = false;
 
+/** The game's own sound, dipped while a friend talks on voice (DriveHud sets `duck`, 0–1). */
+export const mix = ((globalThis as { __wayanadMix?: { duck: number } }).__wayanadMix ??= { duck: 1 });
+
 /** When the exhaust last popped (performance.now()), for the flames at the tailpipe (components/drive/TyreSmoke). */
 export const exhaust = ((globalThis as { __wayanadExhaust?: { popAt: number } }).__wayanadExhaust ??= { popAt: -1e9 });
 
@@ -60,10 +63,10 @@ export function engine(on: boolean, speed: number, throttle: number, boosting = 
   const v = Math.abs(speed), f = 34 + v * 34 + throttle * 8 + (boosting ? 14 : 0), t = ctx.currentTime;
   for (const o of osc) o.frequency.setTargetAtTime(f, t, 0.15);
   filter!.frequency.setTargetAtTime(300 + throttle * 500 + (boosting ? 400 : 0), t, 0.2);
-  gain!.gain.setTargetAtTime(0.025 + throttle * 0.05 + v * 0.01, t, 0.2);
+  gain!.gain.setTargetAtTime((0.025 + throttle * 0.05 + v * 0.01) * mix.duck, t, 0.2);
   pulse!.frequency.setTargetAtTime(f * 0.9, t, 0.1);
   rumbleBand!.frequency.setTargetAtTime(90 + v * 40 + throttle * 60, t, 0.15);
-  rumble!.gain.setTargetAtTime((0.05 + throttle * 0.16) * Math.min(1, 0.35 + v * 0.4) + (boosting ? 0.08 : 0), t, 0.12);
+  rumble!.gain.setTargetAtTime(((0.05 + throttle * 0.16) * Math.min(1, 0.35 + v * 0.4) + (boosting ? 0.08 : 0)) * mix.duck, t, 0.12);
   whoosh!.gain.setTargetAtTime(boosting ? 0.07 : 0, t, boosting ? 0.06 : 0.35);
   whooshBand!.frequency.setTargetAtTime(boosting ? 1200 + v * 500 : 900, t, 0.3);
   if (boosting && !wasBoosting) { exhaust.popAt = performance.now(); crackle(ctx); }

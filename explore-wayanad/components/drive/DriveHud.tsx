@@ -19,7 +19,9 @@ import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } f
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
 import { INSTAGRAM, WHATSAPP } from "@/data/plan";
 import { joinRoom, leaveRoom, net, partyFinish, partyLobby, partyStart } from "@/lib/net";
-import { FriendsCard, GIcon, Podium, PlayModes, RoomCard, showCode, type PlayMode } from "./Party";
+import { FriendsCard, GIcon, Podium, PlayModes, RoomCard, VoiceHud, showCode, type PlayMode } from "./Party";
+import { anyoneTalking, holdTalk, leaveVoice, voice } from "@/lib/voice";
+import { mix } from "@/lib/engine";
 import partyStyles from "./Party.module.scss";
 import { gapText, ordinal, racing, standings, watch, type Row } from "@/lib/race";
 import { mirror } from "@/lib/mirror";
@@ -156,6 +158,7 @@ export default function DriveHud() {
       if (k === " " || k === "escape") { togglePause(); flash("pause"); }
       if (k === "h") { honk({ audible: true }); flash("horn"); }
       if (k === "c") { cycleView(); setView(game.view); flash("view"); }
+      if (k === "v" && voice.on) holdTalk(true);
       if (k === "b") { game.lookBack = true; buttons.current.back?.setAttribute("data-on", "1"); }
       if (k === "r" && !game.paused) { backOnRoad(); flash("reset"); }
       held.add(k); apply();
@@ -163,6 +166,7 @@ export default function DriveHud() {
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === "b") { game.lookBack = false; buttons.current.back?.removeAttribute("data-on"); }
+      if (k === "v" && voice.on) holdTalk(false);
       held.delete(k); apply();
     };
     const blur = () => { held.clear(); apply(); game.lookBack = false; };
@@ -244,6 +248,7 @@ export default function DriveHud() {
       // the tea itself, for a few seconds after it's served
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);
+      mix.duck = anyoneTalking() ? 0.3 : 1; // the game's sound dips while a friend talks
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle, game.boosting);
       ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
       const roomScreen = !!P && (P.phase === "lobby" || (P.phase !== "free" && !racer));
@@ -289,9 +294,9 @@ export default function DriveHud() {
     return name;
   };
   /** Quit (settings menu): out of any room and full screen, back to the title screen. */
-  const quit = () => { setMenu(false); if (net.status !== "off") leaveRoom(true); goFull(false); restart(); game.started = false; setFriends(false); setInviteCode(""); };
+  const quit = () => { setMenu(false); leaveVoice(); if (net.status !== "off") leaveRoom(true); goFull(false); restart(); game.started = false; setFriends(false); setInviteCode(""); };
   /** Leave a private room: back to the title screen. */
-  const leaveParty = () => { leaveRoom(true); restart(); game.started = false; setFriends(false); setInviteCode(""); };
+  const leaveParty = () => { leaveVoice(); leaveRoom(true); restart(); game.started = false; setFriends(false); setInviteCode(""); };
   const start = () => {
     if (canFull) goFull(true);
     // Play with friends: the room comes first (make one, or join with a code); the drive starts from its lobby
@@ -357,6 +362,7 @@ export default function DriveHud() {
         </div>
       </div>
       <div ref={streaks} className={styles.streaks} aria-hidden />
+      <VoiceHud />
       {iosTip && (
         <div className={styles.iosTip} role="status">
           <span><b>Full screen on iPhone</b>Tap <i>≡</i> beside the address, then <b>Hide Toolbar</b>. Or Share → <b>Add to Home Screen</b> to play like an app.</span>
