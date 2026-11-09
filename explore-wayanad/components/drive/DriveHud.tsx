@@ -101,9 +101,10 @@ export default function DriveHud() {
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
   // full screen (Android and others: browsers allow it only from a tap, so Start asks, and the ⛶ key); iPhone can't —
   // there the first drive shows how: ≡ → Hide Toolbar, or Add to Home Screen (app/manifest.ts)
-  const [canFull, setCanFull] = useState(false), [isFull, setIsFull] = useState(false), [iosTip, setIosTip] = useState(false);
+  const [canFull, setCanFull] = useState(false), [fsOk, setFsOk] = useState(false), [isFull, setIsFull] = useState(false), [iosTip, setIosTip] = useState(false);
   useEffect(() => {
-    setCanFull(!!document.fullscreenEnabled && matchMedia("(pointer: coarse)").matches);
+    setCanFull(!!document.fullscreenEnabled && matchMedia("(pointer: coarse)").matches); // (Start goes full screen on phones only)
+    setFsOk(!!document.fullscreenEnabled);
     const f = () => setIsFull(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", f);
     return () => document.removeEventListener("fullscreenchange", f);
@@ -392,11 +393,12 @@ export default function DriveHud() {
       {menu && (<>
         <div className={styles.menuVeil} onClick={() => setMenu(false)} aria-hidden />
         <div className={styles.menu} role="menu" aria-label="Settings">
-          <div className={styles.tile}><button type="button" onClick={() => { cycleView(); setView(game.view); }} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button><small>Camera · {VIEW_NAME[view]}</small></div>
-          <div className={styles.tile}><button type="button" onClick={() => { backOnRoad(); setMenu(false); }} aria-label="Back on the road"><Icon name="reset" /></button><small>Back on road</small></div>
-          <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); togglePause(true); }} aria-label="Pause"><Icon name="pause" /></button><small>Pause</small></div>
+          <div className={styles.tile}><button type="button" onClick={() => { cycleView(); setView(game.view); }} aria-label={`Camera: ${VIEW_NAME[view]}`}><Icon name="view" /></button><small>Camera · {VIEW_NAME[view]}</small><kbd>C</kbd></div>
+          <div className={styles.tile}><button type="button" onClick={() => { backOnRoad(); setMenu(false); }} aria-label="Back on the road"><Icon name="reset" /></button><small>Back on road</small><kbd>R</kbd></div>
+          <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); togglePause(true); }} aria-label="Pause"><Icon name="pause" /></button><small>Pause</small><kbd>Space</kbd></div>
+          <div className={styles.tile} data-desk><button type="button" onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button><small>Horn</small><kbd>H</kbd></div>
           <div className={styles.tile}><Sound icon /><small>Sound</small></div>
-          {canFull && <div className={styles.tile}><button type="button" aria-pressed={isFull} onClick={() => goFull(!isFull)} aria-label="Full screen"><Icon name={isFull ? "shrink" : "expand"} /></button><small>Full screen</small></div>}
+          {fsOk && <div className={styles.tile}><button type="button" aria-pressed={isFull} onClick={() => goFull(!isFull)} aria-label="Full screen"><Icon name={isFull ? "shrink" : "expand"} /></button><small>Full screen</small></div>}
           <div className={styles.tile} data-quit><button type="button" onClick={quit} aria-label="Quit game"><Icon name="quit" /></button><small>Quit game</small></div>
         </div>
       </>)}
