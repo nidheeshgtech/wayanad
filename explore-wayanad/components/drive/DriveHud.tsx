@@ -26,6 +26,7 @@ import { mirror } from "@/lib/mirror";
 import { cleanName } from "@/lib/names";
 import CarPicker from "@/components/garage/CarPicker";
 import HornPicker from "@/components/garage/HornPicker";
+import CarCard from "@/components/garage/CarCard";
 import { getChoice, setChoice, useChoice } from "@/lib/choice";
 import styles from "./Drive.module.scss";
 
@@ -89,6 +90,13 @@ export default function DriveHud() {
   const choice = useChoice(), [garage, setGarage] = useState(false);
   const [driverName, setDriverName] = useState(""), [roster, setRoster] = useState<string[]>([]), [invited, setInvited] = useState("");
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  // phones (the title screen's one-column layout): the car as one card that opens a sheet, instead of the full picker
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const m = matchMedia("(max-width: 860px)"), f = () => setPhone(m.matches);
+    f(); m.addEventListener("change", f);
+    return () => m.removeEventListener("change", f);
+  }, []);
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const race = useRef<HTMLDivElement>(null), raceLine = useRef<HTMLDivElement>(null), raceAt = useRef(0);
@@ -341,14 +349,16 @@ export default function DriveHud() {
                 <small>On your number plate, and above your car for other drivers</small>
               </div>
             )}
-            <div className={panelStyles.nameField}>
-              <label>Your car</label>
-              <CarPicker value={choice} onChange={setChoice} />
-            </div>
-            <div className={panelStyles.nameField}>
-              <label>Your horn</label>
-              <HornPicker />
-            </div>
+            {phone ? <CarCard /> : (<>
+              <div className={panelStyles.nameField}>
+                <label>Your car</label>
+                <CarPicker value={choice} onChange={setChoice} />
+              </div>
+              <div className={panelStyles.nameField}>
+                <label>Your horn</label>
+                <HornPicker />
+              </div>
+            </>)}
             {net.enabled && (
               <div className={panelStyles.nameField}>
                 <label>How to play</label>

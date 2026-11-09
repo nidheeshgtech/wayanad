@@ -30,13 +30,13 @@ export function setHornKind(kind: HornKind) {
 
 export function honking() { return typeof performance !== "undefined" && performance.now() < horn.until; }
 
-/** `preview`: only the sound (choosing a horn), no give-way. */
-export function honk({ audible = false, preview = false } = {}) {
+/** `preview`: only the sound (choosing a horn), no give-way; `kind`: play that voice instead of the chosen one. */
+export function honk({ audible = false, preview = false, kind }: { audible?: boolean; preview?: boolean; kind?: HornKind } = {}) {
   if (!preview) horn.until = performance.now() + HORN_MS;
   if (!horn.sound && !audible) return;
   ctx ??= new AudioContext();
   if (ctx.state === "suspended") void ctx.resume();
-  VOICES[horn.kind](ctx, ctx.currentTime);
+  VOICES[kind ?? horn.kind](ctx, ctx.currentTime);
 }
 
 /** A held note: oscillators at `freqs` through a gain envelope into `out`, from t for `length` s. */

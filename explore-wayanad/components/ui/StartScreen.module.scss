@@ -144,6 +144,22 @@
     .start { height: 58px; }
   }
 }
+// phones, the drive's title screen: no title (the loader showed it), the car as one card (components/garage/CarCard),
+// the controls as one slim row of chips — everything on one screen without scrolling.
+@media (max-width: 860px) {
+  .screen[data-compact] {
+    .title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .body { align-content: end; gap: 14px; }
+    .nameField[data-big] input { height: 52px; font-size: 22px; }
+    .nameField small { font-size: 11px; }
+    .panel { padding: 8px; border-radius: 14px; }
+    .tips { gap: 6px; }
+    .tip { grid-auto-flow: column; justify-content: center; align-items: center; gap: 8px; padding: 9px 6px; border-radius: 10px;
+      > span:not(.tipIcon) { font-size: 12px; }
+      .tipIcon svg { width: 18px; height: 18px; } }
+    .start { height: 60px; font-size: 17px; }
+  }
+}
 @media (max-width: 860px) and (max-height: 700px) {
   .screen[data-compact] { .body { gap: 8px; } .title { font-size: clamp(28px, 8vw, 40px); } .nameField[data-big] input { height: 50px; }
     .nameField small { display: none; } .tip { padding: 8px 4px 6px; } .start { height: 54px; } }
