@@ -24,11 +24,12 @@
  * made unique in the room ("Arjun", "Arjun#2").
  *
  * Messages (JSON):
- *  client → { t: "hello", name, car: { m, c }, key } once; { t: "s", s, lat, psi, v, br, leg } ~12/s; { t: "car", car } on a change
+ *  client → { t: "hello", name, car: { m, c }, key } once; { t: "s", s, lat, psi, v, br, leg, ts } ~12/s; { t: "car", car } on a change
  *           private rooms, the host: { t: "mode", mode: "race" | "free" } · { t: "start" } · { t: "lobby" }
  *           private rooms, a racer at the gate: { t: "finish", time, points }
  *  server → { t: "welcome", id, name, room, priv } · { t: "roster", players: [{ id, name, car }] } on joins, leaves and car changes
- *           { t: "st", now, p: [[id, s, lat, psi, v, br], ...] } 10/s, the nearby ones (everyone, once a second)
+ *           { t: "st", now, p: [[id, s, lat, psi, v, br, ts], ...] } 10/s, the nearby ones (everyone, once a second);
+ *           ts: the sender's clock when it sent that state (repeated each tick until a newer one comes)
  *           private rooms: { t: "room", host, phase, mode, round, startIn, closeIn, racers: [id], results: [{ id, name, time, points }] }
  *           on every change (phase: "lobby" | "countdown" | "race" | "results" | "free"; startIn / closeIn in ms from now)
  */
@@ -149,7 +150,7 @@ export class Lobby {
 }
 
 type Car = { m: string; c: string };
-type Player = { id: number; key: string; name: string; car: Car; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean };
+type Player = { id: number; key: string; name: string; car: Car; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean; ts: number };
 type Phase = "lobby" | "countdown" | "race" | "results" | "free";
 /** A driver in this round's race, by key: their time and points once at the gate (`order`: when they got there). */
 type Racer = { name: string; time?: number; points?: number; order?: number };
@@ -193,7 +194,7 @@ export class Room {
       try { msg = JSON.parse(typeof ev.data === "string" ? ev.data : ""); } catch { return; }
       if (msg.t === "hello" && !me) {
         const key = typeof msg.key === "string" && /^[a-z0-9]{8,40}$/i.test(msg.key) ? msg.key : Math.random().toString(36).slice(2);
-        me = { id: this.nextId++, key, name: this.unique(cleanName(String(msg.name ?? ""))), car: carOf(msg.car), ws, s: 3, lat: 0.2, psi: 0, v: 0, br: 0, leg: 0, at: Date.now(), seen: false };
+        me = { id: this.nextId++, key, name: this.unique(cleanName(String(msg.name ?? ""))), car: carOf(msg.car), ws, s: 3, lat: 0.2, psi: 0, v: 0, br: 0, leg: 0, at: Date.now(), seen: false, ts: 0 };
         this.players.set(ws, me);
         ws.send(JSON.stringify({ t: "welcome", id: me.id, name: me.name, room: this.room, priv: this.priv }));
         if (this.priv) {
@@ -238,7 +239,8 @@ export class Room {
     const now = Date.now(), dt = (now - p.at) / 1000, leg = n("leg") === 1 ? 1 : 0;
     const reset = s < p.s - 5 || leg !== p.leg; // restarted, or a new leg of the drive
     if (p.seen && !reset && Math.abs(s - p.s) > MAX_SPEED * dt * 1.6 + 0.5) return;
-    Object.assign(p, { s, lat: Math.max(-0.6, Math.min(0.6, lat)), psi: Math.max(-1.2, Math.min(1.2, psi)), v: Math.max(-1, Math.min(MAX_SPEED * 1.1, v)), br: n("br") ? 1 : 0, leg, at: now, seen: true });
+    const ts = n("ts"); // the sender's own clock (ms): lets everyone play the car back on its real timeline
+    Object.assign(p, { s, lat: Math.max(-0.6, Math.min(0.6, lat)), psi: Math.max(-1.2, Math.min(1.2, psi)), v: Math.max(-1, Math.min(MAX_SPEED * 1.1, v)), br: n("br") ? 1 : 0, leg, at: now, seen: true, ts: Number.isFinite(ts) ? ts : 0 });
   }
 
   /** Ten times a second: each player gets the others on the same leg within NEAR units of road; once a second, all of them. */
@@ -248,7 +250,7 @@ export class Room {
     for (const me of this.players.values()) {
       const near = all.filter((o) => o !== me && o.leg === me.leg && (everyone || Math.abs(o.s - me.s) < NEAR));
       if (!near.length && !me.seen) continue;
-      const p = near.map((o) => [o.id, +o.s.toFixed(3), +o.lat.toFixed(3), +o.psi.toFixed(3), +o.v.toFixed(2), o.br]);
+      const p = near.map((o) => [o.id, +o.s.toFixed(3), +o.lat.toFixed(3), +o.psi.toFixed(3), +o.v.toFixed(2), o.br, o.ts]);
       try { me.ws.send(JSON.stringify({ t: "st", now, p })); } catch { /* closing */ }
     }
   }

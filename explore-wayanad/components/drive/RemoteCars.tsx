@@ -41,7 +41,9 @@ function sized(source: Group, length: number) {
 const ready = new Map<string, Group>(); // painted cars that have finished loading, by "car:colour"
 const keyOf = (c: Choice) => `${c.car}:${c.colour}`;
 
-type Slot = { root: Group; tag: Sprite; id: number; name: string; detailed: boolean; key: string; paint: MeshStandardMaterial | null };
+type Slot = { root: Group; tag: Sprite; id: number; name: string; detailed: boolean; key: string; paint: MeshStandardMaterial | null;
+  /** the pose drawn: eased toward the played-back one so a late update's correction glides instead of popping */
+  shown: { s: number; lat: number; psi: number; for: number } };
 
 export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; small: boolean }) {
   const lite = use(loadVehicle("/models/traffic/suv.glb", { merged: true }));
@@ -61,19 +63,21 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
         });
         root.add(m);
       }
-      return { root, tag, id: -1, name: "", detailed, key: "", paint };
+      return { root, tag, id: -1, name: "", detailed, key: "", paint, shown: { s: 0, lat: 0, psi: 0, for: -1 } };
     };
     return [...Array.from({ length: n.full }, () => make(true)), ...Array.from({ length: n.lite }, () => make(false))];
   }, [lite, small]);
   const group = useMemo(() => { const g = new Group(); g.name = "remote-cars"; for (const p of pool) g.add(p.root, p.tag); return g; }, [pool]);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), look: new Vector3() }), []);
 
-  useFrame(({ camera }) => {
-    const L = curve.getLength(), now = performance.now(), T = tmp;
+  const snaps = useMemo(() => new Map<number, Snap>(), []);
+  useFrame(({ camera }, dt) => {
+    const L = curve.getLength(), now = performance.now(), T = tmp, ease = 1 - Math.exp(-Math.min(dt, 0.1) / 0.07);
     // the nearest drivers with fresh news, on the road you're on (the drive's first leg)
     const near: { id: number; name: string; car: Choice; st: Snap; d: number }[] = [];
     if (game.leg === 0) for (const r of net.remotes.values()) {
-      const st = remoteState(r, now, {} as Snap);
+      let snap = snaps.get(r.id); if (!snap) { snap = {} as Snap; snaps.set(r.id, snap); }
+      const st = remoteState(r, now, snap);
       if (!st || Math.abs(st.s - game.s) > VIEW) continue;
       // one inside your car (everyone starts at Adivaram) isn't drawn until you're apart: only one passing through you
       // (collideRemotes' ghost) or right inside — not one you're touching, nose to tail ~4 m apart (it used to vanish
@@ -112,6 +116,15 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
         m.map?.dispose(); m.map = texture; m.needsUpdate = true;
         slot.tag.scale.set(0.075 * aspect, 0.075, 1);
       }
+      // the drawn pose moves with the played-back one, and only a sudden difference (a late update's correction) is
+      // eased out over ~0.1 s — no lag behind where they are (bumps line up). A new driver here, or a jump, snaps
+      const sh = slot.shown, far = Math.abs(n.st.s - sh.s) > 2 || Math.abs(n.st.lat - sh.lat) > 0.5;
+      if (sh.for !== n.id || far) Object.assign(sh, { s: n.st.s, lat: n.st.lat, psi: n.st.psi, for: n.id });
+      else {
+        sh.s += n.st.v * Math.cos(n.st.psi) * Math.min(dt, 0.1); // carried along at its speed (so no lag), then eased onto it
+        sh.s += (n.st.s - sh.s) * ease; sh.lat += (n.st.lat - sh.lat) * ease; sh.psi += (n.st.psi - sh.psi) * ease;
+      }
+      n.st = { ...n.st, s: sh.s, lat: sh.lat, psi: sh.psi };
       const t = Math.min(1, Math.max(0, n.st.s / L));
       curve.getPointAt(t, T.p); curve.getTangentAt(t, T.tan);
       T.left.set(T.tan.z, 0, -T.tan.x).normalize();

@@ -19,7 +19,9 @@ import { sideContact, type Player } from "@/lib/traffic";
 export type Snap = { t: number; s: number; lat: number; psi: number; v: number; br: number };
 /** `ghost`: first met already well inside your car (everyone starts at Adivaram), so you pass through until apart;
  * `contact`: when it last touched yours (performance.now()), so a late update that jumps it deeper stays solid. */
-export type Remote = { id: number; name: string; car: Choice; buf: Snap[]; ghost?: boolean; contact?: number };
+export type Remote = { id: number; name: string; car: Choice; buf: Snap[]; ghost?: boolean; contact?: number;
+  /** their clock → ours: the smallest (arrival − their send time) seen, allowed to creep up slowly; `offAt` when last set */
+  off?: number; offAt?: number };
 /** A private room: who hosts it, where its race is (`startAt` / `closeAt`: performance.now() times), who's racing
  * this round and who has finished, in order. */
 export type Party = {
@@ -123,10 +125,21 @@ function open(room: string, name: string, car: Choice) {
       net.version++;
     } else if (m.t === "st") {
       const now = performance.now();
-      for (const [id, s, lat, psi, v, br] of m.p as number[][]) {
+      for (const [id, s, lat, psi, v, br, ts] of m.p as number[][]) {
         let r = net.remotes.get(id);
         if (!r) { const who = net.roster.find((p) => p.id === id); r = { id, name: who?.name ?? "Driver", car: who?.car ?? DEFAULT_CHOICE, buf: [] }; net.remotes.set(id, r); }
-        r.buf.push({ t: now, s, lat, psi, v, br });
+        // when the state was really sent, on our clock: their send time plus the offset between the clocks (the fastest
+        // delivery seen, creeping up 2 ms a second so a lasting change is followed). Stamping by arrival made cars
+        // surge and stall: the room batches updates every 100 ms, and repeats a state until a newer one comes
+        let t = now;
+        if (ts > 0) {
+          const sample = now - ts;
+          r.off = r.off === undefined ? sample : Math.min(sample, r.off + (now - (r.offAt ?? now)) * 0.002);
+          r.offAt = now; t = ts + r.off;
+        }
+        const last = r.buf[r.buf.length - 1];
+        if (last && (t <= last.t || (!(ts > 0) && last.s === s && last.lat === lat && last.v === v))) continue; // a repeat
+        r.buf.push({ t, s, lat, psi, v, br });
         if (r.buf.length > 24) r.buf.splice(0, r.buf.length - 24);
       }
     }
@@ -136,7 +149,7 @@ function open(room: string, name: string, car: Choice) {
 
 function send() {
   if (!ws || ws.readyState !== WebSocket.OPEN || !game.started) return;
-  ws.send(JSON.stringify({ t: "s", s: +game.s.toFixed(3), lat: +game.lat.toFixed(3), psi: +game.psi.toFixed(3), v: +game.speed.toFixed(3), br: game.braking ? 1 : 0, leg: game.leg }));
+  ws.send(JSON.stringify({ t: "s", s: +game.s.toFixed(3), lat: +game.lat.toFixed(3), psi: +game.psi.toFixed(3), v: +game.speed.toFixed(3), br: game.braking ? 1 : 0, leg: game.leg, ts: Math.round(performance.now()) }));
 }
 
 /** Try again after a while (1 s, 2 s, 4 s … up to 15 s), into the same room. */
@@ -160,9 +173,11 @@ export function leaveRoom(forget = true) {
   net.remotes.clear(); net.roster = []; net.status = "off"; net.version++;
 }
 
-/** Where a remote driver is now: their state ~150 ms ago, eased between the two updates around it, or carried on at
- * their speed for up to half a second if updates are late. null when nothing has come for 2 s (out of range, gone). */
-const DELAY = 150;
+/** Where a remote driver is now: their state ~170 ms ago on their own timeline, curved between the two updates around
+ * it using their speed at each (so speeding up and braking look smooth, not stepped), or carried on at their speed for
+ * up to 0.3 s if updates are late. null when nothing has come for 2 s (out of range, gone). */
+const DELAY = 170;
+if (typeof window !== "undefined") (window as unknown as { __wayanadRemoteState?: unknown }).__wayanadRemoteState = (r: Remote, now: number) => remoteState(r, now, {} as Snap); // for testing
 export function remoteState(r: Remote, now: number, out: Snap): Snap | null {
   const b = r.buf;
   if (!b.length || now - b[b.length - 1].t > 2000) return null;
@@ -171,11 +186,15 @@ export function remoteState(r: Remote, now: number, out: Snap): Snap | null {
   while (i > 0 && b[i - 1].t > t) i--;
   const a = b[Math.max(0, i - 1)], c = b[i];
   if (t >= c.t || a === c) {
-    const ahead = Math.min(0.5, Math.max(0, (t - c.t) / 1000));
-    return Object.assign(out, c, { s: c.s + c.v * ahead, t });
+    const ahead = Math.min(0.3, Math.max(0, (t - c.t) / 1000));
+    return Object.assign(out, c, { s: c.s + c.v * Math.cos(c.psi) * ahead, t });
   }
-  const k = Math.min(1, Math.max(0, (t - a.t) / Math.max(1, c.t - a.t)));
-  return Object.assign(out, { t, s: a.s + (c.s - a.s) * k, lat: a.lat + (c.lat - a.lat) * k, psi: a.psi + (c.psi - a.psi) * k, v: c.v, br: c.br });
+  const span = Math.max(1, c.t - a.t), k = Math.min(1, Math.max(0, (t - a.t) / span)), h = span / 1000;
+  // cubic Hermite along the road: the ends match both positions and both speeds; a jump (a restart, a reset) is linear
+  const k2 = k * k, k3 = k2 * k, va = a.v * Math.cos(a.psi) * h, vc = c.v * Math.cos(c.psi) * h;
+  const s = Math.abs(c.s - a.s) > 3 ? a.s + (c.s - a.s) * k
+    : (2 * k3 - 3 * k2 + 1) * a.s + (k3 - 2 * k2 + k) * va + (-2 * k3 + 3 * k2) * c.s + (k3 - k2) * vc;
+  return Object.assign(out, { t, s, lat: a.lat + (c.lat - a.lat) * k, psi: a.psi + (c.psi - a.psi) * k, v: a.v + (c.v - a.v) * k, br: c.br });
 }
 
 /** Keep your car out of the other drivers': run into one ahead of you (or reverse into one behind) and you're held at
