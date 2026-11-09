@@ -38,8 +38,12 @@
 .car { path { fill: #D9A441; stroke: #0e1f1a; stroke-width: 1.8; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); } }
 .carGlow { fill: rgba(217, 164, 65, .18); stroke: rgba(217, 164, 65, .45); stroke-width: 1; }
 
+// phones held sideways: small, top right, under the buttons and clear of the pedals
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .radar { --size: 104px; top: calc(52px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); }
+}
 // phones: the radar is small, so only what reads at that size
-@media (max-width: 719px) {
+@media (max-width: 719px), (pointer: coarse) and (max-height: 500px) {
   .bend text { display: none; }
   .bend circle { r: 4; }
 }

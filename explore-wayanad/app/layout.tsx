@@ -12,6 +12,8 @@ const site = process.env.VERCEL_PROJECT_PRODUCTION_URL;
 export const metadata: Metadata = {
   metadataBase: site ? new URL(`https://${site}`) : undefined,
   title: "Drive Wayanad — Thamarassery Churam 3D driving game",
+  // Add to Home Screen on iPhone: opens full screen like an app (no Safari bars), status bar over the dark page
+  appleWebApp: { capable: true, title: "Drive Wayanad", statusBarStyle: "black-translucent" },
   description: "A free 3D driving game in your browser: drive up the Thamarassery Churam into Wayanad, nine hairpins in monsoon traffic, rain and mist, to the gateway at Lakkidi. Play alone or with a friend.",
 };
 

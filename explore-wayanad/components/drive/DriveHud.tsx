@@ -51,6 +51,8 @@ const ICON = {
   right: <path d="m9 18 6-6-6-6" />,
   go: <path d="m6 15 6-6 6 6" />,
   brake: <path d="m6 9 6 6 6-6" />,
+  expand: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
+  shrink: <path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" />,
 };
 const Icon = ({ name }: { name: keyof typeof ICON }) => <svg viewBox="0 0 24 24" aria-hidden>{ICON[name]}</svg>;
 /** The start screen's controls: one tile per control, its icon, a short label and (keyboard) its key. */
@@ -90,10 +92,25 @@ export default function DriveHud() {
   const choice = useChoice(), [garage, setGarage] = useState(false);
   const [driverName, setDriverName] = useState(""), [roster, setRoster] = useState<string[]>([]), [invited, setInvited] = useState("");
   const [view, setView] = useState<View>(game.view), [mode, setMode] = useState<QualityMode>(quality.mode);
+  // full screen (Android and others: browsers allow it only from a tap, so Start asks, and the ⛶ key); iPhone can't —
+  // there the first drive shows how: ≡ → Hide Toolbar, or Add to Home Screen (app/manifest.ts)
+  const [canFull, setCanFull] = useState(false), [isFull, setIsFull] = useState(false), [iosTip, setIosTip] = useState(false);
+  useEffect(() => {
+    setCanFull(!!document.fullscreenEnabled && matchMedia("(pointer: coarse)").matches);
+    const f = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", f);
+    return () => document.removeEventListener("fullscreenchange", f);
+  }, []);
+  const goFull = (on: boolean) => {
+    try {
+      if (on && !document.fullscreenElement) void document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+      else if (!on && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    } catch {}
+  };
   // phones (the title screen's one-column layout): the car as one card that opens a sheet, instead of the full picker
   const [phone, setPhone] = useState(false);
   useEffect(() => {
-    const m = matchMedia("(max-width: 860px)"), f = () => setPhone(m.matches);
+    const m = matchMedia("(max-width: 860px), (pointer: coarse) and (max-height: 500px)"), f = () => setPhone(m.matches); // (sideways too)
     f(); m.addEventListener("change", f);
     return () => m.removeEventListener("change", f);
   }, []);
@@ -224,6 +241,16 @@ export default function DriveHud() {
     return () => { cancelAnimationFrame(raf); engine(false, 0, 0); ambience({ on: false, rain: 0, night: 0, hood: false, speed: 0 }); };
   }, []);
 
+  // iPhone in Safari, first drive: how to get the bars out of the way (once per device; not when opened from the Home Screen)
+  useEffect(() => {
+    if (screen !== "drive") return;
+    const nav = navigator as Navigator & { standalone?: boolean };
+    if (!/iP(hone|od)/.test(nav.userAgent) || nav.standalone || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches) return;
+    try { if (localStorage.getItem("wayanad-ios-tip")) return; localStorage.setItem("wayanad-ios-tip", "1"); } catch { return; }
+    setIosTip(true);
+    const t = setTimeout(() => setIosTip(false), 10000);
+    return () => clearTimeout(t);
+  }, [screen]);
   // the name you drive under (multiplayer), remembered on this device; how you played last time; an invite's room code
   useEffect(() => {
     try { setDriverName((localStorage.getItem("wayanad-name") ?? "").slice(0, NAME_MAX)); } catch {}
@@ -243,6 +270,7 @@ export default function DriveHud() {
   /** Leave a private room: back to the title screen. */
   const leaveParty = () => { leaveRoom(true); restart(); game.started = false; setFriends(false); setInviteCode(""); };
   const start = () => {
+    if (canFull) goFull(true);
     // Play with friends: the room comes first (make one, or join with a code); the drive starts from its lobby
     if (net.enabled && playMode === "friends") { commitName(); setFriends(true); return; }
     // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
@@ -306,6 +334,12 @@ export default function DriveHud() {
         </div>
       </div>
       <div ref={streaks} className={styles.streaks} aria-hidden />
+      {iosTip && (
+        <div className={styles.iosTip} role="status">
+          <span><b>Full screen on iPhone</b>Tap <i>≡</i> beside the address, then <b>Hide Toolbar</b>. Or Share → <b>Add to Home Screen</b> to play like an app.</span>
+          <button type="button" onClick={() => setIosTip(false)} aria-label="Close">✕</button>
+        </div>
+      )}
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />
@@ -321,6 +355,7 @@ export default function DriveHud() {
         <button type="button" ref={ref("back")} className={styles.backKey} {...hold((on) => { game.lookBack = on; })} title="Look back (hold B)" aria-label="Look back (hold)"><Icon name="back" /></button>
         <button type="button" ref={ref("reset")} onClick={() => { backOnRoad(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
+        {canFull && <button type="button" onClick={() => goFull(!isFull)} title={isFull ? "Exit full screen" : "Full screen"} aria-label={isFull ? "Exit full screen" : "Full screen"}><Icon name={isFull ? "shrink" : "expand"} /></button>}
         <Sound icon />
         <ThemeToggle className={styles.themeKey} />
       </div>
