@@ -48,6 +48,7 @@ import RemoteCars from "../drive/RemoteCars";
 import Coins from "../drive/Coins";
 import Snapshot from "../drive/Snapshot";
 import TeaStall from "../drive/TeaStall";
+import TyreSmoke from "@/components/drive/TyreSmoke";
 import { net } from "@/lib/net";
 import { useChoice } from "@/lib/choice";
 
@@ -180,6 +181,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       {mode === "drive" && <Coins curve={curve} />}
       {mode === "drive" && <Snapshot />}
       {mode === "drive" && <TeaStall curve={curve} />}
+      {mode === "drive" && <TyreSmoke />}
       {mode === "drive" && <ImpactFx />}
       {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
