@@ -288,3 +288,26 @@
     &[aria-pressed="true"] { color: #2a1d05; background: linear-gradient(180deg, #ffd983, #D9A441); box-shadow: 0 4px 0 #85590f; } }
   small { font: 700 10.5px/1.15 var(--font-sans), sans-serif; letter-spacing: .04em; color: var(--mute); text-align: center; }
   &[data-quit] button { color: #fff; background: linear-gradient(180deg, #e2735d, #ad3f2e); box-shadow: 0 4px 0 #64201a; } }
+
+/* nitro (DriveHud): a round key whose rim is the tank (--tank, conic), blue-lit while it fires, glowing when ready.
+   Desktop: bottom left (hold N); phones: above the gas pedal; sideways: left of the brake */
+.nitro { position: fixed; z-index: 6; left: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; align-content: center; gap: 1px;
+  width: 74px; height: 74px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #dceaff; touch-action: none; -webkit-tap-highlight-color: transparent;
+  background: radial-gradient(circle at 50% 50%, #1d3a5a 0 56%, transparent 57%), conic-gradient(#5fb4ff var(--tank, 0%), rgba(0, 0, 0, .45) 0);
+  box-shadow: 0 5px 0 #0b1b2c, 0 10px 18px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(255, 255, 255, .12); transition: transform .06s, box-shadow .06s, filter .2s;
+  svg { width: 26px; height: 26px; fill: currentColor; stroke: none; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .4)); }
+  small { font: 800 9px/1 var(--font-sans), sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+  kbd { position: absolute; right: -4px; top: -4px; padding: 2px 6px; border-radius: 6px; font: 700 10px var(--font-sans), sans-serif; color: #0e1f1a; background: #dceaff; }
+  &[data-ready] { color: #fff; animation: nitroReady 1.4s ease-in-out infinite; }
+  &[data-firing] { transform: translateY(4px); color: #fff; box-shadow: 0 1px 0 #0b1b2c, 0 0 26px rgba(95, 180, 255, .85);
+    background: radial-gradient(circle at 50% 50%, #3d7fd0 0 56%, transparent 57%), conic-gradient(#9fd2ff var(--tank, 0%), rgba(0, 0, 0, .45) 0); }
+  &[data-empty] { filter: saturate(.3) brightness(.75); } }
+@keyframes nitroReady { 50% { box-shadow: 0 5px 0 #0b1b2c, 0 0 22px rgba(95, 180, 255, .7), inset 0 0 0 2px rgba(255, 255, 255, .2); } }
+@media (pointer: coarse) {
+  .nitro { left: auto; right: 14px; bottom: calc(18px + 110px + 18px + env(safe-area-inset-bottom, 0px)); width: 70px; height: 70px; kbd { display: none; } }
+  @media (max-width: 375px) { .nitro { bottom: calc(18px + 98px + 16px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 64px; } }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .nitro { right: calc(max(14px, env(safe-area-inset-right, 0px)) + 84px * 2 + 10px + 14px); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .nitro[data-ready] { animation: none; } }

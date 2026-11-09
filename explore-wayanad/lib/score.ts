@@ -16,6 +16,7 @@
  * `pops` for the HUD to float up ("+10", "−50", "×2").
  */
 import { chime } from "@/lib/horn";
+import { NITRO, game } from "@/lib/game";
 
 export const POINTS = { coin: 10, big: 50, crash: 50, scrape: 5, reset: 100 };
 const STREAK = [[60, 3], [30, 2]] as const; // seconds clean → multiplier
@@ -43,6 +44,7 @@ export function announce(text: string, kind: Pop["kind"] = "badge") { pop(text, 
 export function begin(s: number) {
   Object.assign(score, { points: 0, coins: 0, big: 0, crashes: 0, clean: 0, mult: 1, far: s, dist: 0, drag: 0, bonus: 0, isNew: false, pops: [] });
   score.run++;
+  game.nitro = NITRO.start;
 }
 
 /** Each frame on the road: new distance earns points, and time on the move without a crash builds the multiplier. */
@@ -59,6 +61,7 @@ export function coin(big = false) {
   const n = (big ? POINTS.big : POINTS.coin) * score.mult;
   if (big) score.big++; else score.coins++;
   add(n); pop(`+${n}`, big ? "big" : "gain"); chime(big);
+  game.nitro = Math.min(1, game.nitro + (big ? NITRO.big : NITRO.coin)); // coins fill the nitro
 }
 
 /** A one-off bonus (a monkey riding on your car), multiplied like the rest; `label` floats up with the points. */

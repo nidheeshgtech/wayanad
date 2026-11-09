@@ -11,6 +11,11 @@
 export type Leg = 0 | 1; // 0: Adivaram → churam → Kalpetta; 1: Sulthan Bathery → forest → border gate
 export type View = "chase" | "near" | "hood";
 export const VIEWS: View[] = ["chase", "near", "hood"];
+/** Nitro: held (N, or the flame key), it empties the tank in `burn` s of boost — extra pull and a top speed `top`× the
+ * car's — and eases back to normal over `fade` units/s² after. Coins (`coin`, `big`) and drifts (`drift`) fill it, and a
+ * little comes back on its own while you drive (`trickle` a second). A climb starts with `start`. */
+export const NITRO = { burn: 3.2, accel: 0.75, top: 1.3, fade: 0.35, start: 0.35, coin: 0.05, big: 0.3, drift: 0.15, trickle: 0.012 };
+
 const fresh = () => ({
   active: false,
   started: false,
@@ -22,7 +27,8 @@ const fresh = () => ({
   accel: 0, sideways: 0,                      // units/s² along and across: the body pitches and rolls with them
   steer: 0,                                   // eased steering, −1 (right) … 1 (left)
   turn: 0,                                    // the steering wheel's position, winding toward input.steer at a steady rate
-  input: { throttle: 0, brake: 0, steer: 0 }, // from keys / touch: 0–1, 0–1, −1…1
+  input: { throttle: 0, brake: 0, steer: 0, nitro: 0 }, // from keys / touch: 0–1, 0–1, −1…1, nitro held 0/1
+  nitro: NITRO.start, boosting: false,        // the nitro tank (0–1: coins and drifts fill it) and whether it's firing
   assist: 0.65,                               // how much of the road's own curve is steered for you (0 = all yours)
   braking: false, scrape: 0, bump: 0,         // for lights, camera shake and sound
   speedFx: 0,                                 // how fast it feels, 0–1 (PlayerCar): a wider view, speed streaks
@@ -62,5 +68,5 @@ export function resetCar(at?: number) {
 export function togglePause(on = !game.paused) {
   if (!game.started || game.phase !== "drive") return;
   game.paused = on;
-  if (on) Object.assign(game.input, { throttle: 0, brake: 0, steer: 0 });
+  if (on) Object.assign(game.input, { throttle: 0, brake: 0, steer: 0, nitro: 0 });
 }

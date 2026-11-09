@@ -53,6 +53,7 @@ const ICON = {
   brake: <path d="m6 9 6 6 6-6" />,
   expand: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
   gear: <><circle cx="12" cy="12" r="3" /><path d="M12 2.5v2.6M12 18.9v2.6M4.6 4.6l1.9 1.9M17.5 17.5l1.9 1.9M2.5 12h2.6M18.9 12h2.6M4.6 19.4l1.9-1.9M17.5 6.5l1.9-1.9" /><circle cx="12" cy="12" r="6.6" /></>,
+  nitro: <path d="M12 2.5c.8 3.2 4.6 5.4 4.6 10a4.6 4.6 0 0 1-9.2 0c0-2.2 1.1-3.6 2.2-4.7.2 1.7 1 2.7 2 3.1-.6-2.8-.5-5.6.4-8.4z" />,
   quit: <><path d="M10 4H5.5a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 5.5 20H10" /><path d="m15 8 4 4-4 4M19 12H9" /></>,
   shrink: <path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" />,
 };
@@ -121,7 +122,7 @@ export default function DriveHud() {
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const race = useRef<HTMLDivElement>(null), raceLine = useRef<HTMLDivElement>(null), raceAt = useRef(0);
-  const streaks = useRef<HTMLDivElement>(null);
+  const streaks = useRef<HTMLDivElement>(null), nitroKey = useRef<HTMLButtonElement>(null);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "" }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -146,6 +147,7 @@ export default function DriveHud() {
       game.input.throttle = has("arrowup", "w") ? 1 : 0;
       game.input.brake = has("arrowdown", "s") ? 1 : 0;
       game.input.steer = (has("arrowleft", "a") ? 1 : 0) - (has("arrowright", "d") ? 1 : 0);
+      game.input.nitro = has("n", "shift") ? 1 : 0;
     };
     const down = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
@@ -173,6 +175,14 @@ export default function DriveHud() {
     let raf = 0;
     const tick = () => {
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
+      // the nitro key: its ring is the tank; lit while it fires, ready (glowing) when there's a good shot in it
+      if (nitroKey.current) {
+        const k = nitroKey.current, pct = Math.round(game.nitro * 100);
+        k.style.setProperty("--tank", `${pct}%`);
+        k.toggleAttribute("data-firing", game.boosting);
+        k.toggleAttribute("data-ready", game.nitro >= 0.3 && !game.boosting);
+        k.toggleAttribute("data-empty", game.nitro < 0.02);
+      }
       // speed streaks at the screen's edges, stronger the faster you go (a little flicker so they seem to rush past)
       if (streaks.current) {
         const on = game.started && game.phase === "drive" && !game.paused ? game.speedFx : 0;
@@ -234,7 +244,7 @@ export default function DriveHud() {
       // the tea itself, for a few seconds after it's served
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);
-      engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle);
+      engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle, game.boosting);
       ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
       const roomScreen = !!P && (P.phase === "lobby" || (P.phase !== "free" && !racer));
       const want = roomScreen ? "room" : !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -385,6 +395,10 @@ export default function DriveHud() {
         </div>
       </>)}
 
+      {/* nitro: hold it (or N / Shift); the ring is the tank, filled by coins and drifts */}
+      <button type="button" ref={nitroKey} className={styles.nitro} {...hold((on) => { if (!game.paused) game.input.nitro = on ? 1 : 0; })} title="Nitro (hold N)" aria-label="Nitro (hold)">
+        <Icon name="nitro" /><small>Nitro</small><kbd>N</kbd>
+      </button>
       {/* touch controls (shown on touch screens) */}
       <div className={styles.touch}>
         <div className={styles.steer} aria-hidden>

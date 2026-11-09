@@ -1,5 +1,5 @@
 import { CatmullRomCurve3, Vector3 } from "three";
-import { CAR, game } from "./game";
+import { CAR, NITRO, game } from "./game";
 import { SECTION } from "./terrain";
 
 /**
@@ -64,11 +64,16 @@ export function stepCar(road: RoadInfo, dt: number) {
   // pedals: throttle pulls (less toward top speed), the brake stops you and then reverses gently; the climb pulls back
   const { curvature, grade } = roadAt(road, g.s);
   let a = 0;
-  if (i.throttle > 0) a += v0 >= -0.02 ? CAR.accel * i.throttle * (1 - (Math.max(0, v0) / CAR.max) ** 1.6) : CAR.brake * i.throttle;
+  // nitro: while held and there's some in the tank, an extra shove and a higher top speed; after, back down gently
+  g.boosting = i.nitro > 0 && g.nitro > 0 && v0 > -0.02 && g.phase === "drive";
+  if (g.boosting) { g.nitro = Math.max(0, g.nitro - dt / NITRO.burn); a += NITRO.accel; }
+  else if (g.phase === "drive" && Math.abs(v0) > 0.3) g.nitro = Math.min(1, g.nitro + NITRO.trickle * dt);
+  if (i.throttle > 0) a += v0 >= -0.02 ? CAR.accel * i.throttle * Math.max(0, 1 - (Math.max(0, v0) / CAR.max) ** 1.6) : CAR.brake * i.throttle;
   if (i.brake > 0) a -= v0 > 0.02 ? CAR.brake * i.brake : CAR.accel * 0.5 * i.brake;
   a -= CAR.drag * v0 + Math.sign(v0) * 0.012 + G * grade * 0.5;
   a -= 0.1 * v0 * offRoad(road, g.s, g.lat); // the loose gravel of the shoulder holds you back a little
-  g.speed = Math.max(-CAR.reverse, Math.min(CAR.max, v0 + a * dt));
+  const top = g.boosting ? CAR.max * NITRO.top : Math.max(CAR.max, v0 - NITRO.fade * dt);
+  g.speed = Math.max(-CAR.reverse, Math.min(top, v0 + a * dt));
   if (i.throttle === 0 && i.brake === 0 && Math.abs(g.speed) < 0.015) g.speed = 0;
   g.accel = (g.speed - v0) / dt;
   g.braking = i.brake > 0 && g.speed > 0.02;

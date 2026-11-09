@@ -336,7 +336,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.lookBack ? "back" : game.view, { want, look, dir } = tmp;
     if (view !== C.view) { C.from.copy(camera.position); C.fromQ.copy(camera.quaternion); C.blend = 0; C.view = view; }
     // speed (game.speedFx, 0 below ~32 km/h … 1 at ~90): the view widens, the chase camera drops back, the road rumbles
-    if (!game.paused) game.speedFx += (Math.min(1, Math.max(0, (Math.abs(game.speed) - SPEED_FX.from) / SPEED_FX.span)) - game.speedFx) * Math.min(1, dt * 3);
+    if (!game.paused) game.speedFx += (Math.min(1, Math.max(0, (Math.abs(game.speed) - SPEED_FX.from) / SPEED_FX.span)) + (game.boosting ? 0.45 : 0) - game.speedFx) * Math.min(1, dt * (game.boosting ? 5 : 3));
     const fx = view === "back" ? 0 : game.speedFx, fov = (view === "hood" ? 66 : 60) + fx * SPEED_FX.fov;
     if (Math.abs(camera3.fov - fov) > 0.01) { camera3.fov += (fov - camera3.fov) * Math.min(1, dt * 8); camera3.updateProjectionMatrix(); }
     // the chase camera looks a little toward where the road goes (its direction ~12 m ahead), not only where the car
