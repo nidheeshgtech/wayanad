@@ -1,0 +1,19 @@
+// The driver portraits (DriverPicker.tsx), in the game look: chunky tiles, gold for the one chosen. One row that
+// scrolls sideways on a phone, so all seven stay one swipe away without making the sheet taller.
+$gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f;
+
+.row { display: grid; grid-auto-flow: column; grid-auto-columns: 78px; gap: 8px; overflow-x: auto; padding: 2px 2px 8px;
+  scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; &::-webkit-scrollbar { display: none; }
+  button { display: grid; justify-items: center; gap: 2px; padding: 6px 4px 7px; border-radius: 14px; cursor: pointer; scroll-snap-align: start;
+    color: var(--ink); border: 2px solid rgba(94, 122, 112, .5);
+    background: linear-gradient(180deg, rgba(43, 79, 66, .7), rgba(14, 33, 27, .85)); box-shadow: 0 3px 0 rgba(4, 14, 10, .85);
+    transition: transform .06s, box-shadow .06s; -webkit-tap-highlight-color: transparent;
+    img { width: 58px; height: 58px; border-radius: 10px; object-fit: cover; object-position: 50% 12%; background: #dfe3df; }
+    b { margin-top: 3px; font: 800 12px/1.1 var(--font-sans), sans-serif; }
+    small { font: 600 9.5px/1.15 var(--font-sans), sans-serif; color: var(--dim); text-align: center; }
+    &:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(4, 14, 10, .85); }
+    &:focus-visible { outline: 2px solid $gold; outline-offset: 2px; }
+    &[aria-checked="true"] { border-color: $gold; background: linear-gradient(180deg, rgba(217, 164, 65, .3), rgba(60, 46, 14, .75)); box-shadow: 0 3px 0 $gold-lip;
+      b { color: $gold-top; } small { color: $gold; } } } }
+
+.face { flex: none; border-radius: 50%; object-fit: cover; object-position: 50% 14%; background: #dfe3df; box-shadow: 0 0 0 2px rgba(217, 164, 65, .6); }

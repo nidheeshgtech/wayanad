@@ -104,6 +104,10 @@ $ink-dark: #1b1405;
   box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25), inset 0 2px 0 rgba(255, 255, 255, .3), 0 2px 0 rgba(0, 0, 0, .4);
   .icon { width: 22px; height: 22px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
   &[data-light] { color: #1b2a24; .icon { filter: none; } } }
+// your driver's face, with your paint in a dot at its corner
+.face { position: relative; flex: none; display: grid; width: 38px; height: 38px;
+  i { position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2px #0e1f1a; } }
+.podium li > b { display: flex; align-items: center; gap: 8px; min-width: 0; span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 .who { display: grid; gap: 3px; min-width: 0; flex: 1;
   b { font: 800 14px/1.1 var(--font-sans), sans-serif; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   small { font-size: 11px; color: var(--mute); } }
@@ -133,7 +137,7 @@ $ink-dark: #1b1405;
   b { font: 800 16px/1 var(--font-sans), sans-serif; letter-spacing: .1em; text-transform: uppercase; color: $gold-top; } span { font-size: 13px; color: var(--mute); } }
 
 @media (max-width: 480px) {
-  .slots li { min-height: 48px; gap: 8px; } .paint { width: 32px; height: 32px; } .who b { font-size: 12px; }
+  .slots li { min-height: 48px; gap: 8px; } .face { width: 32px; height: 32px; img { width: 32px !important; height: 32px !important; } } .who b { font-size: 12px; }
   .modeRow button { flex-direction: column; align-items: flex-start; } }
 
 // ---- a race's results, in the gate card ----

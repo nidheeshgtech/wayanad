@@ -6,6 +6,8 @@ import { CARS, COLOURS, carOf, colourOf, type Choice } from "@/data/cars";
 import { setChoice, useChoice } from "@/lib/choice";
 import { HORNS, horn, setHornKind, type HornKind } from "@/lib/horn";
 import HornPicker from "./HornPicker";
+import DriverPicker, { DriverFace } from "./DriverPicker";
+import { driverOf } from "@/data/drivers";
 import styles from "./CarCard.module.scss";
 
 const CarPreview = dynamic(() => import("./CarPreview"), { ssr: false, loading: () => <span className={styles.wait}>Loading…</span> });
@@ -22,12 +24,13 @@ export default function CarCard() {
   const car = carOf(choice.car), paint = colourOf(choice.colour), voice = HORNS.find((h) => h.id === kind) ?? HORNS[0];
   const openSheet = () => setOpen(true);
   return (<>
-    <div className={styles.card} role="button" tabIndex={0} aria-label={`Your car: ${car.name}, ${paint.name}, ${voice.name} horn. Customise`}
+    <div className={styles.card} role="button" tabIndex={0} aria-label={`Your car: ${car.name}, ${paint.name}, ${voice.name} horn, driven by ${driverOf(choice.driver).name}. Customise`}
       onClick={openSheet} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheet(); } }}>
       <span className={styles.thumb} aria-hidden>{!open && <CarPreview choice={choice} />}</span>
       <span className={styles.info}>
         <small>Your car</small>
         <b>{car.name}</b>
+        <span className={styles.meta}><DriverFace id={choice.driver} size={18} />{driverOf(choice.driver).name}<em>·</em>{driverOf(choice.driver).role}</span>
         <span className={styles.meta}><i style={{ background: paint.hex }} />{paint.name}<em>·</em>{voice.icon} horn</span>
       </span>
       <span className={styles.edit} aria-hidden>
@@ -57,9 +60,13 @@ function CarSheet({ initial, horn: initialHorn, onClose }: { initial: Choice; ho
         <header className={styles.ribbon}>Your car</header>
         <div className={styles.body}>
           <div className={styles.stage}>
-            <CarPreview choice={draft} />
-            <div className={styles.caption}><b>{car.name}</b><span>{colourOf(draft.colour).name}</span></div>
+            <CarPreview choice={draft} driver />
+            <div className={styles.caption}><b>{car.name}</b><span>{colourOf(draft.colour).name} · {driverOf(draft.driver).name}</span></div>
           </div>
+          <section>
+            <h3>Driver</h3>
+            <DriverPicker value={draft.driver} onChange={(d) => setDraft({ ...draft, driver: d })} />
+          </section>
           <section>
             <h3>Car</h3>
             <div className={styles.cars} role="radiogroup" aria-label="Car">

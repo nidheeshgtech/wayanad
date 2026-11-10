@@ -65,9 +65,11 @@ const MAX_SPEED = 2.8;    // units/s: the car's top speed (lib/game CAR.max)
 const CORS = { "Access-Control-Allow-Origin": "*" };
 // the cars and paints a player can pick (data/cars.ts); anything else becomes the default
 const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode", "chembra", "kuruva"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
-const carOf = (v: unknown): { m: string; c: string } => {
-  const o = (v ?? {}) as { m?: unknown; c?: unknown };
-  return { m: CARS.includes(String(o.m)) ? String(o.m) : CARS[0], c: COLOURS.includes(String(o.c)) ? String(o.c) : COLOURS[0] };
+// and who's driving (data/drivers.ts); older clients send none and get the first
+const DRIVERS = ["rider", "racer", "guard", "trekker", "auto", "mechanic", "estate"];
+const carOf = (v: unknown): { m: string; c: string; d: string } => {
+  const o = (v ?? {}) as { m?: unknown; c?: unknown; d?: unknown };
+  return { m: CARS.includes(String(o.m)) ? String(o.m) : CARS[0], c: COLOURS.includes(String(o.c)) ? String(o.c) : COLOURS[0], d: DRIVERS.includes(String(o.d)) ? String(o.d) : DRIVERS[0] };
 };
 
 export default {
@@ -157,7 +159,7 @@ export class Lobby {
   }
 }
 
-type Car = { m: string; c: string };
+type Car = { m: string; c: string; d: string };
 type Player = { id: number; key: string; name: string; car: Car; ws: WebSocket; s: number; lat: number; psi: number; v: number; br: number; leg: number; at: number; seen: boolean; ts: number; voice?: boolean };
 type Phase = "lobby" | "countdown" | "race" | "results" | "free";
 /** A driver in this round's race, by key: their time and points once at the gate (`order`: when they got there). */

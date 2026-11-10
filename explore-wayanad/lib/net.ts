@@ -14,6 +14,7 @@
  */
 import { game } from "@/lib/game";
 import { DEFAULT_CHOICE, carOf, type Choice } from "@/data/cars";
+import { driverOf } from "@/data/drivers";
 import { sideContact, type Player } from "@/lib/traffic";
 
 export type Snap = { t: number; s: number; lat: number; psi: number; v: number; br: number };
@@ -108,7 +109,7 @@ export const partyFinish = (time: number, points: number) => partySend({ t: "fin
 function open(room: string, name: string, car: Choice) {
   const sock = new WebSocket(`${BASE.replace(/^http/, "ws")}/room/${room}`);
   ws = sock;
-  sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ t: "hello", name, car: { m: car.car, c: car.colour }, key: key() })); };
+  sock.onopen = () => { retry = 0; sock.send(JSON.stringify({ t: "hello", name, car: { m: car.car, c: car.colour, d: car.driver }, key: key() })); };
   sock.onmessage = (ev) => {
     let m: { t: string; [k: string]: unknown };
     try { m = JSON.parse(ev.data as string); } catch { return; }
@@ -122,8 +123,8 @@ function open(room: string, name: string, car: Choice) {
       sender ??= setInterval(send, SEND_MS);
       net.onWelcome?.();
     } else if (m.t === "roster") {
-      net.roster = (m.players as { id: number; name: string; car?: { m: string; c: string } }[]).filter((p) => p.id !== net.id)
-        .map((p) => ({ id: p.id, name: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"] } }));
+      net.roster = (m.players as { id: number; name: string; car?: { m: string; c: string; d?: string } }[]).filter((p) => p.id !== net.id)
+        .map((p) => ({ id: p.id, name: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"], driver: driverOf(p.car?.d).id } }));
       for (const id of net.remotes.keys()) if (!net.roster.some((p) => p.id === id)) net.remotes.delete(id);
       for (const p of net.roster) { const r = net.remotes.get(p.id); if (r) { r.name = p.name; r.car = p.car; } }
       net.version++;
@@ -178,7 +179,7 @@ function schedule() {
 /** Tell the room you've changed car (the garage); remembered for reconnects. */
 export function sendCar(car: Choice) {
   if (wanted) wanted.car = car;
-  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "car", car: { m: car.car, c: car.colour } }));
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "car", car: { m: car.car, c: car.colour, d: car.driver } }));
 }
 
 export function leaveRoom(forget = true) {

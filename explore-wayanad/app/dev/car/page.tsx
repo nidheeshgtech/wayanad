@@ -14,7 +14,7 @@ export default function DevCar() {
   if (!car) return null;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", height: "100vh", background: "#0e1f1a" }}>
-      {[0, Math.PI].map((a) => <div key={a}><CarPreview choice={{ car, colour: "white" }} still={a} raw /></div>)}
+      {[0, Math.PI].map((a) => <div key={a}><CarPreview choice={{ car, colour: "white", driver: "rider" }} still={a} raw /></div>)}
       <p style={{ position: "fixed", left: 12, top: 8, color: "#eef2ee" }}>{CARS.find((c) => c.id === car)?.name}</p>
     </div>
   );

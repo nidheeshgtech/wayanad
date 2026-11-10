@@ -4,6 +4,8 @@
  * off and WAYANAD on the plates (scripts/retouch/player-*.mjs). They all handle the same for now (lib/game CAR); each
  * is drawn at its own length. `paint`: the body-paint materials the colour goes on (glass, lights, tyres keep theirs).
  */
+import { DEFAULT_DRIVER, driverOf, type DriverId } from "./drivers";
+
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
@@ -35,8 +37,9 @@ export const COLOURS: { id: ColourId; name: string; hex: string }[] = [
   { id: "orange", name: "Orange", hex: "#d45f1e" },
 ];
 
-export type Choice = { car: CarId; colour: ColourId };
-export const DEFAULT_CHOICE: Choice = { car: "lakkidi", colour: "white" };
+/** `driver`: who's driving (data/drivers.ts); saves from before drivers existed get the default one. */
+export type Choice = { car: CarId; colour: ColourId; driver: DriverId };
+export const DEFAULT_CHOICE: Choice = { car: "lakkidi", colour: "white", driver: DEFAULT_DRIVER };
 export const carOf = (id: string) => CARS.find((c) => c.id === id) ?? CARS[0];
 export const colourOf = (id: string) => COLOURS.find((c) => c.id === id) ?? COLOURS[0];
 
@@ -45,7 +48,7 @@ const KEY = "wayanad-car";
 export function savedChoice(): Choice {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (v && CARS.some((c) => c.id === v.car) && COLOURS.some((c) => c.id === v.colour)) return v;
+    if (v && CARS.some((c) => c.id === v.car) && COLOURS.some((c) => c.id === v.colour)) return { car: v.car, colour: v.colour, driver: driverOf(v.driver).id };
   } catch {}
   return DEFAULT_CHOICE;
 }

@@ -4,6 +4,7 @@ import { createRoom, joinCode, leaveRoom, net, partyLobby, partyMode, partyStart
 import { VOICE_FX, holdTalk, joinVoice, leaveVoice, setOpenMic, setVoiceFx, toggleMute, voice } from "@/lib/voice";
 import { carOf, colourOf, type Choice } from "@/data/cars";
 import { clock } from "@/lib/share";
+import { DriverFace } from "@/components/garage/DriverPicker";
 import styles from "./Party.module.scss";
 
 /* Multiplayer screens, in a game's look (chunky keys, gold for what to press, a crown for the host):
@@ -136,7 +137,7 @@ export function RoomCard({ me, onLeave }: { me: Choice; onLeave: () => void }) {
             if (!d) return <li key={`e${i}`} data-empty><button type="button" onClick={() => void share()}><GIcon name="plus" /><span>Invite</span></button></li>;
             return (
               <li key={d.id} data-me={d.id === net.id || undefined}>
-                <span className={styles.paint} style={{ background: colourOf(d.car.colour).hex }} data-light={["white", "silver", "yellow"].includes(d.car.colour) || undefined}><GIcon name="car" /></span>
+                <span className={styles.face}><DriverFace id={d.car.driver} size={38} /><i style={{ background: colourOf(d.car.colour).hex }} /></span>
                 <span className={styles.who}><b>{d.name}</b><small>{carOf(d.car.car).name}</small></span>
                 {d.id === P.host && <span className={styles.crown} title="Host"><GIcon name="crown" /></span>}
                 {d.id === net.id && <em className={styles.you}>You</em>}
@@ -184,7 +185,7 @@ export function Podium({ me }: { me: Choice }) {
   const P = net.party, [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(t); }, []);
   if (!P || P.mode !== "race") return null;
-  const names = new Map(drivers(me).map((d) => [d.id, d.name])), done = new Set(P.results.map((r) => r.id));
+  const everyone = drivers(me), names = new Map(everyone.map((d) => [d.id, d.name])), faces = new Map(everyone.map((d) => [d.id, d.car.driver])), done = new Set(P.results.map((r) => r.id));
   const still = P.racers.filter((id) => !done.has(id)), left = P.closeAt ? Math.max(0, Math.ceil((P.closeAt - performance.now()) / 1000)) : 0;
   return (
     <div className={styles.podium}>
@@ -192,7 +193,7 @@ export function Podium({ me }: { me: Choice }) {
       <ol>
         {P.results.map((r, i) => (
           <li key={`${r.id}-${i}`} data-medal={MEDAL[i]} data-me={r.id === net.id || undefined}>
-            <i>{i + 1}</i><b>{r.id === net.id ? "You" : r.name}</b><span>{clock(r.time ?? 0)}</span><em>{(r.points ?? 0).toLocaleString("en-IN")} pts</em>
+            <i>{i + 1}</i><b>{faces.has(r.id) && <DriverFace id={faces.get(r.id)!} size={i === 0 ? 34 : 26} />}<span>{r.id === net.id ? "You" : r.name}</span></b><span>{clock(r.time ?? 0)}</span><em>{(r.points ?? 0).toLocaleString("en-IN")} pts</em>
           </li>
         ))}
         {still.map((id) => (
