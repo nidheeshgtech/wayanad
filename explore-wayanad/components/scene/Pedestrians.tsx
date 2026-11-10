@@ -12,6 +12,7 @@ import { inTown, townPlan } from "./Town";
 import { weather } from "@/lib/weather";
 import { CAR, game } from "@/lib/game";
 import { sideContact, type Player } from "@/lib/traffic";
+import { honking } from "@/lib/horn";
 
 /* People on foot along the road: mostly in and around the towns (Lakkidi, Vythiri, Chundale, Kalpetta…), a sparse few on
  * the churam (never at a hairpin). They walk slowly up and down a stretch of shoulder, between the asphalt and the
@@ -66,7 +67,11 @@ type Person = {
   phase: number; skip: number; umbrella: boolean; skin: Color; lower: Color; upper: Color; brolly: Color; woman: boolean; stand: boolean; yaw: number;
   /** knocked over by the car: seconds left lying down, and how far over (0 standing … 1 down) */
   down?: number; fall?: number;
+  /** startled by your horn: seconds left of the jump aside (they hop away from the road, arms up), and how far over */
+  startle?: number; aside?: number;
 };
+/** The horn: people up to `ahead` units in front of the car (and a little behind) within `side` of it hop aside. */
+const STARTLE = { ahead: 3.2, behind: 0.4, side: 0.9, time: 0.7, hop: 0.012, step: 0.045 };
 
 function rng(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; }
 const pick = <T,>(r: () => number, a: T[]) => a[Math.floor(r() * a.length)];
@@ -182,6 +187,14 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       if ((p.down ?? 0) > 0) { p.down = Math.max(0, p.down! - dt); p.fall = Math.min(1, (p.fall ?? 0) + dt / FALL.over); }
       else if ((p.fall ?? 0) > 0) p.fall = Math.max(0, p.fall! - dt / FALL.up);
       const over = p.fall ?? 0;
+      // your horn close by: a startled hop away from the road (and they stay a step further over for a while)
+      if (game.started && game.leg === 0 && !over && honking() && !(p.startle! > 0)) {
+        const ds = p.s - game.s;
+        if (ds > -STARTLE.behind && ds < STARTLE.ahead && Math.abs(latOf(p, built.length) - game.lat) < STARTLE.side) { p.startle = STARTLE.time; p.aside = 0; }
+      }
+      if (p.startle! > 0) { p.startle = Math.max(0, p.startle! - dt); p.aside = Math.min(1, (p.aside ?? 0) + dt / 0.35); }
+      else if ((p.aside ?? 0) > 0) p.aside = Math.max(0, p.aside! - dt / 6);
+      const jumping = p.startle! > 0, hop = jumping ? Math.sin(Math.PI * (1 - p.startle! / STARTLE.time)) : 0;
       // walk the stretch, turning round at either end
       if (p.speed > 0 && dt > 0 && !over) {
         p.s += p.dir * p.speed * dt; p.phase += p.speed * dt * 62;
@@ -194,12 +207,13 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       // well out of view last time: look again only every dozen frames (they walk on meanwhile)
       if (p.skip > 0) { p.skip--; continue; }
       const { t, p: c, tan, left } = frame(p.s);
-      const d = p.lane + roadShapeAt(t).widen, x = c.x + left.x * p.side * d, z = c.z + left.z * p.side * d;
+      const d = p.lane + roadShapeAt(t).widen + STARTLE.step * (p.aside ?? 0), x = c.x + left.x * p.side * d, z = c.z + left.z * p.side * d;
       const far2 = (x - camera.position.x) ** 2 + (z - camera.position.z) ** 2;
       if (far2 > view * view) { if (far2 > (view + 10) ** 2) p.skip = 12; continue; }
-      const walking = p.speed > 0 && !over, step = Math.sin(p.phase);
-      const yaw = walking ? Math.atan2(tan.x * p.dir, tan.z * p.dir) : p.yaw;
-      T.pos.set(x, height(x, z) + (walking ? Math.abs(step) * 0.0025 : 0), z);
+      const walking = p.speed > 0 && !over && !jumping, step = Math.sin(p.phase);
+      // startled: they turn to face the road (the noise) as they hop back
+      const yaw = jumping ? Math.atan2(-left.x * p.side, -left.z * p.side) : walking ? Math.atan2(tan.x * p.dir, tan.z * p.dir) : p.yaw;
+      T.pos.set(x, height(x, z) + (walking ? Math.abs(step) * 0.0025 : 0) + hop * STARTLE.hop, z);
       T.q.setFromAxisAngle(T.up, yaw);
       // over onto the shoulder, away from the road: tipped about the road's line at their feet
       if (over) { const k = (p.down ?? 0) > 0 ? over * over : over * over * (3 - 2 * over); T.q2.setFromAxisAngle(tan, -p.side * FALL.angle * k); T.q.premultiply(T.q2); }
@@ -210,7 +224,7 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       const holding = p.umbrella && T.open > 0.05;
       for (const s of [-1, 1]) {
         const swing = walking ? step * 0.45 * s : Math.sin(p.phase) * 0.04;
-        const angle = holding && s === 1 ? -1.25 * T.open + swing * (1 - T.open) : swing;
+        const angle = jumping ? -2.2 * hop - 0.4 : holding && s === 1 ? -1.25 * T.open + swing * (1 - T.open) : swing; // arms up in a fright
         T.local.makeRotationX(angle).setPosition(T.shoulder.set(0.028 * s, 0.142, 0));
         parts.arms.setMatrixAt(i * 2 + (s + 1) / 2, T.m.multiplyMatrices(T.base, T.local));
         parts.arms.setColorAt(i * 2 + (s + 1) / 2, p.woman ? p.skin : p.upper); // blouse sleeves are short

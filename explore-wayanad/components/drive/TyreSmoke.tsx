@@ -115,6 +115,17 @@ export default function TyreSmoke() {
         pf.size = EXH.size[0]; pf.end = EXH.size[1] * (0.8 + 0.5 * Math.min(1, puffing)); pf.alpha = 0.32 + 0.18 * Math.min(1, puffing);
       }
     } else ex.current.owed = 0;
+    // a battered car (PlayerCar's dents) smokes from under the bonnet, more the worse it is
+    if (root && live && game.damage > 0.5) {
+      const E = ex.current; E.owed += 14 * (game.damage - 0.5) * 2 * dt;
+      while (E.owed >= 1) {
+        E.owed -= 1;
+        const pf = exh.puffs[E.next]; E.next = (E.next + 1) % EXH.pool;
+        pf.p.set((Math.random() - 0.5) * 0.05, 0.12, half * 0.62).applyMatrix4(root.matrixWorld);
+        pf.v.set((Math.random() - 0.5) * 0.04, 0.08 + Math.random() * 0.05, (Math.random() - 0.5) * 0.04);
+        pf.age = 0; pf.life = 1.1 + Math.random() * 0.6; pf.size = 0.03; pf.end = 0.14; pf.alpha = 0.3;
+      }
+    }
     const popping = performance.now() - exhaust.popAt < 140;
     flames.forEach((f, i) => {
       f.visible = !!root && live && (game.boosting || popping);

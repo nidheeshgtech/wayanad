@@ -90,7 +90,7 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
     // the two sets changes slot (and plate)
     const fullCount = pool.filter((p) => p.detailed).length;
     const wantsFull = near.map((n, i) => {
-      if (i >= fullCount) return false;
+      if (i >= fullCount && !carOf(n.car.car).bike) return false; // (a bike is never drawn as the stand-in SUV)
       const k = keyOf(n.car);
       if (!ready.has(k)) void paintedCar(n.car).then((g) => ready.set(k, g));
       return ready.has(k);

@@ -4,19 +4,22 @@
  * off and WAYANAD on the plates (scripts/retouch/player-*.mjs). They all handle the same for now (lib/game CAR); each
  * is drawn at its own length. `paint`: the body-paint materials the colour goes on (glass, lights, tyres keep theirs).
  */
-export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode";
+export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
  * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
  * with no rear plate gives `at`: its height off the road and size, metres; it goes on the back of the car there. */
 export type Plate = { part?: string; material?: string; at?: { y: number; w: number; h: number } };
-export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate };
+/** `bike`: a two-wheeler — ridden (a rider is built on it), narrow, leans into bends (components/drive/PlayerCar). */
+export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean };
 
 export const CARS: Car[] = [
   { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/, plate: { material: "plate_bg.0" } },
   { id: "vythiri", name: "Hatchback", file: "/models/traffic/player-hatch.glb", length: 3.99, paint: /^primary$/, plate: { part: "plate_reflector.1_0" } },
   { id: "kabini", name: "Sedan", file: "/models/traffic/player-sedan.glb", length: 3.99, paint: /^primary$/, plate: { part: "boot_grille.2_0" } },
   { id: "banasura", name: "Off-road 4×4", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/, plate: { part: "boot_scorpio_n_ext_1.2_0" } },
+  { id: "chembra", name: "Classic bike", file: "/models/traffic/enfield-real.glb", length: 2.15, paint: /^PAINT_ENFIELD$/, plate: { at: { y: 0.62, w: 0.18, h: 0.1 } }, bike: true },
+  { id: "kuruva", name: "Street bike", file: "/models/traffic/pulsar-real.glb", length: 2.0, paint: /^PAINT_PULSAR$/, plate: { at: { y: 0.66, w: 0.17, h: 0.09 } }, bike: true },
   { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 

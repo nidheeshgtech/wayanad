@@ -39,6 +39,8 @@ const fresh = () => ({
   odometer: 0, clock: 0,                      // units driven, seconds driving
   stall: 0, tea: 0, teaRun: -1, teaWait: 0,  // the tea stall below Lakkidi (components/drive/TeaStall): where, when served, which climb, seconds stopped by it
   driver: "",                                 // the name you drive under: on your car's rear plate
+  bike: false,                                // riding a two-wheeler (setVehicle): leans, no dents
+  damage: 0,                                  // how battered the car is this climb, 0–1 (PlayerCar's dents): smoke from the bonnet past half
   jumped: false,                              // started part-way up (?at=, for testing): the climb time isn't kept as a best
   reset: 0,                                   // bumped to put the car back in lane
   view: "chase" as View,                      // camera (C cycles): behind, close behind, on the bonnet
@@ -55,6 +57,11 @@ export const game: ReturnType<typeof fresh> = ((globalThis as { __wayanadGame?: 
 /** The car (a compact SUV): half length / half width (units), top speed (100 km/h) and reverse, how hard it pulls and
  * brakes (units/s²: 0.55 ≈ 0–100 in 5 s, 1.0 ≈ 1 g), rolling drag, turning radius (5.2 m) and grip (≈ 0.8 g). */
 export const CAR = { halfL: 0.2, halfW: 0.1, max: 2.8, reverse: 0.45, accel: 0.55, brake: 1.0, drag: 0.035, rMin: 0.52, grip: 0.78 };
+const CAR_DIMS = { ...CAR };
+/** A bike (data/cars `bike`): narrow and short (it slips between lanes), a little quicker off the line, turns tighter. */
+const BIKE_DIMS = { halfL: 0.105, halfW: 0.04, accel: 0.66, rMin: 0.4, reverse: 0.2 };
+/** What you're riding: sets CAR's size and handling for it (PlayerCar, when the vehicle changes). */
+export function setVehicle(bike: boolean) { Object.assign(CAR, CAR_DIMS, bike ? BIKE_DIMS : {}); game.bike = bike; }
 
 /** Put the car back in its lane, facing up the road, stopped. */
 export function resetCar(at?: number) {

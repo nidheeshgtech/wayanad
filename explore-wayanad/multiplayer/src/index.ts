@@ -64,7 +64,7 @@ const REPORT_EVERY = 600; // every 600th (1/min) the room tells the Lobby it's s
 const MAX_SPEED = 2.8;    // units/s: the car's top speed (lib/game CAR.max)
 const CORS = { "Access-Control-Allow-Origin": "*" };
 // the cars and paints a player can pick (data/cars.ts); anything else becomes the default
-const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
+const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode", "chembra", "kuruva"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
 const carOf = (v: unknown): { m: string; c: string } => {
   const o = (v ?? {}) as { m?: unknown; c?: unknown };
   return { m: CARS.includes(String(o.m)) ? String(o.m) : CARS[0], c: COLOURS.includes(String(o.c)) ? String(o.c) : COLOURS[0] };

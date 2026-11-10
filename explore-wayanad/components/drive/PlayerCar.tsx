@@ -5,7 +5,7 @@ import {
   AdditiveBlending, Box3, BufferAttribute, BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
   Object3D, PlaneGeometry, Quaternion, Raycaster, SphereGeometry, SpotLight, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type PerspectiveCamera,
 } from "three";
-import { CAR, game, type View } from "@/lib/game";
+import { CAR, game, setVehicle, type View } from "@/lib/game";
 import { collideRemotes } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
@@ -17,10 +17,10 @@ import { driveT, driveT2, driveT7, driveT8, FOREST_ROUTE } from "@/lib/drive";
 import { weather } from "@/lib/weather";
 import { duskness, nightness } from "@/lib/theme";
 import { tickBadges } from "@/lib/badges";
-import { paintCar } from "@/lib/carModel";
+import { prepareVehicle } from "@/lib/carModel";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { hit, impact } from "@/lib/impact";
-import { announce, crash, drive as scoreDrive, scrape as scoreScrape } from "@/lib/score";
+import { announce, crash, drive as scoreDrive, scrape as scoreScrape, score } from "@/lib/score";
 import { frameTimed } from "@/lib/perf";
 import { mirror } from "@/lib/mirror";
 import type { ActId } from "@/data/acts";
@@ -49,7 +49,11 @@ const VIEW = {
   back: { back: 0.62, up: 0.17, ahead: 1.2, aimUp: 0.04 }, // looking back (held): in front of the car, facing down the road
   near: { back: 0.5, up: 0.13, ahead: 0.9, aimUp: 0.07 },
   hood: { at: new Vector3(0, 0.156, 0.05), look: new Vector3(0, 0.132, 1.2) }, // eye just ahead of the windscreen, in the car's frame
+  ride: { at: new Vector3(0, 0.152, 0.03), look: new Vector3(0, 0.12, 1.2) },   // a bike's "bonnet" view: the rider's eyes, over the bars
 };
+/** Dents (cars): a hit pushes the body in round where it struck — `depth` at full strength, fading over `radius` —
+ * never more than `max` from the original shape anywhere; a new climb repairs it. Units of 10 m. */
+const DENT = { depth: 0.014, radius: 0.075, max: 0.03 };
 const YAW = { tau: 0.22, maxRate: 2.4 }; // the chase camera's heading: a damped follow, capped so hairpins never whip it round
 const BLEND = 0.4; // s to glide between views
 const up = new Vector3(0, 1, 0);
@@ -131,7 +135,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
 
   const rig = useMemo(() => {
     // scale the model to 4.0 m, wheels on the ground, centred
-    const wrap = new Group(), model = paintCar(source.clone(true), colourOf(choice.colour).hex); wrap.add(model);
+    const wrap = new Group(), model = prepareVehicle(source.clone(true), car, colourOf(choice.colour).hex); wrap.add(model);
     const box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), k = LENGTH / size.z;
     model.scale.setScalar(k); model.updateMatrixWorld(true);
     const b2 = new Box3().setFromObject(model), c2 = b2.getCenter(new Vector3());
@@ -187,7 +191,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // in any light (the lamp material alone is a dull red in daylight)
     const tail = new Box3(); body.updateMatrixWorld(true);
     body.traverse((o) => { const m = o as Mesh; if (m.isMesh && lamps.tail.includes(m.material as MeshStandardMaterial)) tail.expandByObject(m); });
-    if (tail.isEmpty()) tail.set(new Vector3(-0.09, 0.07, -LENGTH / 2), new Vector3(0.09, 0.09, -LENGTH / 2 + 0.01));
+    if (tail.isEmpty()) tail.set(car.bike ? new Vector3(-0.012, 0.072, -LENGTH / 2 + 0.01) : new Vector3(-0.09, 0.07, -LENGTH / 2), car.bike ? new Vector3(0.012, 0.08, -LENGTH / 2 + 0.02) : new Vector3(0.09, 0.09, -LENGTH / 2 + 0.01));
     const w = tail.max.x - tail.min.x, y = (tail.min.y + tail.max.y) / 2, z = tail.min.z - 0.004;
     const glow = (color: number, size: number, xs: number[]) => {
       const material = new SpriteMaterial({ map: glowTexture(), color, transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending, fog: false });
@@ -207,8 +211,46 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       body.add(mesh);
       plate = { mesh, canvas, tex, text: "" };
     }
-    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate };
-  }, [source, LENGTH, choice.colour, car.plate]);
+    // the body's panels, for dents: their own copy of the shape to push in, and the original to repair from (cars only)
+    const panels: { mesh: Mesh; orig: Float32Array }[] = [];
+    if (!car.bike) body.traverse((o) => {
+      const m = o as Mesh;
+      if (!m.isMesh || m === plate?.mesh || !(m.geometry.getAttribute("position") instanceof BufferAttribute)) return;
+      m.geometry = m.geometry.clone();
+      panels.push({ mesh: m, orig: (m.geometry.getAttribute("position").array as Float32Array).slice() });
+    });
+    const dims = new Box3().setFromObject(body).getSize(new Vector3());
+    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims };
+  }, [source, LENGTH, choice.colour, car.plate, car.bike]);
+  // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
+  useMemo(() => { setVehicle(!!car.bike); game.damage = 0; }, [car.bike, rig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dentRun = useRef(-1);
+  /** A dent where the car was hit: `where` in the car's own frame (x right, y up, z forward), `k` 0–1. */
+  const dent = (where: Vector3, k: number) => {
+    if (!rig.panels.length || k < 0.12) return;
+    game.damage = Math.min(1, game.damage + k * 0.22);
+    const c = new Vector3(0, rig.dims.y * 0.45, 0), v = new Vector3(), o = new Vector3(), dir = new Vector3();
+    const depth = DENT.depth * k, r2 = DENT.radius * DENT.radius;
+    for (const { mesh, orig } of rig.panels) {
+      const pos = mesh.geometry.getAttribute("position") as BufferAttribute, a = pos.array as Float32Array;
+      let touched = false;
+      for (let i = 0; i < pos.count; i++) {
+        v.set(a[i * 3], a[i * 3 + 1], a[i * 3 + 2]);
+        const d2 = v.distanceToSquared(where);
+        if (d2 > r2) continue;
+        const f = (1 - Math.sqrt(d2 / r2)) ** 2 * (0.75 + 0.5 * Math.random());
+        v.addScaledVector(dir.subVectors(c, v).normalize(), depth * f);
+        o.set(orig[i * 3], orig[i * 3 + 1], orig[i * 3 + 2]);
+        if (v.distanceTo(o) > DENT.max) v.sub(o).setLength(DENT.max).add(o);
+        a[i * 3] = v.x; a[i * 3 + 1] = v.y; a[i * 3 + 2] = v.z; touched = true;
+      }
+      if (touched) { pos.needsUpdate = true; mesh.geometry.computeVertexNormals(); }
+    }
+  };
+  const repair = () => {
+    game.damage = 0;
+    for (const { mesh, orig } of rig.panels) { const pos = mesh.geometry.getAttribute("position") as BufferAttribute; (pos.array as Float32Array).set(orig); pos.needsUpdate = true; mesh.geometry.computeVertexNormals(); }
+  };
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
@@ -217,6 +259,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   // before the director and traffic each frame (negative priority runs first and leaves rendering to R3F)
   useFrame((_, dt) => frameTimed("player", () => {
     const road = roads[Math.min(game.leg, roads.length - 1)];
+    if (dentRun.current !== score.run) { if (dentRun.current >= 0) repair(); dentRun.current = score.run; } // a new climb: a fresh car
     if (game.reset !== lastReset.current || game.leg !== lastLeg.current) { lastReset.current = game.reset; lastLeg.current = game.leg; settle(); cam.current.ready = false; }
     let alpha = 1;
     const speedBefore = game.speed;
@@ -238,7 +281,14 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
         // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
         // round a vehicle you're touching stays quiet), again only if it gets clearly harder
         const T = touching.current;
-        if (knock > 0) { if (knock > T.peak + 0.12) { hit(knock); if (T.peak === 0 && knock > 0.15) crash(); T.peak = knock; } T.clear = 0; }
+        if (knock > 0) {
+          if (knock > T.peak + 0.12) {
+            hit(knock); if (T.peak === 0 && knock > 0.15) crash(); T.peak = knock;
+            // the dent: the front if you were going forward into it, else the back
+            dent(new Vector3((Math.random() - 0.5) * rig.dims.x * 0.6, rig.dims.y * (0.35 + Math.random() * 0.2), (speedBefore >= 0 ? 1 : -1) * rig.dims.z * 0.5), knock);
+          }
+          T.clear = 0;
+        }
         else if ((T.clear += dt) > 0.4) T.peak = 0;
       }
       if (game.leg === 0 && game.s > road.length * 0.995) { game.phase = "between"; game.speed = 0; }
@@ -255,7 +305,11 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       C2.loss += Math.max(0, Math.abs(speedBefore) - Math.abs(game.speed));
       const strength = Math.min(1, Math.max(game.scrape, C2.loss * 1.6));
       if (scoring) scoreScrape(dt); // points drain while you grind along the barrier; a hard hit loses the streak
-      if (strength > C2.peak + 0.12) { hit(strength); if (scoring && strength > 0.4 && C2.peak < 0.4) crash(false); C2.peak = strength; }
+      if (strength > C2.peak + 0.12) {
+        hit(strength); if (scoring && strength > 0.4 && C2.peak < 0.4) crash(false); C2.peak = strength;
+        // the barrier or the bank: along the side that hit it (+lat is the road's left, the car's −x), toward the front
+        dent(new Vector3(-Math.sign(game.lat) * rig.dims.x * 0.5, rig.dims.y * (0.3 + Math.random() * 0.25), rig.dims.z * (0.1 + Math.random() * 0.3)), strength);
+      }
     } else if (game.scrape < 0.02) { C2.loss = 0; C2.peak = 0; }
     lastScrape.current = game.scrape;
 
@@ -300,7 +354,10 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // springs: the body dips under braking, squats when pulling away, leans out of bends
     if (!game.paused) {
       const sp = spring.current, k = 140, c = 16, d = Math.min(dt, 0.05);
-      const wantP = Math.max(-0.035, Math.min(0.035, -game.accel * 0.03)), wantR = Math.max(-0.045, Math.min(0.045, game.sideways * 0.05));
+      // (a bike leans into the bend instead, as far as the turn needs: atan(sideways / g), the units in 10 m)
+      const wantP = Math.max(-0.035, Math.min(0.035, -game.accel * 0.03)) * (car.bike ? 0.4 : 1);
+      const wantR = car.bike ? Math.max(-0.75, Math.min(0.75, -Math.atan((game.sideways * 10) / 9.8) - game.steer * 0.12 * Math.min(1, Math.abs(game.speed))))
+        : Math.max(-0.045, Math.min(0.045, game.sideways * 0.05));
       sp.vp += (k * (wantP - sp.pitch) - c * sp.vp) * d; sp.pitch += sp.vp * d;
       sp.vr += (k * (wantR - sp.roll) - c * sp.vr) * d; sp.roll += sp.vr * d;
       body.rotation.set(sp.pitch, 0, sp.roll);
@@ -354,9 +411,11 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     }
     if (view === "hood") {
       root.updateMatrixWorld();
-      want.copy(VIEW.hood.at).applyMatrix4(root.matrixWorld); look.copy(VIEW.hood.look).applyMatrix4(root.matrixWorld);
+      const hv = car.bike ? VIEW.ride : VIEW.hood;
+      want.copy(hv.at).applyMatrix4(root.matrixWorld); look.copy(hv.look).applyMatrix4(root.matrixWorld);
     } else {
-      const v = VIEW[view];
+      // a bike is half a car's size: the camera comes in closer and lower, so it fills the view the same
+      const v0 = VIEW[view], bk = car.bike ? 0.62 : 1, v = { back: v0.back * bk, up: v0.up * (car.bike ? 0.7 : 1), ahead: v0.ahead, aimUp: v0.aimUp * (car.bike ? 0.75 : 1) };
       dir.set(Math.sin(C.yaw), 0, Math.cos(C.yaw));
       if (view === "back") dir.negate();
       want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back * (1 + fx * SPEED_FX.back)).addScaledVector(up, v.up * (1 - fx * 0.12));

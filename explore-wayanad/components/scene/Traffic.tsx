@@ -20,6 +20,11 @@ const lampGeometry = new BoxGeometry(.025,.013,.005);
 const FALL = 1.4;
 /** In a private race only every RACE_KEEP-th vehicle stays on the road (a quarter of the traffic). */
 const RACE_KEEP = 4;
+/** Paint for the small cars and vans (their body material tinted, one shared material per paint): white the most
+ * common, as on Kerala roads, then silver, red, blue, maroon, green, sand and the odd yellow. */
+const PAINTS = [0xffffff, 0xffffff, 0xffffff, 0xd2d6d8, 0xd2d6d8, 0xc93a32, 0x3f66b0, 0x7a2430, 0x3f7a52, 0xd8c79a, 0xe7c34a];
+const PAINTABLE = /wagonr|omni/, BODY = /^(body|chassis_ok)/;
+const tinted = new Map<string, MeshStandardMaterial>();
 /* Advertising panels on the buses' sides, below the windows and above the wheels, as Kerala buses carry them
  * (data/sponsors.ts BUS_SIDES, handed out over the buses in turn; unsold: "Advertise on this bus"). 4 m × 0.6 m. */
 const BUS = /bus|ksrtc/, AD = { length: .4, height: .06, y: .36, z: -.06 };
@@ -106,6 +111,12 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const lights: MeshStandardMaterial[] = [], owned: MeshStandardMaterial[] = [];
     model.traverse(o => { if (!(o instanceof Mesh)) return; o.castShadow = !small; o.receiveShadow = true;
       const adapt = (m: MeshStandardMaterial) => {
+        if (PAINTABLE.test(spec.name) && BODY.test(m.name)) {
+          const hex = PAINTS[(v.id * 7 + v.kind) % PAINTS.length], key = `${m.uuid}|${hex}`;
+          let t = tinted.get(key);
+          if (!t) { t = m.clone(); t.color.setHex(hex); tinted.set(key, t); }
+          return t;
+        }
         if (m.name === 'headlights') {
           const copy = m.clone(); owned.push(copy);
           copy.emissive.set(0xffe6a6); lights.push(copy);

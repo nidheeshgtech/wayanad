@@ -69,7 +69,7 @@ function CarSheet({ initial, horn: initialHorn, onClose }: { initial: Choice; ho
             </div>
           </section>
           <section>
-            <h3>Paint</h3>
+            <h3>{car.bike ? "Jacket & helmet" : "Paint"}</h3>
             <div className={styles.paints} role="radiogroup" aria-label="Paint">
               {COLOURS.map((c) => (
                 <button key={c.id} type="button" role="radio" aria-checked={c.id === draft.colour} aria-label={c.name} title={c.name}
