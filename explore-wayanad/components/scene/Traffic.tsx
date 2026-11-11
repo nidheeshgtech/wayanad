@@ -13,7 +13,14 @@ import { weather } from '@/lib/weather';
 import { duskness } from '@/lib/theme';
 import { frameTimed } from '@/lib/perf';
 import { net } from '@/lib/net';
-import { hasOccupants, occupantMaterial, occupantsFor } from '@/lib/occupants';
+import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from '@/lib/occupants';
+import { addRider } from '@/lib/carModel';
+import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
+/** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
+ * nearest `bus` seats; phones fewer and nearer. */
+const CREW = { full: { near: 4.5, cap: 18, bus: 6 }, small: { near: 3, cap: 7, bus: 3 } };
+const RIDERLESS = /^(pulsar|enfield)-real$/;
+const JACKETS = ['#1d2230', '#7a2f34', '#2f4f7a', '#3f5f3a', '#4a4a52', '#8a5a2b'];
 import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
 /** How far a knocked-over bike lies over (radians, ~80°: on its side, the handlebar and pegs hold it a little off flat). */
@@ -104,9 +111,11 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true, skip: 0 };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0 };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
+    // a bike without a rider in its file: a built one (sized before it, so the bike keeps its own proportions)
+    if (RIDERLESS.test(spec.name)) addRider(model, JACKETS[v.id % JACKETS.length]);
     model.scale.set(spec.width / size.x, spec.height / size.y, scale); model.position.set(-center.x * spec.width / size.x, -bounds.min.y * spec.height / size.y, -center.z * scale);
     const lights: MeshStandardMaterial[] = [], owned: MeshStandardMaterial[] = [];
     model.traverse(o => { if (!(o instanceof Mesh)) return; o.castShadow = !small; o.receiveShadow = true;
@@ -155,9 +164,11 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       }
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
-    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false };
+    const seats = (people?.geometry.userData.seats as OccupiedSeat[] | undefined) ?? null;
+    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0 };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
+  useEffect(() => { if (process.env.NODE_ENV !== 'production') (globalThis as { __trafficObjects?: unknown }).__trafficObjects = { objects, fleet }; }, [objects, fleet]);
   useFrame(({ camera }, dt) => frameTimed('traffic', () => {
     // where the viewer's seat is on this road (traffic runs on the churam/Kalpetta road only)
     const { act, progress } = scrollState, length = curve.getLength();
@@ -193,7 +204,8 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     last.current = viewer ?? null;
     const st = trafficControl.staged >= 0 ? fleet.find(f => f.id === trafficControl.staged) : undefined; // dev review only
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
-    let visible = 0;
+    let visible = 0, aboard = 0;
+    const crewing = small ? CREW.small : CREW.full; crewFrame();
     const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
     for (let i = 0; i < fleet.length; i++) {
@@ -211,6 +223,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       o.root.visible = far2 < range * range && v.distance > 3 && v.distance < length - 3;
       if (!o.root.visible) {
         o.fresh = true; if (o.people) o.people.visible = false;
+        if (o.crew) { disembark(o.crew, o.root); o.crew = null; }
         if (far2 > (view + 15) ** 2) o.skip = 12;
         continue;
       }
@@ -232,7 +245,13 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         if (!o.honked && jt > 0.35) { o.honked = true; honk({ audible: true, preview: true, kind: /bus|truck|lorry/i.test(VEHICLES[v.kind].name) ? 'bus' : 'car' }); }
       } else if (o.honked && !((v.jolt ?? 0) > 0)) o.honked = false;
       visible++;
-      if (o.people) o.people.visible = far2 < 14 ** 2; // people inside only where you could see them
+      // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
+      if ((o.seats || o.bike) && far2 < crewing.near ** 2 && (o.crew || aboard < crewing.cap)) {
+        o.crew = board(o.crew, o.root, v.id, o.seats, o.bike || null, BUS.test(VEHICLES[v.kind].name) ? crewing.bus : 8);
+        aboard += o.crew.people.length;
+        poseCrew(o.crew, o.root, dt, !!o.bike);
+      } else if (o.crew) { disembark(o.crew, o.root); o.crew = null; }
+      if (o.people) o.people.visible = far2 < 14 ** 2 && !o.crew?.done; // people inside only where you could see them
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
       // stopped after a hit: every lamp blinking, like hazards
       const hazard = (v.jolt ?? 0) > 0 && Math.floor((v.joltT ?? 0) * 2.6) % 2 === 0;

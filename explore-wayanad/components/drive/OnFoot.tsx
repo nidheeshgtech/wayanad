@@ -9,12 +9,12 @@ import { driverOf, type DriverId } from "@/data/drivers";
 import { loadCast, makeActor, type Actor } from "@/lib/people";
 
 /* Out of the vehicle (lib/game `foot`): stopped, Enter (or the door key) gets your driver out by their door to walk
- * about — the same keys walk (up: forward, down: back, left/right: turn; nitro: hurry) — and look at the view; Enter
+ * about — the same keys walk (up: forward, down: back, left/right: turn; Shift or the nitro key: run) — and look at the view; Enter
  * by the car or bike gets back in. A camera over their shoulder. They keep to the road and its shoulders (no further
  * than `ROAM.side` from the centre line, not up a cut face or over the edge), and not far from where they left the
  * vehicle. Units of 10 m. */
 const ROAM = { side: 0.85, along: 25, climb: 0.03, drop: 0.05 }; // off the centre line; from the vehicle; per step up / down
-const PACE = { walk: 0.14, hurry: 0.36, turn: 2.2 };                // units/s (1.4 m/s, a jog), radians/s
+const PACE = { walk: 0.16, run: 0.5, turn: 2.4 };                   // units/s (1.6 m/s; a run, 5 m/s), radians/s
 const DOOR = { out: 0.055, reach: 0.11 };                           // stepped out this far beside it; back in from this close
 const CAMERA = { back: 0.36, up: 0.085, eye: 0.15, ahead: 0.6 };
 
@@ -75,17 +75,18 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     const st = S.current;
 
     // walking: the drive keys, turned to feet
-    const go = game.input.throttle - game.input.brake, hurry = game.input.nitro > 0 && go > 0;
+    const go = game.input.throttle - game.input.brake, running = game.input.nitro > 0 && go > 0;
     F.yaw += game.input.steer * PACE.turn * dt;
-    const v = go * (hurry ? PACE.hurry : PACE.walk), nx = F.x + Math.sin(F.yaw) * v * dt, nz = F.z + Math.cos(F.yaw) * v * dt;
+    const v = go * (running ? PACE.run : PACE.walk), nx = F.x + Math.sin(F.yaw) * v * dt, nz = F.z + Math.cos(F.yaw) * v * dt;
     if (v !== 0) {
       const next = place(nx, nz, st.s);
       // not up a cut face, not over the edge, not off into the trees, not far from the vehicle
       const ok = Math.abs(next.lat) < ROAM.side && next.y - st.y < ROAM.climb && st.y - next.y < ROAM.drop && Math.abs(next.s - game.s) < ROAM.along;
       if (ok) { F.x = nx; F.z = nz; st.s = next.s; st.y = next.y; st.moved += Math.abs(v) * dt; }
-    }
-    const act = A.play(v !== 0 ? "walk" : "idle");
-    if (act) act.timeScale = v !== 0 ? Math.sign(v) * Math.abs(v) / 0.115 : 1;
+    } else { const here = place(F.x, F.z, st.s); st.s = here.s; st.y = here.y; } // (standing: kept on the ground wherever they are)
+    // the step matched to the pace (the clips cover ~1.15 m/s walking, ~4.5 m/s running); backwards, the walk reversed
+    const act = A.play(running ? "run" : v !== 0 ? "walk" : "idle", 0.2);
+    if (act) act.timeScale = running ? v / 0.45 : v !== 0 ? v / 0.115 : 1;
     A.mixer.update(dt);
     holder.position.set(F.x, st.y, F.z); holder.rotation.set(0, F.yaw, 0);
     // close enough to get back in?

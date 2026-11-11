@@ -187,7 +187,10 @@ export default function DriveHud() {
         k.style.setProperty("--tank", `${pct}%`);
         k.toggleAttribute("data-firing", game.boosting);
         k.toggleAttribute("data-ready", game.nitro >= 0.3 && !game.boosting);
-        k.toggleAttribute("data-empty", game.nitro < 0.02);
+        k.toggleAttribute("data-empty", game.nitro < 0.02 && !game.foot.on);
+        // on foot the key runs
+        const tag = k.querySelector("small"), want = game.foot.on ? "Run" : "Nitro";
+        if (tag && tag.textContent !== want) tag.textContent = want;
       }
       // the door key: "get out" once you've stopped, "get in" when you're walking by your ride; hidden otherwise
       if (doorKey.current) {
@@ -412,7 +415,7 @@ export default function DriveHud() {
       </>)}
 
       {/* nitro: hold it (or N / Shift); the ring is the tank, filled by coins and drifts */}
-      <button type="button" ref={nitroKey} className={styles.nitro} {...hold((on) => { if (!game.paused) game.input.nitro = on ? 1 : 0; })} title="Nitro (hold N)" aria-label="Nitro (hold)">
+      <button type="button" ref={nitroKey} className={styles.nitro} {...hold((on) => { if (!game.paused) game.input.nitro = on ? 1 : 0; })} title="Nitro (hold N) · on foot: run (hold Shift)" aria-label="Nitro, or run on foot (hold)">
         <Icon name="nitro" /><small>Nitro</small><kbd>N</kbd>
       </button>
       {/* stopped: get out and walk (Enter); walking by your ride: get back in */}

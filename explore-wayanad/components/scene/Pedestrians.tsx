@@ -13,7 +13,7 @@ import { weather } from "@/lib/weather";
 import { CAR, game } from "@/lib/game";
 import { sideContact, type Player } from "@/lib/traffic";
 import { honking } from "@/lib/horn";
-import { DRIVERS, type DriverId } from "@/data/drivers";
+import { DRIVERS, EXTRAS, personHeight, type PersonId } from "@/data/drivers";
 import { loadCast, makeActor, type Actor } from "@/lib/people";
 
 /* People on foot along the road: mostly in and around the towns (Lakkidi, Vythiri, Chundale, Kalpetta…), a sparse few on
@@ -33,11 +33,13 @@ const TOWN_SHARE = 0.75, PAIR = 0.35, STAND = 0.15, UMBRELLA = 0.5;
 const BODY = 0.03; // a person's half-width, units (for the car on the shoulder)
 /** Up close, people are the cast as real 3D people (lib/people), walking: the nearest `max` within `near` units of the
  * camera, at most `per` of any one person at once; further off, the simple built figures. Phones load fewer of the cast. */
-const CLOSE = { full: { near: 9, max: 10, per: 3 }, small: { near: 6, max: 5, per: 2 } };
-const WOMEN_CAST: DriverId[] = ["racer", "trekker"], MEN_CAST: DriverId[] = ["rider", "guard", "auto", "mechanic", "estate"];
+// (and a middle ring, `mid` units, of up to `midMax` in their light copies: so nearly everyone you can make out is real)
+const CLOSE = { full: { near: 9, max: 10, per: 3, mid: 18, midMax: 22 }, small: { near: 6, max: 5, per: 2, mid: 11, midMax: 8 } };
+const WOMEN_CAST: PersonId[] = ["racer", "trekker", ...EXTRAS.filter((e) => e.woman).map((e) => e.id)];
+const MEN_CAST: PersonId[] = ["rider", "guard", "auto", "mechanic", "estate", ...EXTRAS.filter((e) => !e.woman).map((e) => e.id)];
 // (dev: ?nocast leaves everyone as the built figures, to compare the frame rate)
 const NO_CAST = process.env.NODE_ENV !== "production" && typeof location !== "undefined" && location.search.includes("nocast");
-const SMALL_CAST = new Set<DriverId>(["rider", "auto", "estate", "trekker", "racer"]);
+const SMALL_CAST = new Set<PersonId>(["rider", "auto", "estate", "trekker", "racer", "saree", "lungi", "churidar", "school", "student"]);
 
 /* The people now walking (the mounted component's), and where one stands across the road: units left of the centre
  * line, as the car's `lat`. The car can run onto the shoulder they walk (lib/carPhysics OFF_ROAD): it stops for them,
@@ -79,7 +81,7 @@ type Person = {
   /** startled by your horn: seconds left of the jump aside (they hop away from the road, arms up), and how far over */
   startle?: number; aside?: number;
   /** who they are up close (data/drivers.ts: the cast walks the road too), and the 3D body they have while near */
-  cast: DriverId; actor?: Actor | null;
+  cast: PersonId; actor?: Actor | null; lo?: boolean;
 };
 /** The horn: people up to `ahead` units in front of the car (and a little behind) within `side` of it hop aside. */
 const STARTLE = { ahead: 3.2, behind: 0.4, side: 0.9, time: 0.7, hop: 0.012, step: 0.045 };
@@ -194,13 +196,19 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
   }), []);
 
   // the cast up close: loaded once the drive is under way, then bodies made one a frame as they're needed, kept and reused
-  const cast = useRef({ ready: new Map<DriverId, Awaited<ReturnType<typeof loadCast>>>(), free: new Map<DriverId, Actor[]>(), out: new Map<DriverId, number>(), group: new Group(), made: false });
+  // (pools keyed by person and detail: "saree" up close, "saree:lo" further off)
+  const cast = useRef({ ready: new Map<string, Awaited<ReturnType<typeof loadCast>>>(), free: new Map<string, Actor[]>(), out: new Map<string, number>(), group: new Group(), made: false });
   useEffect(() => {
     const C = cast.current; C.group.name = "pedestrians-3d"; built.group.add(C.group);
     let gone = false;
-    const ids = DRIVERS.map((d) => d.id).filter((id) => !small || SMALL_CAST.has(id));
-    // after the scene's first seconds, so the start isn't held up by them
-    const t = setTimeout(() => { for (const id of ids) void loadCast(id).then((v) => { if (!gone) C.ready.set(id, v); }); }, 2500);
+    const ids = [...DRIVERS.map((d) => d.id), ...EXTRAS.map((e) => e.id)].filter((id) => !small || SMALL_CAST.has(id));
+    // after the scene's first seconds, so the start isn't held up by them: the light copies first (they're most of who
+    // you see), then the full ones
+    const t = setTimeout(() => {
+      for (const id of ids) loadCast(id, true).then((v) => { if (!gone) C.ready.set(`${id}:lo`, v); }, () => {});
+      // (phones: the light copies only, up close too — a fraction of the download)
+      if (!small) for (const id of ids) loadCast(id).then((v) => { if (!gone) C.ready.set(id, v); }, () => {});
+    }, 2500);
     return () => {
       gone = true; clearTimeout(t); built.group.remove(C.group);
       for (const p of built.people) p.actor = null;
@@ -211,27 +219,31 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
 
   useFrame(({ camera }, dt) => frameTimed("pedestrians", () => {
     const { people, parts, frame } = built, T = tmp, view = small ? VIEW.small : VIEW.full;
-    const C = cast.current, close = NO_CAST ? { near: 0, max: 0, per: 0 } : small ? CLOSE.small : CLOSE.full;
-    let bodies = 0, madeOne = false;
-    /** A 3D body for `p` now (theirs already, a spare one, or a new one — at most one made a frame), or null. */
-    const bodyFor = (p: Person) => {
-      if (p.actor) return p.actor;
-      if (bodies >= close.max || (C.out.get(p.cast) ?? 0) >= close.per) return null;
-      let a = C.free.get(p.cast)?.pop() ?? null;
+    const C = cast.current, close = NO_CAST ? { near: 0, max: 0, per: 0, mid: 0, midMax: 0 } : small ? CLOSE.small : CLOSE.full;
+    let bodies = 0, lights = 0, madeOne = false;
+    const keyOf = (p: Person, lo: boolean) => `${p.cast}${lo ? ":lo" : ""}`;
+    /** A 3D body for `p` now, full or light (theirs already, a spare one, or a new one — at most one made a frame), or null. */
+    const bodyFor = (p: Person, lo: boolean) => {
+      if (p.actor && p.lo === lo) return p.actor;
+      if (p.actor) letGo(p);
+      const k = keyOf(p, lo);
+      if (lo ? lights >= close.midMax : bodies >= close.max || (C.out.get(k) ?? 0) >= close.per) return null;
+      let a = C.free.get(k)?.pop() ?? null;
       if (!a) {
-        const src = C.ready.get(p.cast);
+        const src = C.ready.get(k);
         if (!src || madeOne) return null;
-        a = makeActor(p.cast, src[0], src[1], 0.172); madeOne = true; C.group.add(a.root);
+        a = makeActor(p.cast, src[0], src[1], personHeight(p.cast) / 10); madeOne = true; C.group.add(a.root);
       }
       a.root.visible = true; a.play(p.speed > 0 ? "walk" : "idle", 0); a.mixer.setTime(p.phase % 4);
-      C.out.set(p.cast, (C.out.get(p.cast) ?? 0) + 1); p.actor = a;
+      C.out.set(k, (C.out.get(k) ?? 0) + 1); p.actor = a; p.lo = lo;
       return a;
     };
     const letGo = (p: Person) => {
       const a = p.actor; if (!a) return;
+      const k = keyOf(p, !!p.lo);
       a.root.visible = false; p.actor = null;
-      C.out.set(p.cast, Math.max(0, (C.out.get(p.cast) ?? 1) - 1));
-      (C.free.get(p.cast) ?? C.free.set(p.cast, []).get(p.cast)!).push(a);
+      C.out.set(k, Math.max(0, (C.out.get(k) ?? 1) - 1));
+      (C.free.get(k) ?? C.free.set(k, []).get(k)!).push(a);
     };
     dt = game.paused ? 0 : Math.min(dt, 0.1);
     // umbrellas open together as the rain sets in, and close after it
@@ -274,9 +286,9 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       if (over) { const k = (p.down ?? 0) > 0 ? over * over : over * over * (3 - 2 * over); T.q2.setFromAxisAngle(tan, -p.side * FALL.angle * k); T.q.premultiply(T.q2); }
       T.base.compose(T.pos, T.q, T.sc.setScalar(p.scale));
       // up close: the cast member, walking (their step matched to their pace) or standing; the built figure otherwise
-      const near = far2 < close.near * close.near ? bodyFor(p) : (p.actor && letGo(p), null);
+      const near = far2 < close.near * close.near ? bodyFor(p, false) ?? bodyFor(p, true) : far2 < close.mid * close.mid ? bodyFor(p, true) : (p.actor && letGo(p), null);
       if (near) {
-        bodies++;
+        if (p.lo) lights++; else bodies++;
         near.root.position.copy(T.pos); near.root.quaternion.copy(T.q); near.root.scale.setScalar(p.scale);
         const act = near.play(walking ? "walk" : "idle");
         if (act) act.timeScale = walking ? p.speed / 0.115 : 1;

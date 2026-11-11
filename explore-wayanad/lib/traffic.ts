@@ -7,7 +7,8 @@ export const VEHICLES = [
   { name: 'ksrtc-real', height: .262, length: .94, width: .225, speed: .62 },
   { name: 'wagonr-real', height: .169, length: .36, width: .171, speed: .8 },
   { name: 'innova-real', height: .168, length: .458, width: .208, speed: .76 },
-  { name: 'rider-bike-real', height: .128, length: .21, width: .102, speed: .72 },
+  // (the street bike without a rider in the file: Traffic seats one — the cast up close, a built rider further off)
+  { name: 'pulsar-real', height: .129, length: .2, width: .093, speed: .72 },
   { name: 'lorry-real', height: .324, length: .78, width: .271, speed: .52 },
   { name: 'auto-real', height: .17, length: .265, width: .146, speed: .55 },
   { name: 'omni-real', height: .171, length: .34, width: .174, speed: .65 },
@@ -26,7 +27,7 @@ export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: n
 /** Hit harder than this (closing speed, units/s ≈ 11 km/h) a car, bus or lorry jolts and stops this long. */
 export const JOLT = { min: 0.3, stop: 3.2 };
 /** Two-wheelers fall over when you hit them (the rest are solid and just stop you). */
-export const isTwoWheeler = (kind: number) => /bike|scooter/.test(VEHICLES[kind].name);
+export const isTwoWheeler = (kind: number) => /bike|scooter|pulsar|enfield/.test(VEHICLES[kind].name);
 /** A knocked-over bike: down for this long (s), then the rider picks it up (Traffic eases the bike upright) and rides on. */
 export const KNOCKED = { down: 6, min: 0.05 };
 /** Shared with the dev review panel (WeatherDebug): pause/rate, what's nearby, and the viewer's seat and give-way state.

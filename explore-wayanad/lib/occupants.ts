@@ -10,6 +10,8 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
  */
 type Seat = { x: number; y: number; z: number; p: number }; // head height y; p = chance someone sits there
 type Plan = { length: number; seats: Seat[] };              // the real vehicle's length the seats are measured on
+/** A seat someone's in: head position in the caller's units, whether it's the driver's, and the units per metre. */
+export type OccupiedSeat = { x: number; y: number; z: number; driver: boolean; k: number };
 
 const row = (z: number, xs: number[], y: number, p: number): Seat[] => xs.map((x) => ({ x, y, z, p }));
 const PLANS: Record<string, Plan> = {
@@ -23,6 +25,8 @@ const PLANS: Record<string, Plan> = {
     seats: [{ x: -0.78, y: 2.05, z: 3.95, p: 1 }, ...Array.from({ length: 10 }, (_, i) => row(3.0 - i * 0.78, [-0.85, -0.42, 0.42, 0.85], 2.15, 0.72)).flat()],
   },
 };
+// the government and private buses: seated like the tour bus (same 9.4 m body), driver on the right
+PLANS["ksrtc-real"] = PLANS["privatebus-real"] = PLANS["tourbus-real"];
 export const hasOccupants = (name: string) => name in PLANS;
 
 const SHIRTS = [0xe9e5dc, 0x2f4f7a, 0x7a2f34, 0x3f5f3a, 0xc9a24a, 0x4a4a52, 0xd8d0c0, 0x5b3c6e, 0x8a5a2b, 0x2c6e6a, 0xb8462e];
@@ -51,8 +55,10 @@ export function occupantsFor(name: string, length: number, seed: number) {
   let s = seed * 9973 + 17;
   const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
   const k = length / plan.length, parts: BufferGeometry[] = [], m = new Matrix4(), at = new Vector3();
-  for (const seat of plan.seats) {
+  const taken: OccupiedSeat[] = [];
+  for (const [i, seat] of plan.seats.entries()) {
     if (r() > seat.p) continue;
+    taken.push({ x: seat.x * k, y: seat.y * k, z: seat.z * k, driver: i === 0, k });
     const shirt = SHIRTS[Math.floor(r() * SHIRTS.length)], skin = SKIN[Math.floor(r() * SKIN.length)], hairCol = HAIR[Math.floor(r() * HAIR.length)];
     const lean = (r() - 0.5) * 0.12, turn = (r() - 0.5) * 0.5;
     at.set(seat.x, seat.y, seat.z);
@@ -65,5 +71,6 @@ export function occupantsFor(name: string, length: number, seed: number) {
   const merged = mergeGeometries(parts, false)!;
   merged.scale(k, k, k);
   merged.computeBoundingSphere();
+  merged.userData.seats = taken; // who's aboard, for the real people up close (components/scene/Traffic)
   return merged;
 }

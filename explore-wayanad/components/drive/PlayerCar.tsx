@@ -18,6 +18,7 @@ import { weather } from "@/lib/weather";
 import { duskness, nightness } from "@/lib/theme";
 import { tickBadges } from "@/lib/badges";
 import { prepareVehicle } from "@/lib/carModel";
+import { cutBikeWheels } from "@/lib/bikeWheels";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { driverOf } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
@@ -149,7 +150,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const under = (o: Object3D, test: (n: Object3D) => boolean) => { for (let p: Object3D | null = o; p; p = p.parent) if (test(p)) return p; return null; };
     const isWheel = (n: Object3D) => /wheel_(lf|rf|lr|rr)_dummy/i.test(n.name), isSteer = (n: Object3D) => /^steer/i.test(n.name);
     const meshes: Mesh[] = []; model.traverse((o) => { if ((o as Mesh).isMesh) meshes.push(o as Mesh); });
-    const stat = meshes.filter((m) => !under(m, isWheel) && !under(m, isSteer)), steer = meshes.filter((m) => !under(m, isWheel) && under(m, isSteer));
+    let stat = meshes.filter((m) => !under(m, isWheel) && !under(m, isSteer)); const steer = meshes.filter((m) => !under(m, isWheel) && under(m, isSteer));
 
     // wheels: a pivot at each wheel's centre (front ones steer about it), a spinner inside it that rolls
     const wheels: { pivot: Group; spinner: Group; front: boolean }[] = [];
@@ -167,6 +168,16 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const own: Mesh[] = []; d.traverse((o) => { if ((o as Mesh).isMesh) own.push(o as Mesh); });
       mergeInto(own, spinner);
       wheels.push({ pivot, spinner, front: c.z > 0 });
+    }
+    // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside)
+    if (car.bike && !wheels.length) {
+      const cut = cutBikeWheels(stat.filter((m) => m.name !== "rider"), root, LENGTH);
+      if (cut) {
+        stat = [...cut.rest, ...stat.filter((m) => m.name === "rider")];
+        for (const w of cut.wheels) { root.add(w.pivot); wheels.push(w); }
+        for (const m of cut.rest) m.removeFromParent(); // (merged into the body below)
+        if (process.env.NODE_ENV !== "production") (globalThis as { __bikeWheels?: unknown }).__bikeWheels = cut.wheels.map((w) => ({ at: w.pivot.position.toArray(), front: w.front, parts: w.spinner.children.length, w }));
+      }
     }
     // the steering wheel: turns about its own column (the normal of the rim's plane)
     let steering: { pivot: Group; axis: Vector3 } | null = null;

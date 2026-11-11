@@ -11,32 +11,34 @@ import { AnimationClip, AnimationMixer, Box3, Group, Quaternion, Vector3, Vector
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
-import { driverModel, driverOf, type DriverId } from "@/data/drivers";
+import { isWomanPerson, personHeight, personModel, type PersonId } from "@/data/drivers";
 
-export type Move = "idle" | "walk" | "sit";
+export type Move = "idle" | "walk" | "sit" | "run";
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-const people = new Map<DriverId, Promise<{ scene: Object3D; clips: AnimationClip[] }>>();
+const people = new Map<string, Promise<{ scene: Object3D; clips: AnimationClip[] }>>();
 let moves: Promise<Map<string, AnimationClip>> | null = null;
 
-export function loadDriver(id: DriverId) {
-  let p = people.get(id);
-  if (!p) { p = loader.loadAsync(driverModel(id)).then((g) => ({ scene: g.scene, clips: g.animations })); people.set(id, p); }
+/** `lo`: the light copy (about a tenth of the shape, small textures: models/drivers/lo) for people further off. */
+export function loadDriver(id: PersonId, lo = false) {
+  const url = lo ? personModel(id).replace("/drivers/", "/drivers/lo/") : personModel(id);
+  let p = people.get(url);
+  if (!p) { p = loader.loadAsync(url).then((g) => ({ scene: g.scene, clips: g.animations })); people.set(url, p); }
   return p;
 }
 export function loadMoves() {
   return (moves ??= loader.loadAsync("/models/drivers/moves.glb").then((g) => new Map(g.animations.map((a) => [a.name, a]))));
 }
 /** Both, ready to make actors from (the same promise each time, so React's `use` can wait on it). */
-const casts = new Map<DriverId, Promise<[{ scene: Object3D; clips: AnimationClip[] }, Map<string, AnimationClip>]>>();
-export function loadCast(id: DriverId) {
-  let p = casts.get(id);
-  if (!p) { p = Promise.all([loadDriver(id), loadMoves()]); casts.set(id, p); }
+const casts = new Map<string, Promise<[{ scene: Object3D; clips: AnimationClip[] }, Map<string, AnimationClip>]>>();
+export function loadCast(id: PersonId, lo = false) {
+  const key = `${id}${lo ? ":lo" : ""}`;
+  let p = casts.get(key);
+  if (!p) { p = Promise.all([loadDriver(id, lo), loadMoves()]); casts.set(key, p); }
   return p;
 }
 
 /** Where the clips' hips stood (cm, the rig's units) on the people they were made on: Arjun (men) and Meera (women). */
 const SOURCE_HIPS = { m: new Vector3(0, 93.775, -0.669), f: new Vector3(0.663, 87.918, 9.186) };
-const WOMEN = new Set<DriverId>(["racer", "trekker"]);
 
 export type Actor = {
   root: Group; mixer: AnimationMixer; bones: Map<string, Object3D>;
@@ -48,7 +50,7 @@ export type Actor = {
  * One person ready to place: `height` tall in the caller's units, feet on y = 0, facing +z (the models don't all face
  * the same way: each is turned by its hips, left hip − right hip crossed with up). Their own idle until `play`.
  */
-export function makeActor(id: DriverId, src: { scene: Object3D; clips: AnimationClip[] }, clips: Map<string, AnimationClip>, height: number): Actor {
+export function makeActor(id: PersonId, src: { scene: Object3D; clips: AnimationClip[] }, clips: Map<string, AnimationClip>, height: number): Actor {
   const body = clone(src.scene), turn = new Group(); turn.add(body); turn.updateMatrixWorld(true);
   const at = (n: string) => body.getObjectByName(n)?.getWorldPosition(new Vector3());
   const L = at("LeftUpLeg"), R = at("RightUpLeg");
@@ -62,7 +64,7 @@ export function makeActor(id: DriverId, src: { scene: Object3D; clips: Animation
   const mixer = new AnimationMixer(body);
   // the shared clips, fitted to this person: rotations as they are; the hips' track moved to their own hips' rest
   const hipsBone = bones.get("Hips"), rest = hipsBone ? hipsBone.position.clone() : new Vector3();
-  const woman = WOMEN.has(id), fitted = new Map<Move, AnimationClip>();
+  const woman = isWomanPerson(id), fitted = new Map<Move, AnimationClip>();
   const fitClip = (name: string, sex: "m" | "f") => {
     const clip = clips.get(name); if (!clip) return null;
     const from = SOURCE_HIPS[sex], s = rest.y / from.y;
@@ -77,7 +79,8 @@ export function makeActor(id: DriverId, src: { scene: Object3D; clips: Animation
   const own = src.clips[0];
   if (own) fitted.set("idle", own);
   const walk = fitClip(woman ? "walk_f" : "walk_m", woman ? "f" : "m"), sit = fitClip(woman ? "sit_f" : "sit_m", woman ? "f" : "m");
-  if (walk) fitted.set("walk", walk); if (sit) fitted.set("sit", sit);
+  const run = fitClip(woman ? "run_f" : "run_m", woman ? "f" : "m");
+  if (walk) fitted.set("walk", walk); if (sit) fitted.set("sit", sit); if (run) fitted.set("run", run);
   let current: AnimationAction | null = null;
   const play = (move: Move, fade = 0.25) => {
     const clip = fitted.get(move); if (!clip) return null;
@@ -137,8 +140,8 @@ export function lean(actor: Actor, angle: number, side: Vector3, up = new Vector
     if (bone && tip) aim(bone, tip, dir);
   }
 }
-export const isWoman = (id: DriverId) => WOMEN.has(id);
-export const heightOf = (id: DriverId) => driverOf(id).height;
+export const isWoman = (id: PersonId) => isWomanPerson(id);
+export const heightOf = (id: PersonId) => personHeight(id);
 
 /** A driver in their seat: where the hands go and how they sit, in the vehicle's own frame (+x left, +z forward). */
 export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; lean: number };
