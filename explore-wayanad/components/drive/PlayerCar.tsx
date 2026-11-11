@@ -1,5 +1,5 @@
 "use client";
-import { use, useMemo, useRef } from "react";
+import { use, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
   AdditiveBlending, Box3, BufferAttribute, BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
@@ -19,6 +19,8 @@ import { duskness, nightness } from "@/lib/theme";
 import { tickBadges } from "@/lib/badges";
 import { prepareVehicle } from "@/lib/carModel";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
+import { driverOf } from "@/data/drivers";
+import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
 import { hit, impact } from "@/lib/impact";
 import { announce, crash, drive as scoreDrive, scrape as scoreScrape, score } from "@/lib/score";
 import { frameTimed } from "@/lib/perf";
@@ -119,7 +121,7 @@ function driver(wheel: Vector3) {
   part(new SphereGeometry(0.0105, 14, 12), skin, 0, 0.122, -0.052);                                    // head
   part(new SphereGeometry(0.0108, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, 0, 0.1245, -0.054); // hair
   for (const s of [1, -1]) part(new CapsuleGeometry(0.0045, 0.04, 4, 8), shirt, s * 0.014, 0.088, -0.03, -1.15, s * 0.25); // arms forward to the wheel
-  g.position.set(wheel.x, 0, wheel.z);
+  g.position.set(wheel.x, 0, wheel.z); g.name = "simple-driver";
   return g;
 }
 
@@ -251,6 +253,27 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     game.damage = 0;
     for (const { mesh, orig } of rig.panels) { const pos = mesh.geometry.getAttribute("position") as BufferAttribute; (pos.array as Float32Array).set(orig); pos.needsUpdate = true; mesh.geometry.computeVertexNormals(); }
   };
+
+  // your driver (data/drivers.ts) in the seat: sitting, hands to the bars or the wheel (lib/people). Until they've
+  // loaded, the simple built rider or driver stands in; then that's hidden.
+  const seated = useRef<Seat | null>(null);
+  useEffect(() => {
+    let gone = false, placed: Actor | null = null;
+    const id = choice.driver;
+    void loadCast(id).then(([src, clips]) => {
+      if (gone) return;
+      const actor = makeActor(id, src, clips, driverOf(id).height / 10); // units of 10 m
+      seated.current = seat(actor, rig.body, !!car.bike, LENGTH, rig.steering?.pivot.position);
+      hideStandIn(rig.root); placed = actor;
+    });
+    return () => { gone = true; seated.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
+  }, [rig, choice.driver, car.bike, LENGTH]);
+  useFrame((_, dt) => {
+    const S = seated.current; if (!S) return;
+    // on a bike's own view the camera is at the rider's eyes: no rider in the way
+    S.actor.root.visible = !(car.bike && cam.current.view === "hood");
+    poseSeat(S, rig.body, dt);
+  });
 
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);

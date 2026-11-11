@@ -42,6 +42,8 @@ export function addRider(model: Object3D, hex: string) {
   const jacket = new MeshStandardMaterial({ color: new Color(hex), roughness: 0.6 });
   const helmet = new MeshStandardMaterial({ color: new Color(hex), roughness: 0.22, metalness: 0.2 });
   const dark = new MeshStandardMaterial({ color: 0x1d2230, roughness: 0.8 }), visor = new MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.1, metalness: 0.6 });
+  // named, so the drawn bike can hide this stand-in once the real driver has loaded (PlayerCar; merged parts take the name)
+  for (const m of [jacket, helmet, dark, visor]) m.name = "rider";
   const up = new Vector3(0, 1, 0), d = new Vector3(), q = new Quaternion();
   /** A capsule from a to b (radius r), in rider units. */
   const seg = (a: number[], b: number[], r: number, mat: Material) => {

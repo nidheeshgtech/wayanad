@@ -4,6 +4,8 @@ import { useFrame } from "@react-three/fiber";
 import { Box3, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, SRGBColorSpace, Sprite, SpriteMaterial, Vector3, type Material } from "three";
 import { loadVehicle } from "@/lib/vehicleAssets";
 import { paintedCar } from "@/lib/carModel";
+import { driverOf } from "@/data/drivers";
+import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Seat } from "@/lib/people";
 import { game } from "@/lib/game";
 import { net, remoteState, type Snap } from "@/lib/net";
 import { carOf, colourOf, type Choice } from "@/data/cars";
@@ -42,6 +44,8 @@ const ready = new Map<string, Group>(); // painted cars that have finished loadi
 const keyOf = (c: Choice) => `${c.car}:${c.colour}`;
 
 type Slot = { root: Group; tag: Sprite; id: number; name: string; detailed: boolean; key: string; paint: MeshStandardMaterial | null;
+  /** their driver (data/drivers.ts) in the seat, once loaded (detailed slots only), and for which car+driver */
+  seat: Seat | null; seatKey: string;
   /** the pose drawn: eased toward the played-back one so a late update's correction glides instead of popping */
   shown: { s: number; lat: number; psi: number; for: number } };
 
@@ -63,7 +67,7 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
         });
         root.add(m);
       }
-      return { root, tag, id: -1, name: "", detailed, key: "", paint, shown: { s: 0, lat: 0, psi: 0, for: -1 } };
+      return { root, tag, id: -1, name: "", detailed, key: "", paint, seat: null, seatKey: "", shown: { s: 0, lat: 0, psi: 0, for: -1 } };
     };
     return [...Array.from({ length: n.full }, () => make(true)), ...Array.from({ length: n.lite }, () => make(false))];
   }, [lite, small]);
@@ -107,8 +111,21 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
       const k = keyOf(n.car);
       if (slot.key !== k) {
         slot.key = k;
-        if (slot.detailed) { slot.root.clear(); slot.root.add(sized(ready.get(k)!, carOf(n.car.car).length / 10)); }
+        if (slot.detailed) { slot.root.clear(); slot.seat?.actor.mixer.stopAllAction(); slot.seat = null; slot.seatKey = ""; slot.root.add(sized(ready.get(k)!, carOf(n.car.car).length / 10)); }
         else slot.paint?.color.set(colourOf(n.car.colour).hex);
+      }
+      // their driver at the wheel or on the bike (the light stand-in SUV has none); the built one until they've loaded.
+      // Their car's steering wheel isn't kept apart in the shared model: it's put where a car that size has it
+      const sk = `${k}:${n.car.driver}`;
+      if (slot.detailed && slot.seatKey !== sk) {
+        slot.seatKey = sk; slot.seat?.actor.root.removeFromParent(); slot.seat = null;
+        const s0 = slot, len = carOf(n.car.car).length / 10, bike = !!carOf(n.car.car).bike, id = n.car.driver;
+        void loadCast(id).then(([src, clips]) => {
+          if (s0.seatKey !== sk) return;
+          const wheel = bike ? null : new Vector3(-0.085 * len, 0.255 * len, 0.08 * len);
+          s0.seat = seat(makeActor(id, src, clips, driverOf(id).height / 10), s0.root, bike, len, wheel);
+          hideStandIn(s0.root);
+        });
       }
       if (slot.name !== n.name) {
         slot.name = n.name;
@@ -132,6 +149,7 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
       const rise = curve.getPointAt(Math.min(1, (n.st.s + 0.2) / L)).y - curve.getPointAt(Math.max(0, (n.st.s - 0.2) / L)).y;
       T.fwd.copy(T.tan).setY(0).normalize().multiplyScalar(Math.cos(n.st.psi)).addScaledVector(T.left, Math.sin(n.st.psi)).setY(rise / 0.4).normalize();
       slot.root.position.copy(T.p); slot.root.lookAt(T.look.copy(T.p).add(T.fwd)); slot.root.visible = true;
+      if (slot.seat && n.d < 8) poseSeat(slot.seat, slot.root, dt); // (posed only while close enough to see)
       slot.tag.position.copy(T.p).setY(T.p.y + 0.24); slot.tag.visible = true;
       // a name right at the lens fades out instead of filling the screen
       slot.tag.material.opacity = Math.min(1, Math.max(0, (camera.position.distanceTo(slot.tag.position) - 0.5) / 0.6));
