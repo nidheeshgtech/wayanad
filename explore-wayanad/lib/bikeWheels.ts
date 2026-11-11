@@ -32,22 +32,38 @@ export function cutBikeWheels(meshes: Mesh[], into: Object3D, length: number) {
     }
   }
   if (!ends.front.n || !ends.back.n) return null;
-  const axles = [
-    { at: new Vector3(0, minY + R, ends.front.z / ends.front.n), front: true },
-    { at: new Vector3(0, minY + R, ends.back.z / ends.back.n), front: false },
-  ];
+  // each wheel's real size and centre, measured from its tyre: at about axle height the tyre is the only thing there
+  // (between the fork legs or the swingarm), so its front and back edges give the diameter, and the middle the axle.
+  // A guessed centre was off, and the wheel then carried the mudguard and number plate round with it
+  const measure = (z0: number) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const { g } of parts) {
+      const p = g.getAttribute("position");
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        // (the tyre's thin middle only: a wide chrome mudguard sits just outside it and would read as a bigger wheel)
+        if (Math.abs(x) > half * 0.3 || Math.abs(y - (minY + R)) > 0.12 * R || Math.abs(z - z0) > 1.2 * R) continue;
+        lo = Math.min(lo, z); hi = Math.max(hi, z);
+      }
+    }
+    const r = hi > lo ? Math.min(1.08 * R, Math.max(0.75 * R, (hi - lo) / 2)) : R;
+    return { at: new Vector3(0, minY + r, hi > lo ? (lo + hi) / 2 : z0), r };
+  };
+  const front = measure(ends.front.z / ends.front.n), back = measure(ends.back.z / ends.back.n);
+  const axles = [{ ...front, front: true }, { ...back, front: false }];
   // split each mesh's triangles: wheel (inside one disc, tyre-wide) or body
   const wheels = axles.map((a) => ({ ...a, pieces: [] as { material: Material; g: BufferGeometry }[] }));
   const rest: Mesh[] = [];
   const v = new Vector3();
-  const inDisc = (a: Vector3) => (v.y - a.y) ** 2 + (v.z - a.z) ** 2 < R * R * 1.02 && Math.abs(v.x) < half;
+  // only what's wholly inside the tyre's own circle (a hair inside it), so nothing outside it turns
+  const inDisc = (a: Vector3, r: number) => (v.y - a.y) ** 2 + (v.z - a.z) ** 2 < r * r * 0.95 && Math.abs(v.x) < half * 0.7;
   for (const { mesh, g } of parts) {
     const pos = g.getAttribute("position"), n = pos.count / 3;
     const which = new Int8Array(n).fill(-1);
     for (let t = 0; t < n; t++) {
       for (let w = 0; w < axles.length; w++) {
         let all = true;
-        for (let k = 0; k < 3 && all; k++) { v.fromBufferAttribute(pos, t * 3 + k); all = inDisc(axles[w].at); }
+        for (let k = 0; k < 3 && all; k++) { v.fromBufferAttribute(pos, t * 3 + k); all = inDisc(axles[w].at, axles[w].r); }
         if (all) { which[t] = w; break; }
       }
     }

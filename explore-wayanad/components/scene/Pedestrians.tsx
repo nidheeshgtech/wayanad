@@ -237,7 +237,7 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
         if (!src || madeOne) return null;
         a = makeActor(p.cast, src[0], src[1], personHeight(p.cast) / 10); madeOne = true; C.group.add(a.root);
       }
-      a.root.visible = true; a.play(p.speed > 0 ? "walk" : "idle", 0); a.mixer.setTime(p.phase % 4);
+      a.root.visible = true; a.root.userData.snap = true; a.play(p.speed > 0 ? "walk" : "idle", 0); a.mixer.setTime(p.phase % 4);
       C.out.set(k, (C.out.get(k) ?? 0) + 1); p.actor = a; p.lo = lo;
       return a;
     };
@@ -292,7 +292,10 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       const near = far2 < close.near * close.near ? bodyFor(p, false) ?? bodyFor(p, true) : far2 < close.mid * close.mid ? bodyFor(p, true) : (p.actor && letGo(p), null);
       if (near) {
         if (p.lo) lights++; else bodies++;
-        near.root.position.copy(T.pos); near.root.quaternion.copy(T.q); near.root.scale.setScalar(p.scale);
+        // turning round at the end of their stretch (or to face your horn) takes a moment, not a frame
+        near.root.position.copy(T.pos); near.root.scale.setScalar(p.scale);
+        if (near.root.userData.snap || dt === 0) { near.root.quaternion.copy(T.q); near.root.userData.snap = false; }
+        else near.root.quaternion.slerp(T.q, 1 - Math.exp(-dt / (over ? 0.05 : 0.22)));
         const act = near.play(walking ? "walk" : "idle");
         if (act) act.timeScale = walking ? p.speed / 0.115 : 1;
         near.mixer.update(dt);

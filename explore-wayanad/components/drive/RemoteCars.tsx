@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box3, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, SRGBColorSpace, Sprite, SpriteMaterial, Vector3, type Material } from "three";
 import { loadVehicle } from "@/lib/vehicleAssets";
 import { paintedCar } from "@/lib/carModel";
+import { cutBikeWheels } from "@/lib/bikeWheels";
 import { driverOf } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Seat } from "@/lib/people";
 import { game } from "@/lib/game";
@@ -46,6 +47,8 @@ const keyOf = (c: Choice) => `${c.car}:${c.colour}`;
 type Slot = { root: Group; tag: Sprite; id: number; name: string; detailed: boolean; key: string; paint: MeshStandardMaterial | null;
   /** their driver (data/drivers.ts) in the seat, once loaded (detailed slots only), and for which car+driver */
   seat: Seat | null; seatKey: string;
+  /** a bike's wheels, cut out to roll (lib/bikeWheels), with their radius */
+  wheels: { spinner: Group; r: number }[];
   /** the pose drawn: eased toward the played-back one so a late update's correction glides instead of popping */
   shown: { s: number; lat: number; psi: number; for: number } };
 
@@ -67,7 +70,7 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
         });
         root.add(m);
       }
-      return { root, tag, id: -1, name: "", detailed, key: "", paint, seat: null, seatKey: "", shown: { s: 0, lat: 0, psi: 0, for: -1 } };
+      return { root, tag, id: -1, name: "", detailed, key: "", paint, seat: null, seatKey: "", wheels: [], shown: { s: 0, lat: 0, psi: 0, for: -1 } };
     };
     return [...Array.from({ length: n.full }, () => make(true)), ...Array.from({ length: n.lite }, () => make(false))];
   }, [lite, small]);
@@ -111,7 +114,19 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
       const k = keyOf(n.car);
       if (slot.key !== k) {
         slot.key = k;
-        if (slot.detailed) { slot.root.clear(); slot.seat?.actor.mixer.stopAllAction(); slot.seat = null; slot.seatKey = ""; slot.root.add(sized(ready.get(k)!, carOf(n.car.car).length / 10)); }
+        if (slot.detailed) {
+          slot.root.clear(); slot.seat?.actor.mixer.stopAllAction(); slot.seat = null; slot.seatKey = ""; slot.wheels = [];
+          const len = carOf(n.car.car).length / 10, model = sized(ready.get(k)!, len); slot.root.add(model);
+          // a friend's bike: its wheels cut out of the body so they roll too (the built rider aside)
+          if (carOf(n.car.car).bike) {
+            const pos = slot.root.position.clone(), q = slot.root.quaternion.clone();
+            slot.root.position.set(0, 0, 0); slot.root.quaternion.identity(); slot.root.updateMatrixWorld(true);
+            const parts: Mesh[] = []; model.traverse((o) => { if ((o as Mesh).isMesh && o.name !== "rider") parts.push(o as Mesh); });
+            const cut = cutBikeWheels(parts, slot.root, len);
+            if (cut) { for (const m of parts) m.visible = false; slot.wheels = cut.wheels.map((w) => { slot!.root.add(w.pivot); return { spinner: w.spinner, r: w.pivot.position.y }; }); }
+            slot.root.position.copy(pos); slot.root.quaternion.copy(q);
+          }
+        }
         else slot.paint?.color.set(colourOf(n.car.colour).hex);
       }
       // their driver at the wheel or on the bike (the light stand-in SUV has none); the built one until they've loaded.
@@ -150,6 +165,7 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
       T.fwd.copy(T.tan).setY(0).normalize().multiplyScalar(Math.cos(n.st.psi)).addScaledVector(T.left, Math.sin(n.st.psi)).setY(rise / 0.4).normalize();
       slot.root.position.copy(T.p); slot.root.lookAt(T.look.copy(T.p).add(T.fwd)); slot.root.visible = true;
       if (slot.seat && n.d < 8) poseSeat(slot.seat, slot.root, dt); // (posed only while close enough to see)
+      for (const w of slot.wheels) w.spinner.rotation.x += (n.st.v * Math.min(dt, 0.1)) / Math.max(0.01, w.r);
       slot.tag.position.copy(T.p).setY(T.p.y + 0.24); slot.tag.visible = true;
       // a name right at the lens fades out instead of filling the screen
       slot.tag.material.opacity = Math.min(1, Math.max(0, (camera.position.distanceTo(slot.tag.position) - 0.5) / 0.6));

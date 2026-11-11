@@ -16,6 +16,7 @@ import { quality } from '@/lib/quality';
 import { net } from '@/lib/net';
 import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from '@/lib/occupants';
 import { addRider } from '@/lib/carModel';
+import { cutBikeWheels } from '@/lib/bikeWheels';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
@@ -112,7 +113,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0 };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0, wheels: [] as { spinner: Group; r: number }[], rolled: 0 };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
     // a bike without a rider in its file: a built one (sized before it, so the bike keeps its own proportions)
@@ -165,8 +166,20 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       }
     }
     root.add(model); root.name = `traffic-${spec.name}-${v.id}`;
+    // a riderless bike's wheels are cut out of its body (lib/bikeWheels) so they roll as it goes (the rider aside)
+    let wheels: { spinner: Group; r: number }[] = [];
+    if (RIDERLESS.test(spec.name)) {
+      root.updateMatrixWorld(true);
+      const parts: Mesh[] = []; model.traverse(o => { if ((o as Mesh).isMesh && o.name !== 'rider' && o.parent?.name !== 'rider') parts.push(o as Mesh); });
+      const cut = cutBikeWheels(parts, root, spec.length);
+      if (cut) {
+        for (const m of parts) m.visible = false;
+        for (const m of cut.rest) { m.castShadow = !small; }
+        wheels = cut.wheels.map(w => { root.add(w.pivot); return { spinner: w.spinner, r: w.pivot.position.y }; });
+      }
+    }
     const seats = (people?.geometry.userData.seats as OccupiedSeat[] | undefined) ?? null;
-    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0 };
+    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0, wheels, rolled: v.distance };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useEffect(() => { if (process.env.NODE_ENV !== 'production') (globalThis as { __trafficObjects?: unknown }).__trafficObjects = { objects, fleet }; }, [objects, fleet]);
@@ -246,6 +259,8 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         if (!o.honked && jt > 0.35) { o.honked = true; honk({ audible: true, preview: true, kind: /bus|truck|lorry/i.test(VEHICLES[v.kind].name) ? 'bus' : 'car' }); }
       } else if (o.honked && !((v.jolt ?? 0) > 0)) o.honked = false;
       visible++;
+      // its wheels roll with the road it covers (its own way along it)
+      if (o.wheels.length) { const d = (v.distance - o.rolled) * v.direction; o.rolled = v.distance; if (Math.abs(d) < 1) for (const w of o.wheels) w.spinner.rotation.x += d / Math.max(0.01, w.r); }
       // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
       if ((o.seats || o.bike) && far2 < crewing.near ** 2 && aboard < crewing.cap) {
         o.crew = board(o.crew, o.root, v.id, o.seats, o.bike || null, BUS.test(VEHICLES[v.kind].name) ? crewing.bus : 8);
