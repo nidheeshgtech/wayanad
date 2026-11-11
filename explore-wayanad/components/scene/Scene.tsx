@@ -42,6 +42,7 @@ import Elephant from "./Elephant";
 import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
 import PlayerCar from "../drive/PlayerCar";
+import OnFoot from "@/components/drive/OnFoot";
 import ImpactFx from "../drive/ImpactFx";
 import RearMirror from "../drive/RearMirror";
 import RemoteCars from "../drive/RemoteCars";
@@ -178,6 +179,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 5000 : 9000} />
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
+      {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}
       {mode === "drive" && <Coins curve={curve} />}
       {mode === "drive" && <Snapshot />}
       {mode === "drive" && <TeaStall curve={curve} />}

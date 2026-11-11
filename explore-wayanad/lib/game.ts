@@ -50,6 +50,10 @@ const fresh = () => ({
   km: 0, kmTotal: 0,                          // along the road from Adivaram, and to the end of the drive
   roadLength: 0,                              // the road you're on, units (the minimap places other drivers with it)
   finishS: 0,                                 // where the climb counts as done (the gate's braking zone, past the Lakkidi arch): lib/race
+  /** On foot (components/drive/OnFoot): stopped, Enter gets your driver out to walk about and look at the view; Enter
+   * by the car or bike gets back in. `x, z` where they stand (world units), `yaw` which way they face, `near` close
+   * enough to their vehicle to get in, `want` asked for (the HUD sets it, OnFoot does it) */
+  foot: { on: false, want: false, x: 0, z: 0, yaw: 0, near: false },
 });
 /** One object for the page (the HUD and the 3D scene load in different chunks). */
 export const game: ReturnType<typeof fresh> = ((globalThis as { __wayanadGame?: ReturnType<typeof fresh> }).__wayanadGame ??= fresh());
@@ -77,3 +81,13 @@ export function togglePause(on = !game.paused) {
   game.paused = on;
   if (on) Object.assign(game.input, { throttle: 0, brake: 0, steer: 0, nitro: 0 });
 }
+
+/** Can you get out now: on the road, stopped (walking pace or less), not paused, not lined up for a race. */
+export function canLeave() {
+  return game.started && game.phase === "drive" && !game.paused && !game.hold && Math.abs(game.speed) < 0.05;
+}
+/** Enter: out of the vehicle when you can, back in when you're by it (OnFoot carries it out next frame). */
+export function toggleFoot() {
+  if (game.foot.on ? game.foot.near : canLeave()) game.foot.want = true;
+}
+

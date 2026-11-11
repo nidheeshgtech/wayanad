@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { game, resetCar, togglePause, VIEWS, type View } from "@/lib/game";
+import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } from "@/lib/game";
 import { beep, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
@@ -125,7 +125,7 @@ export default function DriveHud() {
   const room = useRef<HTMLDivElement>(null), seenVersion = useRef(-1);
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const race = useRef<HTMLDivElement>(null), raceLine = useRef<HTMLDivElement>(null), raceAt = useRef(0);
-  const streaks = useRef<HTMLDivElement>(null), nitroKey = useRef<HTMLButtonElement>(null);
+  const streaks = useRef<HTMLDivElement>(null), nitroKey = useRef<HTMLButtonElement>(null), doorKey = useRef<HTMLButtonElement>(null);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "" }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -161,7 +161,8 @@ export default function DriveHud() {
       if (k === "c") { cycleView(); setView(game.view); flash("view"); }
       if (k === "v" && voice.on) holdTalk(true);
       if (k === "b") { game.lookBack = true; buttons.current.back?.setAttribute("data-on", "1"); }
-      if (k === "r" && !game.paused) { backOnRoad(); flash("reset"); }
+      if (k === "r" && !game.paused && !game.foot.on) { backOnRoad(); flash("reset"); }
+      if (k === "enter" && game.started) { e.preventDefault(); toggleFoot(); }
       held.add(k); apply();
     };
     const up = (e: KeyboardEvent) => {
@@ -187,6 +188,13 @@ export default function DriveHud() {
         k.toggleAttribute("data-firing", game.boosting);
         k.toggleAttribute("data-ready", game.nitro >= 0.3 && !game.boosting);
         k.toggleAttribute("data-empty", game.nitro < 0.02);
+      }
+      // the door key: "get out" once you've stopped, "get in" when you're walking by your ride; hidden otherwise
+      if (doorKey.current) {
+        const d = doorKey.current, F = game.foot, show = F.on ? F.near : canLeave();
+        d.hidden = !show; d.dataset.mode = F.on ? "in" : "out";
+        const label = F.on ? (game.bike ? "Ride" : "Get in") : (game.bike ? "Get off" : "Get out");
+        if (d.lastChild && d.lastChild.textContent !== label) d.lastChild.textContent = label;
       }
       // speed streaks at the screen's edges, stronger the faster you go (a little flicker so they seem to rush past)
       if (streaks.current) {
@@ -406,6 +414,11 @@ export default function DriveHud() {
       {/* nitro: hold it (or N / Shift); the ring is the tank, filled by coins and drifts */}
       <button type="button" ref={nitroKey} className={styles.nitro} {...hold((on) => { if (!game.paused) game.input.nitro = on ? 1 : 0; })} title="Nitro (hold N)" aria-label="Nitro (hold)">
         <Icon name="nitro" /><small>Nitro</small><kbd>N</kbd>
+      </button>
+      {/* stopped: get out and walk (Enter); walking by your ride: get back in */}
+      <button type="button" ref={doorKey} className={styles.door} hidden onClick={() => toggleFoot()} title="Get out / get in (Enter)" aria-label="Get out or get back in">
+        <svg viewBox="0 0 24 24" aria-hidden><circle cx="13" cy="4.5" r="2" /><path d="M10.5 21l1.8-6.2L15 17v4M9 12.5l1.5-4.5 4 1.5 2 3.5M7.5 10.5 10.5 8" /></svg>
+        <kbd>Enter</kbd><small>Get out</small>
       </button>
       {/* touch controls (shown on touch screens) */}
       <div className={styles.touch}>

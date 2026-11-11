@@ -313,6 +313,26 @@
 }
 @media (prefers-reduced-motion: reduce) { .nitro[data-ready] { animation: none; } }
 
+// get out / get in (OnFoot): beside the nitro key, the same chunky round key in the game's gold
+.door { position: fixed; z-index: 6; left: 108px; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; align-content: center; gap: 2px;
+  width: 66px; height: 66px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #1b1405; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  background: linear-gradient(180deg, #ffd983, #D9A441); box-shadow: 0 5px 0 #85590f, 0 10px 18px rgba(0, 0, 0, .45); transition: transform .06s, box-shadow .06s;
+  animation: doorIn .25s ease-out;
+  svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; circle { fill: currentColor; stroke: none; } }
+  small { font: 800 8.5px/1 var(--font-sans), sans-serif; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+  kbd { position: absolute; right: -10px; top: -6px; padding: 2px 6px; border-radius: 6px; font: 700 10px var(--font-sans), sans-serif; color: #0e1f1a; background: #fff3d6; }
+  &:active { transform: translateY(4px); box-shadow: 0 1px 0 #85590f; }
+  &[hidden] { display: none; } }
+@keyframes doorIn { from { transform: scale(.6); opacity: 0; } }
+@media (pointer: coarse) {
+  .door { left: auto; right: 96px; bottom: calc(18px + 110px + 18px + 4px + env(safe-area-inset-bottom, 0px)); kbd { display: none; } }
+  @media (max-width: 375px) { .door { right: 86px; bottom: calc(18px + 98px + 16px + env(safe-area-inset-bottom, 0px)); width: 60px; height: 60px; } }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .door { right: calc(max(14px, env(safe-area-inset-right, 0px)) + 84px * 2 + 10px + 14px + 82px); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .door { animation: none; } }
+
 .tile kbd { margin-top: -2px; padding: 1px 6px; border-radius: 5px; font: 700 9.5px/1.3 var(--font-sans), sans-serif; color: var(--mute); background: rgba(0, 0, 0, .3); }
 @media (pointer: coarse) {
   .menu { bottom: auto; top: calc(58px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); }

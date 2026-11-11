@@ -271,10 +271,11 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   useFrame((_, dt) => {
     const S = seated.current; if (!S) return;
     // on a bike's own view the camera is at the rider's eyes: no rider in the way
-    S.actor.root.visible = !(car.bike && cam.current.view === "hood");
+    S.actor.root.visible = !game.foot.on && !(car.bike && cam.current.view === "hood"); // (out walking: not in the seat)
     poseSeat(S, rig.body, dt);
   });
 
+  const footWas = useRef(false);
   const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
@@ -287,7 +288,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     let alpha = 1;
     const speedBefore = game.speed;
     if (game.hold) { game.speed = 0; Object.assign(game.input, { throttle: 0, brake: 0 }); }
-    if (game.started && game.phase === "drive" && !game.paused && !game.hold) {
+    // out on foot (OnFoot): the vehicle stands where you left it, and the keys walk you instead
+    if (game.foot.on) game.speed = 0;
+    if (game.started && game.phase === "drive" && !game.paused && !game.hold && !game.foot.on) {
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       alpha = simulate(road, dt);
@@ -317,7 +320,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (game.leg === 0 && game.s > road.length * 0.995) { game.phase = "between"; game.speed = 0; }
       const stop = FOREST_ROUTE.stop * road.length;
       if (game.leg === 1 && game.s >= stop) { game.s = stop; game.speed = 0; game.phase = "finished"; }
-    } else if (!game.paused) game.input.throttle = 0;
+    } else if (!game.paused && !game.foot.on) game.input.throttle = 0;
     if (!game.paused) game.bump *= Math.exp(-dt * 6);
     // hitting the barrier or the bank: how hard is the speed it takes off you over the contact (the edge's own number
     // only sees the angle, so a fast glancing hit read as a graze); sliding on along it at the same speed stays quiet
@@ -415,6 +418,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // the camera
     const C = cam.current, camera3 = camera as PerspectiveCamera, view = game.lookBack ? "back" : game.view, { want, look, dir } = tmp;
     if (view !== C.view) { C.from.copy(camera.position); C.fromQ.copy(camera.quaternion); C.blend = 0; C.view = view; }
+    // back in from a walk: glide from the walking camera (OnFoot moves it after this) to the car's
+    if (footWas.current && !game.foot.on) { C.from.copy(camera.position); C.fromQ.copy(camera.quaternion); C.blend = 0; }
+    footWas.current = game.foot.on;
     // speed (game.speedFx, 0 below ~32 km/h … 1 at ~90): the view widens, the chase camera drops back, the road rumbles
     if (!game.paused) game.speedFx += (Math.min(1, Math.max(0, (Math.abs(game.speed) - SPEED_FX.from) / SPEED_FX.span)) + (game.boosting ? 0.45 : 0) - game.speedFx) * Math.min(1, dt * (game.boosting ? 5 : 3));
     const fx = view === "back" ? 0 : game.speedFx, fov = (view === "hood" ? 66 : 60) + fx * SPEED_FX.fov;
