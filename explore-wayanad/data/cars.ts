@@ -4,7 +4,7 @@
  * off and WAYANAD on the plates (scripts/retouch/player-*.mjs). They all handle the same for now (lib/game CAR); each
  * is drawn at its own length. `paint`: the body-paint materials the colour goes on (glass, lights, tyres keep theirs).
  */
-import { DEFAULT_DRIVER, driverOf, type DriverId } from "./drivers";
+import { DEFAULT_DRIVER, driverOf, type DriverId, type PersonId } from "./drivers";
 
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | BorrowId;
 /** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
@@ -50,8 +50,9 @@ export const COLOURS: { id: ColourId; name: string; hex: string }[] = [
 ];
 
 /** `driver`: who's driving (data/drivers.ts); saves from before drivers existed get the default one. */
-/** `paintHex`: a borrowed vehicle's own colour, instead of `colour` (never saved). */
-export type Choice = { car: CarId; colour: ColourId; driver: DriverId; paintHex?: string };
+/** `paintHex`: a borrowed vehicle's own colour, instead of `colour`; `passenger`: its own driver, moved over to ride
+ * along (never saved). */
+export type Choice = { car: CarId; colour: ColourId; driver: DriverId; paintHex?: string; passenger?: PersonId };
 export const DEFAULT_CHOICE: Choice = { car: "lakkidi", colour: "white", driver: DEFAULT_DRIVER };
 export const carOf = (id: string) => CARS.find((c) => c.id === id) ?? BORROWABLE.find((c) => c.id === id) ?? CARS[0];
 export const colourOf = (id: string) => COLOURS.find((c) => c.id === id) ?? COLOURS[0];

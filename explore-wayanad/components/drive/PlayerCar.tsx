@@ -20,7 +20,7 @@ import { tickBadges } from "@/lib/badges";
 import { prepareVehicle } from "@/lib/carModel";
 import { cutBikeWheels } from "@/lib/bikeWheels";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
-import { driverOf } from "@/data/drivers";
+import { driverOf, personHeight } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
 import { hit, impact } from "@/lib/impact";
 import { announce, crash, drive as scoreDrive, scrape as scoreScrape, score } from "@/lib/score";
@@ -281,8 +281,23 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     });
     return () => { gone = true; seated.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
   }, [rig, choice.driver, car.bike, LENGTH]);
+  // riding along: the driver of a vehicle you took, moved over to the passenger seat (or the back of the bike)
+  const riding = useRef<Seat | null>(null);
+  useEffect(() => {
+    const id = choice.passenger; if (!id) return;
+    let gone = false, placed: Actor | null = null;
+    void loadCast(id, true).then(([src, clips]) => {
+      if (gone) return;
+      const actor = makeActor(id, src, clips, personHeight(id) / 10);
+      const wheel = rig.steering?.pivot.position ?? (car.seat ? new Vector3(car.seat.x * LENGTH, car.seat.y * LENGTH, car.seat.z * LENGTH) : null);
+      riding.current = seat(actor, rig.body, !!car.bike, LENGTH, wheel, true); placed = actor;
+    }, () => {});
+    return () => { gone = true; riding.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
+  }, [rig, choice.passenger, car.bike, car.seat, LENGTH]);
   useFrame((_, dt) => {
-    const S = seated.current; if (!S) return;
+    const S = seated.current, R = riding.current;
+    if (R) poseSeat(R, rig.body, dt);
+    if (!S) return;
     // on a bike's own view the camera is at the rider's eyes: no rider in the way
     S.actor.root.visible = !game.foot.on && !(car.bike && cam.current.view === "hood"); // (out walking: not in the seat)
     poseSeat(S, rig.body, dt);

@@ -20,7 +20,8 @@ import { cutBikeWheels } from '@/lib/bikeWheels';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
-const CREW = { full: { near: 4.5, cap: 24, bus: 10 }, small: { near: 3, cap: 8, bus: 4 } };
+// (buses from further: they're big, their windows read from further off)
+const CREW = { full: { near: 4.5, cap: 24, bus: 10, busNear: 7 }, small: { near: 3, cap: 8, bus: 4, busNear: 4.5 } };
 const RIDERLESS = /^(pulsar|enfield)-real$/;
 const JACKETS = ['#1d2230', '#7a2f34', '#2f4f7a', '#3f5f3a', '#4a4a52', '#8a5a2b'];
 import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
@@ -266,7 +267,8 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // its wheels roll with the road it covers (its own way along it)
       if (o.wheels.length) { const d = (v.distance - o.rolled) * v.direction; o.rolled = v.distance; if (Math.abs(d) < 1) for (const w of o.wheels) w.spinner.rotation.x += d / Math.max(0.01, w.r); }
       // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
-      if ((o.seats || o.bike) && far2 < crewing.near ** 2 && aboard < crewing.cap) {
+      const isBus = BUS.test(VEHICLES[v.kind].name);
+      if ((o.seats || o.bike) && far2 < (isBus ? crewing.busNear : crewing.near) ** 2 && aboard < crewing.cap) {
         o.crew = board(o.crew, o.root, v.id, o.seats, o.bike || null, BUS.test(VEHICLES[v.kind].name) ? crewing.bus : 8);
         aboard += o.crew.people.length;
         poseCrew(o.crew, o.root, dt, !!o.bike);

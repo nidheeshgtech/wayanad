@@ -6,6 +6,7 @@ import { CAR, game, resetCar } from "@/lib/game";
 import { getBorrow, getChoice, setBorrow } from "@/lib/choice";
 import { laneLat, paintOf, trafficControl, VEHICLES } from "@/lib/traffic";
 import type { BorrowId } from "@/data/cars";
+import { driverOfVehicle, someDriver } from "@/lib/crew";
 import { announce } from "@/lib/score";
 import { height, roadShapeAt, SECTION } from "@/lib/terrain";
 import { driverOf, type DriverId } from "@/data/drivers";
@@ -25,7 +26,7 @@ const CAMERA = { back: 0.36, up: 0.085, eye: 0.15, ahead: 0.6 };
 const TAKE: Record<string, BorrowId | "kuruva"> = { "wagonr-real": "t-hatch", "innova-real": "t-mpv", "omni-real": "t-van", "auto-real": "t-auto", "pulsar-real": "kuruva" };
 const PAINTED = /wagonr|omni/;
 // (in front of it, where it stopped for you — traffic keeps a few metres back — or beside its doors)
-const HOP = { ahead: 1.0, along: 0.08, across: 0.25, stopped: 0.06 };
+const HOP = { ahead: 1.0, along: 0.08, across: 0.25, stopped: 0.12 };
 
 export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; driver: DriverId }) {
   const holder = useMemo(() => { const g = new Group(); g.name = "on-foot"; g.visible = false; return g; }, []);
@@ -62,6 +63,24 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     const lat = (x - T.p.x) * T.left.x + (z - T.p.z) * T.left.z, edge = SECTION.half + roadShapeAt(t).widen;
     const y = Math.abs(lat) <= edge + 0.02 ? T.p.y - 0.588 : height(x, z);
     return { s, lat, y };
+  };
+
+  /** Is (s, lat) inside a vehicle — the traffic, the one you came in, your own parked one? Vehicles are solid: you walk
+   * round them, not through their doors (a step that would take you further in is refused; one out is always let go). */
+  const blocked = (s: number, lat: number, s0: number, lat0: number) => {
+    const L = curve.getLength(), BODY = 0.025;
+    const inside = (cs: number, clat: number, halfL: number, halfW: number, at: number, al: number) =>
+      Math.max(Math.abs(at - cs) - halfL, Math.abs(al - clat) - halfW) < BODY;
+    const deeper = (cs: number, clat: number, halfL: number, halfW: number) =>
+      inside(cs, clat, halfL, halfW, s, lat) && Math.max(Math.abs(s - cs) - halfL, Math.abs(lat - clat) - halfW) < Math.max(Math.abs(s0 - cs) - halfL, Math.abs(lat0 - clat) - halfW);
+    if (deeper(game.s, game.lat, CAR.halfL, CAR.halfW)) return true;
+    const P = game.parked; if (P && deeper(P.s, P.lat, 0.2, 0.1)) return true;
+    for (const v of trafficControl.fleet) {
+      if (Math.abs(v.distance - s) > 0.6) continue;
+      const spec = VEHICLES[v.kind], t = Math.min(1, Math.max(0, v.distance / L));
+      if (deeper(v.distance, laneLat(v, roadShapeAt(t).widen), spec.length / 2, spec.width / 2)) return true;
+    }
+    return false;
   };
 
   useFrame(({ camera, scene }, dt) => {
@@ -101,12 +120,13 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
             game.parked = { s: game.s, lat: game.lat, psi: game.psi, x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
           }
           const name = VEHICLES[v.kind].name, own = getChoice();
-          setBorrow({ ...own, car: TAKE[name], paintHex: PAINTED.test(name) ? paintOf(v) : undefined });
+          // its driver moves over and rides along with you (the one you saw at the wheel, or someone who'd drive it)
+          setBorrow({ ...own, car: TAKE[name], paintHex: PAINTED.test(name) ? paintOf(v) : undefined, passenger: driverOfVehicle(v.id) ?? someDriver(v.id) });
           const t = Math.min(1, Math.max(0, v.distance / curve.getLength())), lat = laneLat(v, roadShapeAt(t).widen);
           resetCar(v.distance); game.lat = lat; game.prev.lat = lat;
           v.distance = (v.distance + curve.getLength() * 0.5) % curve.getLength(); // (gone from the road: it's yours now)
           F.on = false; F.hop = -1; holder.visible = false; ride.current = null; // (the drawn vehicle is about to change)
-          announce(TAKE[name] === "kuruva" ? "Hopped on · ride on" : "Hopped in · drive on", "badge");
+          announce(TAKE[name] === "kuruva" ? "Hopped on · they ride pillion" : "Hopped in · they've moved over", "badge");
         }
       } else if (F.on && F.near && !S.current.step && car) {
         // back in: they walk up to the door first, then they're in (not gone from wherever they stood)
@@ -145,7 +165,8 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     if (stepping) { /* moved by the steps */ } else if (v !== 0) {
       const next = place(nx, nz, st.s);
       // not up a cut face, not over the edge, not off into the trees, not far from the vehicle
-      const ok = Math.abs(next.lat) < ROAM.side && next.y - st.y < ROAM.climb && st.y - next.y < ROAM.drop && Math.abs(next.s - game.s) < ROAM.along;
+      const ok = Math.abs(next.lat) < ROAM.side && next.y - st.y < ROAM.climb && st.y - next.y < ROAM.drop && Math.abs(next.s - game.s) < ROAM.along
+        && !blocked(next.s, next.lat, F.s, F.lat);
       if (ok) { F.x = nx; F.z = nz; st.s = next.s; st.y = next.y; st.moved += Math.abs(v) * dt; }
     } else { const here = place(F.x, F.z, st.s); st.s = here.s; st.y = here.y; } // (standing: kept on the ground wherever they are)
     // the step matched to the pace (the clips cover ~1.15 m/s walking, ~4.5 m/s running); backwards, the walk reversed

@@ -35,6 +35,13 @@ function take(id: PersonId, height: number): Actor | null {
 }
 function give(id: PersonId, a: Actor) { a.root.removeFromParent(); a.root.visible = false; (free.get(id) ?? free.set(id, []).get(id)!).push(a); }
 
+/** Who drives each traffic vehicle (by its id), once seen up close: when you take it, they move over and ride along
+ * (components/drive/OnFoot → PlayerCar's passenger). */
+const drivers = new Map<number, PersonId>();
+export const driverOfVehicle = (id: number) => drivers.get(id) ?? null;
+/** Someone who'd be at the wheel, for a vehicle nobody's seen inside yet (seeded by its id). */
+export const someDriver = (id: number) => DRIVING[Math.abs(id * 7 + 3) % DRIVING.length];
+
 /** One vehicle's people while it's near: who, their body, and how they sit. */
 export type Crew = { people: { id: PersonId; actor: Actor; driver: boolean; hands?: { left: Vector3; right: Vector3 } }[]; done: boolean };
 /** Someone for this seat, seeded (so the vehicle keeps its people), from whoever has loaded (the rest start loading). */
@@ -59,6 +66,7 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
     if (!id) return C;
     const k = s ? s.k : 0.1, a = take(id, personHeight(id) * k);
     if (!a) return C; // not loaded yet, or one made already this frame
+    if (driver) drivers.set(seed, id);
     if (bike) {
       const placed = seatOnBike(a, root, true, bike);
       C.people.push({ id, actor: a, driver: true, hands: placed.hands });

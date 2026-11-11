@@ -148,22 +148,25 @@ export const isWoman = (id: PersonId) => isWomanPerson(id);
 export const heightOf = (id: PersonId) => personHeight(id);
 
 /** A driver in their seat: where the hands go and how they sit, in the vehicle's own frame (+x left, +z forward). */
-export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; lean: number };
+/** `free`: a passenger — hands in the lap as the clip has them, not reaching for anything. */
+export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; lean: number; free?: boolean };
 /**
  * Sit `actor` in a vehicle `length` units long (frame: wheels on y = 0, centred): on a bike from the old rider's marks
  * (fractions of its length), leaning over the bars; in a car at its steering wheel's centre `wheel`, upright, right-hand
  * drive. Adds the actor to `frame`.
  */
-export function seat(actor: Actor, frame: Object3D, bike: boolean, length: number, wheel?: Vector3 | null): Seat {
+export function seat(actor: Actor, frame: Object3D, bike: boolean, length: number, wheel?: Vector3 | null, passenger = false): Seat {
   actor.play("sit", 0); actor.mixer.update(0.01);
   const L = length;
-  const hipsAt = bike ? new Vector3(0, 0.37 * L, -0.1 * L) : wheel ? new Vector3(wheel.x, wheel.y - 0.04, wheel.z - 0.052) : new Vector3(-0.034, 0.062, -0.01);
+  let hipsAt = bike ? new Vector3(0, 0.37 * L, -0.1 * L) : wheel ? new Vector3(wheel.x, wheel.y - 0.04, wheel.z - 0.052) : new Vector3(-0.034, 0.062, -0.01);
+  // a passenger: beside the driver, the other side of the car (or the middle of an auto's back seat); on a bike, behind
+  if (passenger) hipsAt = bike ? new Vector3(0, 0.4 * L, -0.31 * L) : Math.abs(hipsAt.x) < 0.01 ? hipsAt.clone().setZ(hipsAt.z - 0.07) : hipsAt.clone().setX(-hipsAt.x);
   const w = wheel ?? new Vector3(-0.034, 0.102, 0.032);
   const grip = bike ? { x: 0.13 * L, y: 0.47 * L, z: 0.21 * L, cx: 0 } : { x: 0.017, y: w.y + 0.004, z: w.z - 0.006, cx: w.x };
   actor.root.position.copy(hipsAt).sub(actor.hips());
   frame.add(actor.root);
   return {
-    actor, lean: bike ? 0.55 : -0.2,
+    actor, lean: bike ? (passenger ? 0.3 : 0.55) : -0.2, free: passenger,
     hands: { left: new Vector3(grip.cx + grip.x, grip.y, grip.z), right: new Vector3(grip.cx - grip.x, grip.y, grip.z) },
     pole: { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() },
   };
@@ -174,7 +177,7 @@ export function poseSeat(S: Seat, frame: Object3D, dt: number) {
   S.actor.mixer.update(Math.min(dt, 0.1));
   frame.updateWorldMatrix(true, false); frame.getWorldQuaternion(sq);
   lean(S.actor, S.lean, sside.set(1, 0, 0).applyQuaternion(sq), sup.set(0, 1, 0).applyQuaternion(sq));
-  reach(S.actor, { left: frame.localToWorld(sl.copy(S.hands.left)), right: frame.localToWorld(sr.copy(S.hands.right)) },
+  if (!S.free) reach(S.actor, { left: frame.localToWorld(sl.copy(S.hands.left)), right: frame.localToWorld(sr.copy(S.hands.right)) },
     { left: spl.copy(S.pole.left).applyQuaternion(sq), right: spr.copy(S.pole.right).applyQuaternion(sq) });
 }
 /** Hide a vehicle's built stand-in driver or rider (its parts are named so). */
