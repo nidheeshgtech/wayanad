@@ -46,7 +46,7 @@ def twaManifest = [
     // The fallback strategy for when Trusted Web Activity is not available. Possible values are
     // 'customtabs' and 'webview'.
     fallbackType: 'customtabs',
-    enableSiteSettingsShortcut: 'false',
+    enableSiteSettingsShortcut: 'true',
     orientation: 'default',
 ]
 
@@ -152,7 +152,7 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled false // R8 with no keep rules renamed a class androidbrowserhelper looks up by name (crash on launch)
         }
     }
     compileOptions {
