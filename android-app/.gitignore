@@ -1,0 +1,9 @@
+# Build output and machine-local files
+.gradle/
+build/
+app/build/
+dist/
+local.properties
+*.keystore
+*.jks
+*.idsig
