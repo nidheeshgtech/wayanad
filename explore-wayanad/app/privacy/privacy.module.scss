@@ -1,0 +1,54 @@
+// The privacy page: a plain reading page on the site's dark green, Fraunces headings, Instrument Sans body.
+.page {
+  min-height: 100dvh;
+  background: #0e1f1a;
+  color: #eef2ee;
+  padding: max(48px, env(safe-area-inset-top)) 16px max(64px, env(safe-area-inset-bottom));
+}
+
+.doc {
+  max-width: 680px;
+  margin: 0 auto;
+  font: 17px/1.6 var(--font-sans), system-ui, sans-serif;
+  color: #b8c7c0;
+
+  h1 {
+    font: 300 clamp(44px, 9vw, 72px)/1.05 var(--font-serif), Georgia, serif;
+    color: #eef2ee;
+    margin: 8px 0 12px;
+  }
+
+  h2 {
+    font: 400 26px/1.25 var(--font-serif), Georgia, serif;
+    color: #eef2ee;
+    margin: 44px 0 12px;
+  }
+
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 22px; }
+  li { margin: 0 0 6px; }
+
+  a { color: #d9a441; text-underline-offset: 3px; }
+}
+
+.kicker {
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+
+  a { color: #8fa89e; text-decoration: none; }
+}
+
+.updated { font-size: 14px; color: #8fa89e; }
+
+.lead {
+  font-size: 19px;
+  color: #eef2ee;
+  margin-top: 24px !important;
+}
+
+.back {
+  margin-top: 56px !important;
+  padding-top: 20px;
+  border-top: 1px solid #5e7a70;
+}
