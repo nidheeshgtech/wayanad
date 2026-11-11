@@ -52,7 +52,8 @@ export default function PerfProbe() {
     (window as unknown as { __wayanadPerf: typeof stats }).__wayanadPerf = stats;
     frames.current = []; for (const v of Object.values(perfStats.systems)) { v.ms = 0; v.n = 0; }
     if (!el.current) { el.current = document.createElement("div"); Object.assign(el.current.style, { position: "fixed", left: "8px", bottom: "56px", zIndex: "50", font: "11px/1.4 monospace", color: "#cfe", background: "rgba(0,0,0,.55)", padding: "6px 8px", borderRadius: "6px", pointerEvents: "none", whiteSpace: "pre" }); document.body.append(el.current); }
-    el.current.textContent = `${stats.fps} fps · p95 ${stats.p95} ms · worst ${stats.worst} ms\n${stats.calls} draws · ${(stats.triangles / 1e6).toFixed(2)} M tris · q${stats.quality} · dpr ${stats.dpr}\n${Object.entries(sys).map(([k, v]) => `${k} ${v}`).join(" · ")}`;
+    const P = perfStats.people;
+    el.current.textContent = `${stats.fps} fps · p95 ${stats.p95} ms · worst ${stats.worst} ms\n${stats.calls} draws · ${(stats.triangles / 1e6).toFixed(2)} M tris · q${stats.quality} · dpr ${stats.dpr}${stats.heapMB ? ` · ${stats.heapMB} MB` : ""}\npeople: ${P.near} near · ${P.mid} light · ${P.crew} in traffic\n${Object.entries(sys).map(([k, v]) => `${k} ${v}`).join(" · ")}`;
   });
   return null;
 }

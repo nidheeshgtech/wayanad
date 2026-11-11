@@ -33,7 +33,7 @@ export default function Quality({ start = 0, lite = false }: { start?: number; l
 
   const apply = (i: number) => {
     const L = LEVELS[i];
-    applied.current = i; quality.level = i; perfStats.quality = i;
+    applied.current = i; quality.level = i; quality.people = L.people; perfStats.quality = i;
     setDpr(Math.min(window.devicePixelRatio, L.dpr));
     scene.traverse((o) => {
       if (o.name.startsWith("veg-") && (o as InstancedMesh).isInstancedMesh) {

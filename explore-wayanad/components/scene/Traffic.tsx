@@ -11,7 +11,8 @@ import { driveT, driveT2 } from '@/lib/drive';
 import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
 import { duskness } from '@/lib/theme';
-import { frameTimed } from '@/lib/perf';
+import { frameTimed, perfStats } from '@/lib/perf';
+import { quality } from '@/lib/quality';
 import { net } from '@/lib/net';
 import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from '@/lib/occupants';
 import { addRider } from '@/lib/carModel';
@@ -205,7 +206,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const st = trafficControl.staged >= 0 ? fleet.find(f => f.id === trafficControl.staged) : undefined; // dev review only
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
     let visible = 0, aboard = 0;
-    const crewing = small ? CREW.small : CREW.full; crewFrame();
+    const crewing = { ...(small ? CREW.small : CREW.full) }; crewing.cap = Math.round(crewing.cap * quality.people); crewFrame(); // (fewer as the quality steps down)
     const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
     for (let i = 0; i < fleet.length; i++) {
@@ -246,7 +247,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       } else if (o.honked && !((v.jolt ?? 0) > 0)) o.honked = false;
       visible++;
       // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
-      if ((o.seats || o.bike) && far2 < crewing.near ** 2 && (o.crew || aboard < crewing.cap)) {
+      if ((o.seats || o.bike) && far2 < crewing.near ** 2 && aboard < crewing.cap) {
         o.crew = board(o.crew, o.root, v.id, o.seats, o.bike || null, BUS.test(VEHICLES[v.kind].name) ? crewing.bus : 8);
         aboard += o.crew.people.length;
         poseCrew(o.crew, o.root, dt, !!o.bike);
@@ -260,7 +261,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // calls a vehicle for a glow nobody could see
       for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit || hazard;
     }
-    trafficControl.count = visible;
+    trafficControl.count = visible; perfStats.people.crew = aboard;
   }));
   return <group name="mountain-traffic" dispose={null}>{objects.map((o,i) => <primitive key={i} object={o.root} />)}</group>;
 }

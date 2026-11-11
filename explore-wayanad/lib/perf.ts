@@ -10,7 +10,9 @@ export function timed<T>(label: string, fn: () => T): T {
 /** Per-system CPU time inside the render loop, frame times and renderer counts, on window.__wayanadPerf. Off unless
  * the address has ?perf, and then only a performance.now() pair per timed system per frame. */
 export const probing = typeof location !== "undefined" && /[?&]perf\b/.test(location.search);
-export const perfStats = { quality: -1, systems: {} as Record<string, { ms: number; n: number }> };
+export const perfStats = { quality: -1, systems: {} as Record<string, { ms: number; n: number }>,
+  /** real 3D people this frame: walkers up close / in light copies, people in the traffic (Pedestrians, Traffic) */
+  people: { near: 0, mid: 0, crew: 0 } };
 export function frameTimed(name: string, fn: () => void) {
   if (!probing) return fn();
   const t0 = performance.now(); fn();

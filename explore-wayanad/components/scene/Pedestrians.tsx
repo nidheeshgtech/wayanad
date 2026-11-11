@@ -1,5 +1,6 @@
 "use client";
-import { timed, frameTimed } from "@/lib/perf";
+import { timed, frameTimed, perfStats } from "@/lib/perf";
+import { quality } from "@/lib/quality";
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
@@ -219,12 +220,14 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
 
   useFrame(({ camera }, dt) => frameTimed("pedestrians", () => {
     const { people, parts, frame } = built, T = tmp, view = small ? VIEW.small : VIEW.full;
-    const C = cast.current, close = NO_CAST ? { near: 0, max: 0, per: 0, mid: 0, midMax: 0 } : small ? CLOSE.small : CLOSE.full;
+    // (fewer of them as the auto quality steps down: lib/quality `people`, to none on the lowest level)
+    const base = NO_CAST ? { near: 0, max: 0, per: 0, mid: 0, midMax: 0 } : small ? CLOSE.small : CLOSE.full, share = quality.people;
+    const C = cast.current, close = { ...base, max: Math.round(base.max * share), midMax: Math.round(base.midMax * share) };
     let bodies = 0, lights = 0, madeOne = false;
     const keyOf = (p: Person, lo: boolean) => `${p.cast}${lo ? ":lo" : ""}`;
     /** A 3D body for `p` now, full or light (theirs already, a spare one, or a new one — at most one made a frame), or null. */
     const bodyFor = (p: Person, lo: boolean) => {
-      if (p.actor && p.lo === lo) return p.actor;
+      if (p.actor && p.lo === lo) { if (lo ? lights < close.midMax : bodies < close.max) return p.actor; letGo(p); return null; } // (over the limit now: the quality stepped down)
       if (p.actor) letGo(p);
       const k = keyOf(p, lo);
       if (lo ? lights >= close.midMax : bodies >= close.max || (C.out.get(k) ?? 0) >= close.per) return null;
@@ -314,6 +317,7 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
     }
     for (const part of [parts.skirt, parts.torso, parts.head, parts.hair]) part.count = i;
     parts.arms.count = i * 2; parts.brolly.count = b;
+    perfStats.people.near = bodies; perfStats.people.mid = lights;
     for (const part of Object.values(parts)) {
       if (!part.count) continue;
       part.instanceMatrix.needsUpdate = true;
