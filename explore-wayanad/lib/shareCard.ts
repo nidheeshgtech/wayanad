@@ -5,6 +5,7 @@
  */
 import { clock } from "@/lib/share";
 import { BADGES } from "@/lib/badges";
+import { roundRect } from "@/lib/canvas";
 
 type Shot = { run: number; blob: Blob | null };
 export const shot: Shot = ((globalThis as { __wayanadShot?: Shot }).__wayanadShot ??= { run: -1, blob: null });
@@ -75,9 +76,6 @@ export async function makeCard(c: Climb): Promise<Blob> {
   return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("no image"))), "image/jpeg", 0.92));
 }
 
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
 
 /** Share the card: as an image through the share sheet where the browser can share files (phones), else downloaded,
  * with the message copied to paste alongside it. */

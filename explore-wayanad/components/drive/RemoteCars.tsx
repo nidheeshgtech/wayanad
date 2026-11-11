@@ -8,6 +8,7 @@ import { cutBikeWheels } from "@/lib/bikeWheels";
 import { driverOf } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Seat } from "@/lib/people";
 import { game } from "@/lib/game";
+import { roundRect } from "@/lib/canvas";
 import { net, remoteState, type Snap } from "@/lib/net";
 import { carOf, colourOf, type Choice } from "@/data/cars";
 
@@ -26,7 +27,7 @@ function plate(name: string) {
   const c = document.createElement("canvas"), g = c.getContext("2d")!, font = "500 44px 'Instrument Sans', Arial, sans-serif";
   g.font = font; const w = Math.ceil(g.measureText(name).width) + 48;
   c.width = w; c.height = 72;
-  g.font = font; g.fillStyle = "rgba(14, 31, 26, 0.82)"; g.beginPath(); g.roundRect(0, 0, w, 72, 36); g.fill();
+  g.font = font; g.fillStyle = "rgba(14, 31, 26, 0.82)"; roundRect(g, 0, 0, w, 72, 36); g.fill();
   g.fillStyle = "#eef2ee"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(name, w / 2, 38);
   const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace;
   return { texture: t, aspect: w / 72 };

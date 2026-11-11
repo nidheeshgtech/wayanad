@@ -2,12 +2,13 @@
 import { useMemo } from "react";
 import { CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, BoxGeometry, SRGBColorSpace, Sprite, SpriteMaterial, Vector3 } from "three";
 import { bendTs, height } from "@/lib/terrain";
+import { roundRect } from "@/lib/canvas";
 
 /** The plate: hairpin number in the counter's amber on the site's dark green, "of 9" beneath. */
 function plate(n: number) {
   const c = document.createElement("canvas"); c.width = 256; c.height = 320;
   const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#0e1f1a"; ctx.beginPath(); ctx.roundRect(8, 8, 240, 304, 28); ctx.fill();
+  ctx.fillStyle = "#0e1f1a"; roundRect(ctx, 8, 8, 240, 304, 28); ctx.fill();
   ctx.strokeStyle = "#eef2ee"; ctx.lineWidth = 6; ctx.stroke();
   ctx.fillStyle = "#d9a441"; ctx.font = "300 190px Fraunces, Georgia, serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(String(n), 128, 140);
