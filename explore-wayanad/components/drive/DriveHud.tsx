@@ -194,9 +194,10 @@ export default function DriveHud() {
       }
       // the door key: "get out" once you've stopped, "get in" when you're walking by your ride; hidden otherwise
       if (doorKey.current) {
-        const d = doorKey.current, F = game.foot, show = F.on ? F.near : canLeave();
+        const d = doorKey.current, F = game.foot, show = F.on ? F.near || F.hop >= 0 || F.byParked : canLeave();
         d.hidden = !show; d.dataset.mode = F.on ? "in" : "out";
-        const label = F.on ? (game.bike ? "Ride" : "Get in") : (game.bike ? "Get off" : "Get out");
+        // on foot: back into yours, or into the one stopped beside you (a bike: on), or back to your own parked one
+        const label = F.on ? (F.near ? (game.bike ? "Ride" : "Get in") : F.hop >= 0 ? (F.hopBike ? "Hop on" : "Hop in") : "Your car") : (game.bike ? "Get off" : "Get out");
         if (d.lastChild && d.lastChild.textContent !== label) d.lastChild.textContent = label;
       }
       // speed streaks at the screen's edges, stronger the faster you go (a little flicker so they seem to rush past)

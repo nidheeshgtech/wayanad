@@ -53,7 +53,15 @@ const fresh = () => ({
   /** On foot (components/drive/OnFoot): stopped, Enter gets your driver out to walk about and look at the view; Enter
    * by the car or bike gets back in. `x, z` where they stand (world units), `yaw` which way they face, `near` close
    * enough to their vehicle to get in, `want` asked for (the HUD sets it, OnFoot does it) */
-  foot: { on: false, want: false, x: 0, z: 0, yaw: 0, near: false },
+  foot: { on: false, want: false, x: 0, z: 0, yaw: 0, near: false,
+    /** where they stand in road terms (along it, left of the centre line), for the traffic to stop for them */
+    s: 0, lat: 0,
+    /** a vehicle stopped beside them they can take (the traffic's id, −1 none), and its kind, for the key's label */
+    hop: -1, hopBike: false,
+    /** by your own car, parked while you drive one you've taken */
+    byParked: false },
+  /** your own vehicle, parked where you left it when you took another (OnFoot; drawn by ParkedCar) */
+  parked: null as null | { s: number; lat: number; psi: number; x: number; y: number; z: number; qx: number; qy: number; qz: number; qw: number },
 });
 /** One object for the page (the HUD and the 3D scene load in different chunks). */
 export const game: ReturnType<typeof fresh> = ((globalThis as { __wayanadGame?: ReturnType<typeof fresh> }).__wayanadGame ??= fresh());
@@ -88,6 +96,7 @@ export function canLeave() {
 }
 /** Enter: out of the vehicle when you can, back in when you're by it (OnFoot carries it out next frame). */
 export function toggleFoot() {
-  if (game.foot.on ? game.foot.near : canLeave()) game.foot.want = true;
+  const F = game.foot;
+  if (F.on ? F.near || F.hop >= 0 || F.byParked : canLeave()) F.want = true;
 }
 

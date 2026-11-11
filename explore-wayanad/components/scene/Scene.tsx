@@ -43,6 +43,7 @@ import Checkpost from "./Checkpost";
 import type { Tier } from "@/hooks/useCapability";
 import PlayerCar from "../drive/PlayerCar";
 import OnFoot from "@/components/drive/OnFoot";
+import ParkedCar from "@/components/drive/ParkedCar";
 import ImpactFx from "../drive/ImpactFx";
 import RearMirror from "../drive/RearMirror";
 import RemoteCars from "../drive/RemoteCars";
@@ -51,7 +52,7 @@ import Snapshot from "../drive/Snapshot";
 import TeaStall from "../drive/TeaStall";
 import TyreSmoke from "@/components/drive/TyreSmoke";
 import { net } from "@/lib/net";
-import { useChoice } from "@/lib/choice";
+import { useBorrow, useChoice } from "@/lib/choice";
 
 patchAtmosphere(); // before any material compiles
 
@@ -104,7 +105,9 @@ export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "st
 /** Everything that samples the ground. Renders once the heightmap has loaded (or failed). */
 function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
   use(loadTerrain());
-  const choice = useChoice();
+  const own = useChoice(), borrowed = useBorrow();
+  // what you're driving: your own, or one you've waved down (OnFoot), driven by your own driver
+  const choice = borrowed ? { ...borrowed, driver: own.driver } : own;
   const curve = useMemo(() => buildRoadCurve(), []);
   useMemo(() => {
     const screens = setPace(turnProfile(curve), curve.getLength(), scrollState.arch, churamEndT());
@@ -178,8 +181,9 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 5000 : 9000} />
-      {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
+      {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}:${choice.paintHex ?? ""}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}
+      {mode === "drive" && borrowed && <Suspense fallback={null}><ParkedCar choice={own} /></Suspense>}
       {mode === "drive" && <Coins curve={curve} />}
       {mode === "drive" && <Snapshot />}
       {mode === "drive" && <TeaStall curve={curve} />}

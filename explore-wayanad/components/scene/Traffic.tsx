@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3 } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
-import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, VEHICLES, vehiclePose, type Player, type Vehicle } from '@/lib/traffic';
+import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
 import { CAR, game } from '@/lib/game';
 import { honk, honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
@@ -20,7 +20,7 @@ import { cutBikeWheels } from '@/lib/bikeWheels';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
-const CREW = { full: { near: 4.5, cap: 18, bus: 6 }, small: { near: 3, cap: 7, bus: 3 } };
+const CREW = { full: { near: 4.5, cap: 24, bus: 10 }, small: { near: 3, cap: 8, bus: 4 } };
 const RIDERLESS = /^(pulsar|enfield)-real$/;
 const JACKETS = ['#1d2230', '#7a2f34', '#2f4f7a', '#3f5f3a', '#4a4a52', '#8a5a2b'];
 import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
@@ -31,7 +31,7 @@ const FALL = 1.4;
 const RACE_KEEP = 4;
 /** Paint for the small cars and vans (their body material tinted, one shared material per paint): white the most
  * common, as on Kerala roads, then silver, red, blue, maroon, green, sand and the odd yellow. */
-const PAINTS = [0xffffff, 0xffffff, 0xffffff, 0xd2d6d8, 0xd2d6d8, 0xc93a32, 0x3f66b0, 0x7a2430, 0x3f7a52, 0xd8c79a, 0xe7c34a];
+const PAINTS = TRAFFIC_PAINTS;
 const PAINTABLE = /wagonr|omni/, BODY = /^(body|chassis_ok)/;
 const tinted = new Map<string, MeshStandardMaterial>();
 /* Advertising panels on the buses' sides, below the windows and above the wheels, as Kerala buses carry them
@@ -198,8 +198,12 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
       const onRoad = game.leg === 0 && game.phase === 'drive';
       const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
-      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined,
-        onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : []));
+      // in the way too: you on foot (standing in a lane stops it — wave one down), and your own car parked where you
+      // left it when you took another (lib/game `parked`)
+      const blocks: Obstacle[] = onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : [];
+      if (onRoad && game.foot.on) blocks.push({ distance: game.foot.s, length: 0.06, lanes: playerLanes({ s: game.foot.s, lat: game.foot.lat, speed: 0, halfL: 0.03, halfW: 0.035 }), speed: 0, keep: 0.2 });
+      const P0 = game.parked; if (onRoad && P0) blocks.push({ distance: P0.s, length: 0.4, lanes: playerLanes({ s: P0.s, lat: P0.lat, speed: 0, halfL: 0.2, halfW: 0.1 }), speed: 0 });
+      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks));
       if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(live, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;

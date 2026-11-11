@@ -69,7 +69,18 @@ export function addRider(model: Object3D, hex: string) {
 
 /** A clone of the vehicle ready to draw: painted (cars), or with its rider in the chosen colour (bikes). */
 export function prepareVehicle(root: Object3D, car: Car, hex: string) {
-  return car.bike ? addRider(root, hex) : paintCar(root, hex);
+  if (car.bike) return addRider(root, hex);
+  // a vehicle taken from the traffic (data/cars BORROWABLE): tinted as the traffic tints it — its body's own material,
+  // textures kept, in the colour it had on the road — so it doesn't change colour as you get in
+  if (car.id.startsWith("t-")) {
+    root.traverse((o) => {
+      const mesh = o as Mesh; if (!mesh.isMesh) return;
+      const tint = (m: Material) => { if (!car.paint.test(m.name)) return m; const c = (m as MeshStandardMaterial).clone(); c.color.set(hex); return c; };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(tint) : tint(mesh.material);
+    });
+    return root;
+  }
+  return paintCar(root, hex);
 }
 
 const painted = new Map<string, Promise<Group>>();

@@ -139,6 +139,10 @@ export function lean(actor: Actor, angle: number, side: Vector3, up = new Vector
     const bone = actor.bones.get(a), tip = actor.bones.get(b);
     if (bone && tip) aim(bone, tip, dir);
   }
+  // and the eyes up, looking where the vehicle goes: the sitting clip looks down into the lap, which seen through a
+  // windscreen is the top of a head. Forward is the frame's: up × side
+  const head = actor.bones.get("Head"), front = actor.root.getObjectByName("headfront");
+  if (head && front) aim(head, front, new Vector3().crossVectors(side, up).normalize().applyAxisAngle(side, 0.08));
 }
 export const isWoman = (id: PersonId) => isWomanPerson(id);
 export const heightOf = (id: PersonId) => personHeight(id);

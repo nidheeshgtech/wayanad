@@ -68,7 +68,9 @@ export function createFleet(length: number, density: (d: number) => number = () 
 /** Snapshot-based car following: all movement uses the same previous frame, never update-order overtaking. */
 /** Something on the road traffic must not drive into: the player's car in drive mode. `lanes`: the lanes it covers;
  * `speed`: its speed along the road (+ = up it), so traffic behind a car reversing toward it backs away. */
-export type Obstacle = { distance: number; length: number; lanes: (1 | -1)[]; speed?: number };
+/** `keep`: the gap to stop short of it (units) instead of the usual following distance — a person standing in the
+ * road is pulled up to a couple of metres short of, so they can step to the door. */
+export type Obstacle = { distance: number; length: number; lanes: (1 | -1)[]; speed?: number; keep?: number };
 /** Fastest a vehicle backs away from something reversing into it (units/s; the player's reverse is CAR.reverse 0.45). */
 const BACK_AWAY = .6;
 /** How hard traffic brakes, and how quickly it gets going in reverse (units/s²: 1 ≈ 1 g). Speeds change at these rates,
@@ -112,7 +114,7 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     for (const o of obstacles) if (o.lanes.includes(v.direction)) {
       const gap = (o.distance - v.distance) * v.direction;
       if (gap <= 0) continue;
-      const r = gap - (spec.length + o.length) / 2 - safe, toward = -(o.speed ?? 0) * v.direction;
+      const r = gap - (spec.length + o.length) / 2 - (o.keep ?? safe), toward = -(o.speed ?? 0) * v.direction;
       room = Math.min(room, r);
       // only a car reversing into it (you, backing down the road onto the queue behind you) makes it back away; an
       // oncoming vehicle you drive at stops and waits — it used to reverse, and the queue behind it reversed with it
@@ -370,3 +372,11 @@ export function reservePassingZones(fleet: Vehicle[], zones: PassingZone[]) {
   }
   return stops;
 }
+
+/** The traffic's paint for the hatch and van (Traffic tints their body by id), as a CSS colour: the same car keeps its
+ * colour when you take it (components/drive/OnFoot). */
+export const TRAFFIC_PAINTS = [0xffffff, 0xffffff, 0xffffff, 0xd2d6d8, 0xd2d6d8, 0xc93a32, 0x3f66b0, 0x7a2430, 0x3f7a52, 0xd8c79a, 0xe7c34a];
+export const paintOf = (v: Vehicle) => `#${TRAFFIC_PAINTS[(v.id * 7 + v.kind) % TRAFFIC_PAINTS.length].toString(16).padStart(6, "0")}`;
+/** How far left of the centre line a vehicle drives (its lane, eased toward its edge by `shift`), as lanePoint has it. */
+export const laneLat = (v: Vehicle, widen: number) => v.direction * ((0.4 + widen) * 0.5 + (v.shift ?? 0) * edgeRoom(v.kind));
+

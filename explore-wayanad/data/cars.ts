@@ -6,14 +6,18 @@
  */
 import { DEFAULT_DRIVER, driverOf, type DriverId } from "./drivers";
 
-export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva";
+export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | BorrowId;
+/** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
+export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
  * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
  * with no rear plate gives `at`: its height off the road and size, metres; it goes on the back of the car there. */
 export type Plate = { part?: string; material?: string; at?: { y: number; w: number; h: number } };
 /** `bike`: a two-wheeler — ridden (a rider is built on it), narrow, leans into bends (components/drive/PlayerCar). */
-export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean };
+/** `seat`: where the driver's steering wheel is, as fractions of the length (x + left, y up, z + forward), for models
+ * whose wheel isn't a part of its own (PlayerCar finds it otherwise). */
+export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean; seat?: { x: number; y: number; z: number } };
 
 export const CARS: Car[] = [
   { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/, plate: { material: "plate_bg.0" } },
@@ -25,6 +29,14 @@ export const CARS: Car[] = [
   { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 
+/** The traffic's own models, driven: their paint stays theirs (the hatch and van take the colour they had on the road,
+ * `Choice.paintHex`); the auto's driver sits in the middle. Lengths as in the traffic (lib/traffic VEHICLES). */
+export const BORROWABLE: Car[] = [
+  { id: "t-hatch", name: "Hatchback", file: "/models/traffic/wagonr-real.glb", length: 3.6, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.55, w: 0.42, h: 0.11 } } },
+  { id: "t-mpv", name: "MPV", file: "/models/traffic/innova-real.glb", length: 4.58, paint: /^$/, plate: { at: { y: 0.6, w: 0.45, h: 0.11 } } },
+  { id: "t-van", name: "Van", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 } },
+  { id: "t-auto", name: "Auto", file: "/models/traffic/auto-real.glb", length: 2.65, paint: /^$/, plate: { at: { y: 0.45, w: 0.3, h: 0.09 } }, seat: { x: 0, y: 0.36, z: 0.2 } },
+];
 /** Paint: a little less saturated than a swatch would suggest, as car paint reads under the scene's light. */
 export const COLOURS: { id: ColourId; name: string; hex: string }[] = [
   { id: "white", name: "White", hex: "#eceeec" },
@@ -38,9 +50,10 @@ export const COLOURS: { id: ColourId; name: string; hex: string }[] = [
 ];
 
 /** `driver`: who's driving (data/drivers.ts); saves from before drivers existed get the default one. */
-export type Choice = { car: CarId; colour: ColourId; driver: DriverId };
+/** `paintHex`: a borrowed vehicle's own colour, instead of `colour` (never saved). */
+export type Choice = { car: CarId; colour: ColourId; driver: DriverId; paintHex?: string };
 export const DEFAULT_CHOICE: Choice = { car: "lakkidi", colour: "white", driver: DEFAULT_DRIVER };
-export const carOf = (id: string) => CARS.find((c) => c.id === id) ?? CARS[0];
+export const carOf = (id: string) => CARS.find((c) => c.id === id) ?? BORROWABLE.find((c) => c.id === id) ?? CARS[0];
 export const colourOf = (id: string) => COLOURS.find((c) => c.id === id) ?? COLOURS[0];
 
 const KEY = "wayanad-car";

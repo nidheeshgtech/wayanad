@@ -2,7 +2,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Group, Vector3, type CatmullRomCurve3, type Object3D } from "three";
-import { CAR, game } from "@/lib/game";
+import { CAR, game, resetCar } from "@/lib/game";
+import { getBorrow, getChoice, setBorrow } from "@/lib/choice";
+import { laneLat, paintOf, trafficControl, VEHICLES } from "@/lib/traffic";
+import type { BorrowId } from "@/data/cars";
 import { announce } from "@/lib/score";
 import { height, roadShapeAt, SECTION } from "@/lib/terrain";
 import { driverOf, type DriverId } from "@/data/drivers";
@@ -17,6 +20,12 @@ const ROAM = { side: 0.85, along: 25, climb: 0.03, drop: 0.05 }; // off the cent
 const PACE = { walk: 0.16, run: 0.5, turn: 2.4 };                   // units/s (1.6 m/s; a run, 5 m/s), radians/s
 const DOOR = { out: 0.055, reach: 0.11 };                           // stepped out this far beside it; back in from this close
 const CAMERA = { back: 0.36, up: 0.085, eye: 0.15, ahead: 0.6 };
+/** Traffic you can wave down and take (going your way, up the hill; not the buses or lorries), by its model, and how
+ * close beside it you must be (units past its half-size). */
+const TAKE: Record<string, BorrowId | "kuruva"> = { "wagonr-real": "t-hatch", "innova-real": "t-mpv", "omni-real": "t-van", "auto-real": "t-auto", "pulsar-real": "kuruva" };
+const PAINTED = /wagonr|omni/;
+// (in front of it, where it stopped for you — traffic keeps a few metres back — or beside its doors)
+const HOP = { ahead: 1.0, along: 0.08, across: 0.25, stopped: 0.06 };
 
 export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; driver: DriverId }) {
   const holder = useMemo(() => { const g = new Group(); g.name = "on-foot"; g.visible = false; return g; }, []);
@@ -58,7 +67,9 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
   useFrame(({ camera, scene }, dt) => {
     const F = game.foot, A = actor.current;
     dt = game.paused ? 0 : Math.min(dt, 0.1);
-    ride.current ??= scene.getObjectByName("player-car") ?? null;
+    // the drawn vehicle you came in (found again once the one we had is gone from the scene: after a swap the old
+    // one is unmounted and the new one drawn in its place)
+    if (!ride.current?.parent) ride.current = scene.getObjectByName("player-car") ?? null;
     const car = ride.current;
     // in or out
     if (F.want) {
@@ -75,6 +86,28 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
         Object.assign(S.current, { s: where.s, y: where.y, ready: false, moved: 0, step: { into: false, x: to.x, z: to.z, t: 0 } });
         holder.visible = true; A.play("walk", 0);
         announce(game.bike ? "Off the bike · Enter to ride on" : "Out of the car · Enter to drive on", "badge");
+      } else if (F.on && !F.near && F.byParked && game.parked) {
+        // back to your own: the one you took stays where it is no more (it's gone back to its owner); yours drives on
+        const P = game.parked; setBorrow(null); game.parked = null;
+        resetCar(P.s); Object.assign(game, { lat: P.lat, psi: P.psi }); Object.assign(game.prev, { s: P.s, lat: P.lat, psi: P.psi });
+        F.on = false; F.byParked = false; holder.visible = false;
+        announce("Back in your own", "badge");
+      } else if (F.on && !F.near && F.hop >= 0) {
+        // took one: yours stays parked where it is (drawn by ParkedCar; the traffic goes round it); you drive this one
+        const v = trafficControl.fleet.find((x) => x.id === F.hop);
+        if (v && car) {
+          if (!getBorrow()) {
+            car.updateMatrixWorld(); const p = car.getWorldPosition(new Vector3()), q = car.quaternion;
+            game.parked = { s: game.s, lat: game.lat, psi: game.psi, x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
+          }
+          const name = VEHICLES[v.kind].name, own = getChoice();
+          setBorrow({ ...own, car: TAKE[name], paintHex: PAINTED.test(name) ? paintOf(v) : undefined });
+          const t = Math.min(1, Math.max(0, v.distance / curve.getLength())), lat = laneLat(v, roadShapeAt(t).widen);
+          resetCar(v.distance); game.lat = lat; game.prev.lat = lat;
+          v.distance = (v.distance + curve.getLength() * 0.5) % curve.getLength(); // (gone from the road: it's yours now)
+          F.on = false; F.hop = -1; holder.visible = false; ride.current = null; // (the drawn vehicle is about to change)
+          announce(TAKE[name] === "kuruva" ? "Hopped on · ride on" : "Hopped in · drive on", "badge");
+        }
       } else if (F.on && F.near && !S.current.step && car) {
         // back in: they walk up to the door first, then they're in (not gone from wherever they stood)
         car.updateMatrixWorld();
@@ -125,6 +158,20 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     // close enough to get back in?
     car.getWorldPosition(T.a);
     F.near = Math.hypot(F.x - T.a.x, F.z - T.a.z) < CAR.halfW + DOOR.out + DOOR.reach;
+    // where they stand, for the traffic (it stops for you); a stopped vehicle beside them they could take; your own,
+    // parked, if you're in someone else's
+    const here = place(F.x, F.z, st.s); F.s = here.s; F.lat = here.lat;
+    F.hop = -1; F.hopBike = false;
+    if (!F.near && game.leg === 0) for (const v of trafficControl.fleet) {
+      const name = VEHICLES[v.kind].name;
+      const ds = F.s - v.distance, half = VEHICLES[v.kind].length / 2;
+      if (!(name in TAKE) || v.direction !== 1 || Math.abs(v.speed) > HOP.stopped || ds > half + HOP.ahead || ds < -half - HOP.along) continue;
+      const t = Math.min(1, Math.max(0, v.distance / curve.getLength()));
+      if (Math.abs(laneLat(v, roadShapeAt(t).widen) - F.lat) > VEHICLES[v.kind].width / 2 + HOP.across) continue;
+      F.hop = v.id; F.hopBike = TAKE[name] === "kuruva"; break;
+    }
+    const P = game.parked;
+    F.byParked = !!P && !F.near && Math.hypot(F.x - P.x, F.z - P.z) < CAR.halfW + DOOR.out + DOOR.reach + 0.1;
 
     // the camera: over their shoulder, turning after them (B looks back); lifted over any ground in between
     if (!st.ready) { st.camYaw = F.yaw; st.ready = true; }

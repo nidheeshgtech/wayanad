@@ -138,7 +138,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
 
   const rig = useMemo(() => {
     // scale the model to 4.0 m, wheels on the ground, centred
-    const wrap = new Group(), model = prepareVehicle(source.clone(true), car, colourOf(choice.colour).hex); wrap.add(model);
+    const wrap = new Group(), model = prepareVehicle(source.clone(true), car, choice.paintHex ?? colourOf(choice.colour).hex); wrap.add(model);
     const box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), k = LENGTH / size.z;
     model.scale.setScalar(k); model.updateMatrixWorld(true);
     const b2 = new Box3().setFromObject(model), c2 = b2.getCenter(new Vector3());
@@ -234,7 +234,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     });
     const dims = new Box3().setFromObject(body).getSize(new Vector3());
     return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims };
-  }, [source, LENGTH, choice.colour, car.plate, car.bike]);
+  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
   useMemo(() => { setVehicle(!!car.bike); game.damage = 0; }, [car.bike, rig]); // eslint-disable-line react-hooks/exhaustive-deps
   const dentRun = useRef(-1);
@@ -274,7 +274,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     void loadCast(id).then(([src, clips]) => {
       if (gone) return;
       const actor = makeActor(id, src, clips, driverOf(id).height / 10); // units of 10 m
-      seated.current = seat(actor, rig.body, !!car.bike, LENGTH, rig.steering?.pivot.position);
+      // (a model without its own steering wheel part says where the wheel is: data/cars `seat`)
+      const wheel = rig.steering?.pivot.position ?? (car.seat ? new Vector3(car.seat.x * LENGTH, car.seat.y * LENGTH, car.seat.z * LENGTH) : null);
+      seated.current = seat(actor, rig.body, !!car.bike, LENGTH, wheel);
       hideStandIn(rig.root); placed = actor;
     });
     return () => { gone = true; seated.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
