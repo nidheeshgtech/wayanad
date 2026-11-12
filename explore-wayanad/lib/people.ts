@@ -168,7 +168,10 @@ export function seat(actor: Actor, frame: Object3D, bike: boolean, length: numbe
   return {
     actor, lean: bike ? (passenger ? 0.3 : 0.55) : -0.2, free: passenger,
     hands: { left: new Vector3(grip.cx + grip.x, grip.y, grip.z), right: new Vector3(grip.cx - grip.x, grip.y, grip.z) },
-    pole: { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() },
+    // elbows: in a car out and down; on a bike mostly down and back, tucked in (out-first read as arms flung up)
+    pole: bike
+      ? { left: new Vector3(0.45, -1.4, -0.6).normalize(), right: new Vector3(-0.45, -1.4, -0.6).normalize() }
+      : { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() },
   };
 }
 const sq = new Quaternion(), sl = new Vector3(), sr = new Vector3(), spl = new Vector3(), spr = new Vector3(), sside = new Vector3(), sup = new Vector3();

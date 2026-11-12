@@ -57,6 +57,7 @@ const VIEW = {
 /** Dents (cars): a hit pushes the body in round where it struck — `depth` at full strength, fading over `radius` —
  * never more than `max` from the original shape anywhere; a new climb repairs it. Units of 10 m. */
 const DENT = { depth: 0.014, radius: 0.075, max: 0.03 };
+const BIKE_LEAN = 0.44; // rad (~25°): the most a bike leans into a bend; full from ~45 km/h, a third of it at a standstill
 const YAW = { tau: 0.22, maxRate: 2.4 }; // the chase camera's heading: a damped follow, capped so hairpins never whip it round
 const BLEND = 0.4; // s to glide between views
 const up = new Vector3(0, 1, 0);
@@ -169,12 +170,14 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       mergeInto(own, spinner);
       wheels.push({ pivot, spinner, front: c.z > 0 });
     }
-    // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside)
+    // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside).
+    // They go in `body`, not `root`: a bike leans into bends as one piece (body rolls about the tyres' contact line,
+    // y = 0), so wheels left upright in `root` came apart from a leaning bike.
     if (car.bike && !wheels.length) {
-      const cut = cutBikeWheels(stat.filter((m) => m.name !== "rider"), root, LENGTH);
+      const cut = cutBikeWheels(stat.filter((m) => m.name !== "rider"), body, LENGTH);
       if (cut) {
         stat = [...cut.rest, ...stat.filter((m) => m.name === "rider")];
-        for (const w of cut.wheels) { root.add(w.pivot); wheels.push(w); }
+        for (const w of cut.wheels) { body.add(w.pivot); wheels.push(w); }
         for (const m of cut.rest) m.removeFromParent(); // (merged into the body below)
         if (process.env.NODE_ENV !== "production") (globalThis as { __bikeWheels?: unknown }).__bikeWheels = cut.wheels.map((w) => ({ at: w.pivot.position.toArray(), front: w.front, parts: w.spinner.children.length, w }));
       }
@@ -403,14 +406,18 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     root.position.copy(p).addScaledVector(n, 0.002); root.quaternion.copy(rot);
     // on the shoulder: down on the gravel, a few cm below the asphalt, leaning out as the outer wheels drop off it
     const track = CAR.halfW * 0.8, d = Math.abs(lat) - road.widen(t), inner = shoulderDrop(d - track), outer = shoulderDrop(d + track);
-    if (outer > 0) { root.position.y -= (inner + outer) / 2; root.rotateZ(Math.sign(lat) * Math.atan((outer - inner) / (2 * track))); }
+    // (a bike runs on one line: it just drops onto the gravel, no tilting as if outer wheels had gone over the edge)
+    if (car.bike) { const drop = shoulderDrop(d); if (drop > 0) root.position.y -= drop; }
+    else if (outer > 0) { root.position.y -= (inner + outer) / 2; root.rotateZ(Math.sign(lat) * Math.atan((outer - inner) / (2 * track))); }
 
     // springs: the body dips under braking, squats when pulling away, leans out of bends
     if (!game.paused) {
       const sp = spring.current, k = 140, c = 16, d = Math.min(dt, 0.05);
-      // (a bike leans into the bend instead, as far as the turn needs: atan(sideways / g), the units in 10 m)
+      // (a bike leans into the bend instead, as far as the turn needs: atan(sideways / g), the units in 10 m; at most
+      // BIKE_LEAN, a road rider's lean, and less at walking pace, where 43° read as the bike falling over)
       const wantP = Math.max(-0.035, Math.min(0.035, -game.accel * 0.03)) * (car.bike ? 0.4 : 1);
-      const wantR = car.bike ? Math.max(-0.75, Math.min(0.75, -Math.atan((game.sideways * 10) / 9.8) - game.steer * 0.12 * Math.min(1, Math.abs(game.speed))))
+      const lean = BIKE_LEAN * Math.min(1, 0.35 + Math.abs(game.speed) * 0.5);
+      const wantR = car.bike ? Math.max(-lean, Math.min(lean, -Math.atan((game.sideways * 10) / 9.8) - game.steer * 0.12 * Math.min(1, Math.abs(game.speed))))
         : Math.max(-0.045, Math.min(0.045, game.sideways * 0.05));
       sp.vp += (k * (wantP - sp.pitch) - c * sp.vp) * d; sp.pitch += sp.vp * d;
       sp.vr += (k * (wantR - sp.roll) - c * sp.vr) * d; sp.roll += sp.vr * d;
