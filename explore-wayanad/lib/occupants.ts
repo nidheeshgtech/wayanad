@@ -49,7 +49,15 @@ function painted(g: BufferGeometry, colour: number, m: Matrix4) {
 /** The people in one vehicle as one geometry, for a vehicle `length` long in whatever units the caller uses (traffic:
  * 10 m units, the vehicles page: metres) — the seat plan, in metres, is scaled by length / plan length. Null if nobody's
  * aboard. */
+/** A few seatings per vehicle type, shared: each vehicle building its own was ~120 MB across the traffic. */
+const VARIANTS = 6;
+const made = new Map<string, BufferGeometry | null>();
 export function occupantsFor(name: string, length: number, seed: number) {
+  const key = `${name}|${length}|${seed % VARIANTS}`;
+  if (!made.has(key)) made.set(key, buildOccupants(name, length, seed % VARIANTS));
+  return made.get(key)!;
+}
+function buildOccupants(name: string, length: number, seed: number) {
   const plan = PLANS[name];
   if (!plan) return null;
   let s = seed * 9973 + 17;

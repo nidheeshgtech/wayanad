@@ -11,9 +11,30 @@ import { plainGeometry } from "@/lib/vehicleAssets";
 /** Wheel radius and the tyre's half-width, as fractions of the bike's length (an 18–19" wheel on a 2 m bike). */
 const WHEEL = { radius: 0.155, half: 0.05, contact: 0.2 };
 
+/** What a cut produced, kept per model (and per placement in its frame): every later bike of the same model shares
+ * these geometries instead of cutting its own copy — each copy was ~10 MB, and the traffic has dozens of bikes. */
+type Cut = { rest: { g: BufferGeometry; material: Mesh["material"]; name: string; castShadow: boolean }[]; wheels: { at: Vector3; front: boolean; pieces: { material: Material; g: BufferGeometry }[] }[] };
+const cuts = new WeakMap<BufferGeometry, Map<string, Cut | null>>();
+function build(cut: Cut, into: Object3D) {
+  const rest = cut.rest.map((r) => { const m = new Mesh(r.g, r.material); m.name = r.name; m.castShadow = r.castShadow; into.add(m); return m; });
+  into.updateMatrixWorld(true);
+  const built = cut.wheels.map((w) => {
+    const pivot = new Group(), spinner = new Group(); pivot.position.copy(w.at); pivot.add(spinner);
+    for (const p of w.pieces) { const m = new Mesh(p.g, p.material); m.castShadow = true; spinner.add(m); }
+    return { pivot, spinner, front: w.front };
+  });
+  return { rest, wheels: built };
+}
+
 export function cutBikeWheels(meshes: Mesh[], into: Object3D, length: number) {
   into.updateMatrixWorld(true);
   const inv = new Matrix4().copy(into.matrixWorld).invert(), R = WHEEL.radius * length, half = WHEEL.half * length;
+  // the same model placed the same way in its frame cuts the same: reuse the first cut
+  const first = meshes[0]?.geometry, rel = first ? new Matrix4().multiplyMatrices(inv, meshes[0].matrixWorld).elements.map((e) => e.toFixed(4)).join(",") : "";
+  const key = `${meshes.length}|${length}|${rel}`;
+  let byGeo = first ? cuts.get(first) : undefined;
+  if (first && !byGeo) { byGeo = new Map(); cuts.set(first, byGeo); }
+  if (byGeo?.has(key)) { const c = byGeo.get(key)!; return c ? build(c, into) : null; }
   // every mesh's triangles in `into`'s frame
   // (plain floats first: the files pack positions as quantised, interleaved numbers, which won't survive a transform)
   const parts = meshes.map((m) => {
@@ -31,7 +52,7 @@ export function cutBikeWheels(meshes: Mesh[], into: Object3D, length: number) {
       const e = p.getZ(i) > 0 ? ends.front : ends.back; e.z += p.getZ(i); e.n++;
     }
   }
-  if (!ends.front.n || !ends.back.n) return null;
+  if (!ends.front.n || !ends.back.n) { byGeo?.set(key, null); return null; }
   // each wheel's real size and centre, measured from its tyre: at about axle height the tyre is the only thing there
   // (between the fork legs or the swingarm), so its front and back edges give the diameter, and the middle the axle.
   // A guessed centre was off, and the wheel then carried the mudguard and number plate round with it
@@ -53,7 +74,7 @@ export function cutBikeWheels(meshes: Mesh[], into: Object3D, length: number) {
   const axles = [{ ...front, front: true }, { ...back, front: false }];
   // split each mesh's triangles: wheel (inside one disc, tyre-wide) or body
   const wheels = axles.map((a) => ({ ...a, pieces: [] as { material: Material; g: BufferGeometry }[] }));
-  const rest: Mesh[] = [];
+  const restParts: Cut["rest"] = [];
   const v = new Vector3();
   // only what's wholly inside the tyre's own circle (a hair inside it), so nothing outside it turns
   const inDisc = (a: Vector3, r: number) => (v.y - a.y) ** 2 + (v.z - a.z) ** 2 < r * r * 0.95 && Math.abs(v.x) < half * 0.7;
@@ -78,15 +99,11 @@ export function cutBikeWheels(meshes: Mesh[], into: Object3D, length: number) {
       return out.getAttribute("position").count ? out : null;
     };
     const body = pick((t) => which[t] < 0);
-    if (body) { const m = new Mesh(body, mesh.material); m.name = mesh.name; m.castShadow = mesh.castShadow; into.add(m); rest.push(m); }
+    if (body) restParts.push({ g: body, material: mesh.material, name: mesh.name, castShadow: mesh.castShadow });
     wheels.forEach((w, i) => { const piece = pick((t) => which[t] === i, w.at); if (piece) w.pieces.push({ material: mesh.material as Material, g: piece }); });
   }
-  into.updateMatrixWorld(true);
   // each wheel on a pivot at its axle (the front one steers about it), a spinner inside that rolls
-  const built = wheels.filter((w) => w.pieces.length).map((w) => {
-    const pivot = new Group(), spinner = new Group(); pivot.position.copy(w.at); pivot.add(spinner);
-    for (const p of w.pieces) { const m = new Mesh(p.g, p.material); m.castShadow = true; spinner.add(m); }
-    return { pivot, spinner, front: w.front };
-  });
-  return { rest, wheels: built };
+  const cut: Cut = { rest: restParts, wheels: wheels.filter((w) => w.pieces.length).map((w) => ({ at: w.at.clone(), front: w.front, pieces: w.pieces })) };
+  byGeo?.set(key, cut);
+  return build(cut, into);
 }

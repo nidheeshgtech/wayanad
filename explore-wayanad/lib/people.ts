@@ -7,12 +7,13 @@
  *    all the people share the same rig (bone names), so a clip made on one plays on any. Only rotations are kept, and the
  *    hips' height is carried across in proportion, so a short person doesn't float or sink in someone else's walk.
  */
-import { AnimationClip, AnimationMixer, Box3, Group, Matrix4, Quaternion, Vector3, VectorKeyframeTrack, type AnimationAction, type Bone, type Object3D, type SkinnedMesh } from "three";
+import { AnimationClip, AnimationMixer, Box3, Group, Matrix4, Quaternion, Vector3, VectorKeyframeTrack, type AnimationAction, type Bone, type Object3D, type SkinnedMesh, type Sphere } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
 import { isWomanPerson, personHeight, personModel, type PersonId } from "@/data/drivers";
 import { whenReady } from "@/lib/loading";
+import { warmModel } from "@/lib/warm";
 
 export type Move = "idle" | "walk" | "sit" | "run";
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -23,7 +24,8 @@ let moves: Promise<Map<string, AnimationClip>> | null = null;
 export function loadDriver(id: PersonId, lo = false) {
   const url = lo ? personModel(id).replace("/drivers/", "/drivers/lo/") : personModel(id);
   let p = people.get(url);
-  if (!p) { p = loader.loadAsync(url).then((g) => ({ scene: g.scene, clips: g.animations })); people.set(url, p); }
+  // (warmed as soon as it arrives: shaders compiled and textures uploaded in the background, lib/warm)
+  if (!p) { p = loader.loadAsync(url).then((g) => { warmModel(g.scene); return { scene: g.scene, clips: g.animations }; }); people.set(url, p); }
   return p;
 }
 export function loadMoves() {
@@ -50,6 +52,7 @@ export type Actor = {
   palms: { left: HandShape; right: HandShape } | null;
 };
 
+const fits = new WeakMap<Object3D, { yaw: number; box: Box3; spheres: Sphere[] }>();
 /** A hand as modelled, in its bone's own frame: `dir` wrist → middle of the hand (where the fingers point), `palm` the
  * palm's side (flat across the hand), and the bone's rest rotation. */
 export type HandShape = { dir: Vector3; palm: Vector3; rest: Quaternion };
@@ -108,11 +111,25 @@ function handShape(src: Object3D, body: Object3D, bones: Map<string, Object3D>, 
  * the same way: each is turned by its hips, left hip − right hip crossed with up). Their own idle until `play`.
  */
 export function makeActor(id: PersonId, src: { scene: Object3D; clips: AnimationClip[] }, clips: Map<string, AnimationClip>, height: number): Actor {
-  const body = clone(src.scene), turn = new Group(); turn.add(body); turn.updateMatrixWorld(true);
-  const at = (n: string) => body.getObjectByName(n)?.getWorldPosition(new Vector3());
-  const L = at("LeftUpLeg"), R = at("RightUpLeg");
-  if (L && R) { const f = L.sub(R).cross(new Vector3(0, 1, 0)); turn.rotation.y = -Math.atan2(f.x, f.z); turn.updateMatrixWorld(true); }
-  const box = new Box3().setFromObject(turn, true), size = box.getSize(new Vector3()), c = box.getCenter(new Vector3());
+  const body = clone(src.scene), turn = new Group(); turn.add(body);
+  const skinned: SkinnedMesh[] = []; body.traverse((o) => { if ((o as SkinnedMesh).isSkinnedMesh) skinned.push(o as SkinnedMesh); });
+  // how this model stands and how big it is: measured once per model (bone by bone, which was a jolt for every person
+  // that walked into view) and reused for every copy, with each skinned part's bounds
+  let F = fits.get(src.scene);
+  if (!F) {
+    turn.updateMatrixWorld(true);
+    const at = (n: string) => body.getObjectByName(n)?.getWorldPosition(new Vector3());
+    const L = at("LeftUpLeg"), R = at("RightUpLeg");
+    let yaw = 0; if (L && R) { const f = L.sub(R).cross(new Vector3(0, 1, 0)); yaw = -Math.atan2(f.x, f.z); }
+    turn.rotation.y = yaw; turn.updateMatrixWorld(true);
+    F = { yaw, box: new Box3().setFromObject(turn, true), spheres: skinned.map((m) => { m.computeBoundingSphere(); return m.boundingSphere!.clone(); }) };
+    fits.set(src.scene, F);
+  } else {
+    turn.rotation.y = F.yaw;
+    skinned.forEach((m, i) => { const sp = F!.spheres[i]; if (sp) m.boundingSphere = sp.clone(); });
+  }
+  turn.updateMatrixWorld(true);
+  const box = F.box, size = box.getSize(new Vector3()), c = box.getCenter(new Vector3());
   const k = height / size.y, fit = new Group(); fit.add(turn);
   fit.scale.setScalar(k); fit.position.set(-c.x * k, -box.min.y * k, -c.z * k);
   const bones = new Map<string, Object3D>();

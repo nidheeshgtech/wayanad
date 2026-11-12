@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { DefaultLoadingManager, type InstancedMesh, type Object3D } from "three";
 import { loading } from "@/lib/loading";
+import { setWarmTarget } from "@/lib/warm";
 
 // models and textures report to the loading state (lib/loading) through three's default loading manager
 if (typeof window !== "undefined" && !(globalThis as { __wayanadLoadingHooked?: boolean }).__wayanadLoadingHooked) {
@@ -40,6 +41,7 @@ export default function Warmup({ needs = [] }: { needs?: string[] }) {
       scene.traverse((o) => { if (o.userData.__fc !== undefined) { o.frustumCulled = o.userData.__fc; delete o.userData.__fc; } });
     }
     loading.ready = true;
+    setWarmTarget(gl, camera, scene); // (from now on, models that arrive are warmed in the background: lib/warm)
   });
   return null;
 }
