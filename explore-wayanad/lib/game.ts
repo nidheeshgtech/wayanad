@@ -45,6 +45,7 @@ const fresh = () => ({
   reset: 0,                                   // bumped to put the car back in lane
   view: "chase" as View,                      // camera (C cycles): behind, close behind, on the bonnet
   lookBack: false,                            // held (B, or the look-back button): the camera faces back down the road
+  look: { yaw: 0, held: false },              // a swipe across the road (components/drive/SwipeLook): the chase camera swung round the car, easing back when let go
   // for the HUD, filled in by the car each frame
   place: "Adivaram", next: "Lakkidi gate", nextM: 0, bends: 0,
   km: 0, kmTotal: 0,                          // along the road from Adivaram, and to the end of the drive

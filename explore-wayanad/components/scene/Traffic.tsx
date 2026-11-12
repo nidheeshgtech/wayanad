@@ -1,7 +1,7 @@
 'use client';
 import { use, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3 } from 'three';
+import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, Raycaster, SRGBColorSpace, Texture, TextureLoader, Vector3, type Object3D } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
@@ -26,6 +26,23 @@ const RIDERLESS = /^(pulsar|enfield)-real$/;
 const JACKETS = ['#1d2230', '#7a2f34', '#2f4f7a', '#3f5f3a', '#4a4a52', '#8a5a2b'];
 import { ADVERTISE, BUS_SIDES } from '@/data/sponsors';
 const lampGeometry = new BoxGeometry(.025,.013,.005);
+/**
+ * Where a vehicle's front actually is at lamp height `y` (its own frame, x across): the first surface met coming from
+ * ahead. A fixed half-length put a bike's lamp at the tip of its front tyre, floating in the air ahead of the headlamp.
+ * Measured once per kind (the models are shared).
+ */
+const fronts = new Map<number, number>();
+function frontAt(kind: number, model: Object3D, x: number, y: number, fallback: number) {
+  const key = kind * 1000 + Math.round(x * 1000);
+  let z = fronts.get(key);
+  if (z === undefined) {
+    model.updateMatrixWorld(true);
+    const hits = new Raycaster(new Vector3(x, y, 50), new Vector3(0, 0, -1)).intersectObject(model, true).filter(h => h.object.name !== 'rider');
+    z = hits.length ? hits[0].point.z : fallback;
+    fronts.set(key, z);
+  }
+  return z;
+}
 /** How far a knocked-over bike lies over (radians, ~80°: on its side, the handlebar and pegs hold it a little off flat). */
 const FALL = 1.4;
 /** In a private race only every RACE_KEEP-th vehicle stays on the road (a quarter of the traffic). */
@@ -142,7 +159,10 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     // lamps at the model's own headlamp height (about a third of its height; bikes: one lamp, higher up)
     const bike = spec.width < .12;
     for (const x of bike ? [0] : [-spec.width*.32, spec.width*.32]) {
-      const light=new Mesh(lampGeometry,bulb);light.name='lamp';light.position.set(x,spec.height*(bike ? .62 : .32),spec.length*.5+.002);root.add(light);
+      const y = spec.height * (bike ? .62 : .32), z = frontAt(v.kind, model, x, y, spec.length * .5);
+      const light=new Mesh(lampGeometry,bulb);light.name='lamp';light.position.set(x,y,z+.002);
+      if (bike) light.scale.set(.45, .8, 1); // (one small round-ish lamp, not a car's)
+      root.add(light);
     }
     // buses: a route board on the front — some in Malayalam, some English, some both
     if (hasBoard(spec.name)) {

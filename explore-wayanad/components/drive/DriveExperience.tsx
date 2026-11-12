@@ -6,6 +6,7 @@ import { game, resetCar } from "@/lib/game";
 import { setDriveWeather } from "@/lib/weather";
 import { scrollState } from "@/lib/scrollState";
 import DriveHud from "./DriveHud";
+import SwipeLook from "./SwipeLook";
 import Radar from "./Radar";
 import styles from "./Drive.module.scss";
 
@@ -28,6 +29,7 @@ export default function DriveExperience() {
       {tier && <Scene tier={tier === "video" ? "lite" : tier} mode="drive" />}
       <Radar />
       <DriveHud />
+      <SwipeLook />
     </div>
   );
 }

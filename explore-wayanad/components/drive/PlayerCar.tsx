@@ -480,7 +480,10 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     } else {
       // a bike is half a car's size: the camera comes in closer and lower, so it fills the view the same
       const v0 = VIEW[view], bk = car.bike ? 0.62 : 1, v = { back: v0.back * bk, up: v0.up * (car.bike ? 0.7 : 1), ahead: v0.ahead, aimUp: v0.aimUp * (car.bike ? 0.75 : 1) };
-      dir.set(Math.sin(C.yaw), 0, Math.cos(C.yaw));
+      // (swiped round: the camera swings about the car, and eases back behind it once let go)
+      if (!game.look.held && game.look.yaw !== 0) { game.look.yaw *= Math.exp(-dt / 0.45); if (Math.abs(game.look.yaw) < 0.002) game.look.yaw = 0; }
+      const swing = game.foot.on ? 0 : game.look.yaw;
+      dir.set(Math.sin(C.yaw + swing), 0, Math.cos(C.yaw + swing));
       if (view === "back") dir.negate();
       want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back * (1 + fx * SPEED_FX.back)).addScaledVector(up, v.up * (1 - fx * 0.12));
       look.set(root.position.x, C.y, root.position.z).addScaledVector(dir, v.ahead).addScaledVector(up, v.aimUp);
