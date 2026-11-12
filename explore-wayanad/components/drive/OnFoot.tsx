@@ -10,7 +10,7 @@ import { driverOfVehicle, someDriver } from "@/lib/crew";
 import { announce } from "@/lib/score";
 import { height, roadShapeAt, SECTION } from "@/lib/terrain";
 import { driverOf, type DriverId } from "@/data/drivers";
-import { loadCast, makeActor, type Actor } from "@/lib/people";
+import { loadCast, makeActor, settleHands, type Actor } from "@/lib/people";
 
 /* Out of the vehicle (lib/game `foot`): stopped, Enter (or the door key) gets your driver out by their door to walk
  * about — the same keys walk (up: forward, down: back, left/right: turn; Shift or the nitro key: run) — and look at the view; Enter
@@ -154,7 +154,7 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
         if (P.into) { F.on = false; holder.visible = false; return; }
         A.play("idle", 0.2);
       }
-      A.mixer.update(dt);
+      A.mixer.update(dt); settleHands(A);
       holder.position.set(F.x, st.y, F.z); holder.rotation.set(0, F.yaw, 0);
     }
 
@@ -173,7 +173,7 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     if (!stepping) { // (the automatic steps played and placed them already)
       const act = A.play(running ? "run" : v !== 0 ? "walk" : "idle", 0.2);
       if (act) act.timeScale = running ? v / 0.45 : v !== 0 ? v / 0.115 : 1;
-      A.mixer.update(dt);
+      A.mixer.update(dt); settleHands(A);
       holder.position.set(F.x, st.y, F.z); holder.rotation.set(0, F.yaw, 0);
     }
     // close enough to get back in?

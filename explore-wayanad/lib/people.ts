@@ -44,6 +44,8 @@ export type Actor = {
   root: Group; mixer: AnimationMixer; bones: Map<string, Object3D>;
   /** fade to a move (0 s jumps) */ play: (move: Move, fade?: number) => AnimationAction | null;
   /** the hips' place in `root`'s frame in the current pose, after a mixer update */ hips: () => Vector3;
+  /** which way each palm faces, in its hand bone's own frame (from the rest pose: see makeActor) */
+  palms: { left: Vector3; right: Vector3; rest: { left: Quaternion; right: Quaternion } } | null;
 };
 
 /**
@@ -61,6 +63,22 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   const bones = new Map<string, Object3D>();
   body.traverse((o) => { o.frustumCulled = false; (o as { castShadow?: boolean }).castShadow = true; if ((o as { isBone?: boolean }).isBone) bones.set(o.name, o); });
   const root = new Group(); root.add(fit);
+  // the palms at rest: facing in toward the body and down (arms hanging, they face the thighs; held out, the floor),
+  // kept in each hand's own frame so reach() can turn the forearm until the palm meets the bars or the wheel
+  let palms: Actor["palms"] = null;
+  {
+    root.updateMatrixWorld(true);
+    const hipsAt = bones.get("Hips")?.getWorldPosition(new Vector3()), get = (side: "Left" | "Right") => {
+      const fore = bones.get(`${side}ForeArm`), hand = bones.get(`${side}Hand`);
+      if (!fore || !hand || !hipsAt) return null;
+      const H = hand.getWorldPosition(new Vector3()), axis = H.clone().sub(fore.getWorldPosition(new Vector3())).normalize();
+      const want = hipsAt.clone().sub(H).setY(0).normalize().add(new Vector3(0, -1, 0));
+      want.addScaledVector(axis, -want.dot(axis)).normalize();
+      return want.applyQuaternion(hand.getWorldQuaternion(new Quaternion()).invert());
+    };
+    const left = get("Left"), right = get("Right"), lh = bones.get("LeftHand"), rh = bones.get("RightHand");
+    if (left && right && lh && rh) palms = { left, right, rest: { left: lh.quaternion.clone(), right: rh.quaternion.clone() } };
+  }
   const mixer = new AnimationMixer(body);
   // the shared clips, fitted to this person: rotations as they are; the hips' track moved to their own hips' rest
   const hipsBone = bones.get("Hips"), rest = hipsBone ? hipsBone.position.clone() : new Vector3();
@@ -68,7 +86,10 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   const fitClip = (name: string, sex: "m" | "f") => {
     const clip = clips.get(name); if (!clip) return null;
     const from = SOURCE_HIPS[sex], s = rest.y / from.y;
-    const tracks = clip.tracks.map((t) => {
+    // (not the hands: each person was rigged on their own, so their hand bones rest at different angles, 5–33° apart,
+    // and another rig's wrist rotations bent theirs back like pushing on a wall. Left out, a hand stays in line with its
+    // forearm as modelled.)
+    const tracks = clip.tracks.filter((t) => !/(Left|Right)Hand\.quaternion$/.test(t.name)).map((t) => {
       if (!t.name.endsWith("Hips.position")) return t;
       const v = t.values.slice();
       for (let i = 0; i < v.length; i += 3) { v[i] = rest.x + (v[i] - from.x) * s; v[i + 1] = rest.y + (v[i + 1] - from.y) * s; v[i + 2] = rest.z + (v[i + 2] - from.z) * s; }
@@ -92,7 +113,7 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   };
   play("idle", 0);
   const hips = () => { root.updateMatrixWorld(true); return hipsBone ? root.worldToLocal(hipsBone.getWorldPosition(new Vector3())) : new Vector3(0, height * 0.5, 0); };
-  return { root, mixer, bones, play, hips };
+  return { root, mixer, bones, play, hips, palms };
 }
 
 const qa = new Quaternion(), qb = new Quaternion(), va = new Vector3(), vb = new Vector3(), vc = new Vector3(), vd = new Vector3();
@@ -110,13 +131,15 @@ function aim(bone: Object3D, tip: Object3D, dir: Vector3) {
  * Hands to the bars or the wheel: each arm bent at the elbow (out and down, `pole` in world) so its hand reaches the
  * target (world). Run after the mixer's update, each frame (it overrides the clip's arms).
  */
-export function reach(actor: Actor, targets: { left: Vector3; right: Vector3 }, pole: { left: Vector3; right: Vector3 }) {
+export function reach(actor: Actor, targets: { left: Vector3; right: Vector3 }, pole: { left: Vector3; right: Vector3 }, palm?: { left: Vector3; right: Vector3 }) {
   for (const side of ["Left", "Right"] as const) {
     const upper = actor.bones.get(`${side}Arm`), fore = actor.bones.get(`${side}ForeArm`), hand = actor.bones.get(`${side}Hand`);
     if (!upper || !fore || !hand) continue;
-    const T = side === "Left" ? targets.left : targets.right, P = side === "Left" ? pole.left : pole.right;
+    const P = side === "Left" ? pole.left : pole.right;
     upper.updateWorldMatrix(true, true);
     const S = vb.setFromMatrixPosition(upper.matrixWorld).clone(), E = vc.setFromMatrixPosition(fore.matrixWorld).clone(), H = vd.setFromMatrixPosition(hand.matrixWorld).clone();
+    // the wrist stops short of the grip (the hand's bone starts at the wrist), so the hand can close round it
+    const grip = side === "Left" ? targets.left : targets.right, T = grip.clone().addScaledVector(grip.clone().sub(S).normalize(), palm ? -WRIST : 0);
     const a = S.distanceTo(E), b = E.distanceTo(H), toT = T.clone().sub(S), d = Math.min(a + b - 1e-5, Math.max(Math.abs(a - b) + 1e-5, toT.length()));
     toT.normalize();
     const x = (a * a - b * b + d * d) / (2 * d), h = Math.sqrt(Math.max(0, a * a - x * x));
@@ -125,7 +148,57 @@ export function reach(actor: Actor, targets: { left: Vector3; right: Vector3 }, 
     aim(upper, fore, elbow.clone().sub(S).normalize());
     fore.updateWorldMatrix(true, false);
     aim(fore, hand, T.clone().sub(vc.setFromMatrixPosition(fore.matrixWorld)).normalize());
+    // and the palm onto the grip: roll the forearm about its own length until the palm faces `palm`
+    const own = side === "Left" ? actor.palms?.left : actor.palms?.right, want = side === "Left" ? palm?.left : palm?.right;
+    if (own && want) {
+      hand.quaternion.copy(side === "Left" ? actor.palms!.rest.left : actor.palms!.rest.right); // (in line with the forearm; the bend below is made fresh each frame)
+      twist(fore, hand, own, want);
+      // and bend at the wrist toward the palm, fingers round the bar or the rim
+      hand.updateWorldMatrix(true, false);
+      const along = va.copy(T).sub(vb.setFromMatrixPosition(fore.matrixWorld)).normalize(), pw = vc.copy(own).applyQuaternion(hand.getWorldQuaternion(qa));
+      const k = vd.crossVectors(along, pw); if (k.lengthSq() > 1e-8) {
+        const world = hand.getWorldQuaternion(new Quaternion()).premultiply(qb.setFromAxisAngle(k.normalize(), FLEX));
+        hand.quaternion.copy(fore.getWorldQuaternion(new Quaternion()).invert().multiply(world));
+      }
+    }
   }
+}
+const WRIST = 0.006; // units (6 cm): how far short of the grip the wrist stops
+const FLEX = 0.6;    // rad (~35°): the wrist bent toward the palm, holding on
+/**
+ * Hands hanging by the sides (walking, standing, a passenger's lap): each forearm rolled so its palm faces in toward the
+ * body. The shared clips' arm rotations come from another rig, which left palms facing back with the wrists flared.
+ * Run after the mixer's update.
+ */
+const sh = new Vector3(), sw = new Vector3();
+export function settleHands(actor: Actor) {
+  const hips = actor.bones.get("Hips"); if (!hips || !actor.palms) return;
+  hips.getWorldPosition(sh);
+  for (const side of ["Left", "Right"] as const) {
+    const fore = actor.bones.get(`${side}ForeArm`), hand = actor.bones.get(`${side}Hand`);
+    if (!fore || !hand) continue;
+    hand.getWorldPosition(sw); sw.subVectors(sh, sw).setY(0);
+    if (sw.lengthSq() < 1e-10) continue;
+    twist(fore, hand, side === "Left" ? actor.palms.left : actor.palms.right, sw.normalize());
+  }
+}
+/** Palms on the bars or the wheel, in the vehicle's frame (+x left, +z forward): seat() and lib/crew. */
+export const PALM = {
+  bike: { left: new Vector3(-0.25, -1, 0.25).normalize(), right: new Vector3(0.25, -1, 0.25).normalize() },
+  car: { left: new Vector3(-0.6, -0.2, 0.8).normalize(), right: new Vector3(0.6, -0.2, 0.8).normalize() },
+};
+/** Roll `fore` about the line to its child `hand` so the hand's `own` direction (hand frame) turns toward `want` (world). */
+function twist(fore: Object3D, hand: Object3D, own: Vector3, want: Vector3) {
+  fore.updateWorldMatrix(true, true);
+  const axis = va.setFromMatrixPosition(hand.matrixWorld).sub(vb.setFromMatrixPosition(fore.matrixWorld)).normalize();
+  const now = vc.copy(own).applyQuaternion(hand.getWorldQuaternion(qa)), to = vd.copy(want);
+  now.addScaledVector(axis, -now.dot(axis)); to.addScaledVector(axis, -to.dot(axis));
+  if (now.lengthSq() < 1e-8 || to.lengthSq() < 1e-8) return;
+  now.normalize(); to.normalize();
+  const angle = Math.atan2(axis.dot(new Vector3().crossVectors(now, to)), now.dot(to));
+  const turn = qb.setFromAxisAngle(axis, angle), world = fore.getWorldQuaternion(new Quaternion()).premultiply(turn);
+  fore.quaternion.copy(fore.parent!.getWorldQuaternion(new Quaternion()).invert().multiply(world));
+  fore.updateWorldMatrix(false, true);
 }
 /**
  * Sit up (or lean over the bars): the spine straightened along `up` (world, the vehicle's up) tipped forward by `angle`
@@ -149,7 +222,7 @@ export const heightOf = (id: PersonId) => personHeight(id);
 
 /** A driver in their seat: where the hands go and how they sit, in the vehicle's own frame (+x left, +z forward). */
 /** `free`: a passenger — hands in the lap as the clip has them, not reaching for anything. */
-export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; lean: number; free?: boolean };
+export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; palm: { left: Vector3; right: Vector3 }; lean: number; free?: boolean };
 /**
  * Sit `actor` in a vehicle `length` units long (frame: wheels on y = 0, centred): on a bike from the old rider's marks
  * (fractions of its length), leaning over the bars; in a car at its steering wheel's centre `wheel`, upright, right-hand
@@ -172,16 +245,20 @@ export function seat(actor: Actor, frame: Object3D, bike: boolean, length: numbe
     pole: bike
       ? { left: new Vector3(0.45, -1.4, -0.6).normalize(), right: new Vector3(-0.45, -1.4, -0.6).normalize() }
       : { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() },
+    // palms: on a bike down over the grips; at a wheel forward and in, onto the rim
+    palm: bike ? PALM.bike : PALM.car,
   };
 }
-const sq = new Quaternion(), sl = new Vector3(), sr = new Vector3(), spl = new Vector3(), spr = new Vector3(), sside = new Vector3(), sup = new Vector3();
+const sq = new Quaternion(), sl = new Vector3(), sr = new Vector3(), spl = new Vector3(), spr = new Vector3(), sside = new Vector3(), sup = new Vector3(), sal = new Vector3(), sar = new Vector3();
 /** Each frame: play on (`dt` s), then sit up or lean over, hands to the bars or wheel. `frame` is what the seat is in. */
 export function poseSeat(S: Seat, frame: Object3D, dt: number) {
   S.actor.mixer.update(Math.min(dt, 0.1));
   frame.updateWorldMatrix(true, false); frame.getWorldQuaternion(sq);
   lean(S.actor, S.lean, sside.set(1, 0, 0).applyQuaternion(sq), sup.set(0, 1, 0).applyQuaternion(sq));
-  if (!S.free) reach(S.actor, { left: frame.localToWorld(sl.copy(S.hands.left)), right: frame.localToWorld(sr.copy(S.hands.right)) },
-    { left: spl.copy(S.pole.left).applyQuaternion(sq), right: spr.copy(S.pole.right).applyQuaternion(sq) });
+  if (S.free) settleHands(S.actor);
+  else reach(S.actor, { left: frame.localToWorld(sl.copy(S.hands.left)), right: frame.localToWorld(sr.copy(S.hands.right)) },
+    { left: spl.copy(S.pole.left).applyQuaternion(sq), right: spr.copy(S.pole.right).applyQuaternion(sq) },
+    { left: sal.copy(S.palm.left).applyQuaternion(sq), right: sar.copy(S.palm.right).applyQuaternion(sq) });
 }
 /** Hide a vehicle's built stand-in driver or rider (its parts are named so). */
 export function hideStandIn(o: Object3D) { o.traverse((m) => { if (m.name === "simple-driver" || m.name === "rider") m.visible = false; }); }

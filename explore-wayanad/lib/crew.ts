@@ -6,7 +6,7 @@
  */
 import { Quaternion, Vector3, type Object3D } from "three";
 import { DRIVERS, EXTRAS, personHeight, type PersonId } from "@/data/drivers";
-import { lean, loadCast, makeActor, reach, seat as seatOnBike, type Actor } from "@/lib/people";
+import { lean, loadCast, makeActor, PALM, reach, seat as seatOnBike, settleHands, type Actor } from "@/lib/people";
 import type { OccupiedSeat } from "@/lib/occupants";
 
 const ALL: PersonId[] = [...DRIVERS.map((d) => d.id), ...EXTRAS.map((e) => e.id)];
@@ -88,7 +88,9 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
 }
 
 const side = new Vector3(), up = new Vector3(), rq = new Quaternion(), tl = new Vector3(), tr = new Vector3();
-const POLE = { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() }, pl = new Vector3(), pr = new Vector3();
+const POLE = { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() }, pl = new Vector3(), pr = new Vector3(), ql = new Vector3(), qr = new Vector3();
+// (on a bike the elbows tuck down and back, as lib/people seat())
+const POLE_BIKE = { left: new Vector3(0.45, -1.4, -0.6).normalize(), right: new Vector3(-0.45, -1.4, -0.6).normalize() };
 /** Each frame while near: breathe, sit up, drivers' hands to the wheel or bars. */
 export function poseCrew(C: Crew, root: Object3D, dt: number, bike: boolean) {
   root.updateWorldMatrix(true, false);
@@ -98,7 +100,9 @@ export function poseCrew(C: Crew, root: Object3D, dt: number, bike: boolean) {
     p.actor.mixer.update(Math.min(dt, 0.1));
     lean(p.actor, bike ? 0.55 : -0.15, side, up);
     if (p.hands) reach(p.actor, { left: root.localToWorld(tl.copy(p.hands.left)), right: root.localToWorld(tr.copy(p.hands.right)) },
-      { left: pl.copy(POLE.left).applyQuaternion(rq), right: pr.copy(POLE.right).applyQuaternion(rq) });
+      { left: pl.copy((bike ? POLE_BIKE : POLE).left).applyQuaternion(rq), right: pr.copy((bike ? POLE_BIKE : POLE).right).applyQuaternion(rq) },
+      { left: ql.copy(bike ? PALM.bike.left : PALM.car.left).applyQuaternion(rq), right: qr.copy(bike ? PALM.bike.right : PALM.car.right).applyQuaternion(rq) });
+    else settleHands(p.actor);
   }
 }
 

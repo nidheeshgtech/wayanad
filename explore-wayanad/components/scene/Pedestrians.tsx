@@ -15,7 +15,7 @@ import { CAR, game } from "@/lib/game";
 import { sideContact, type Player } from "@/lib/traffic";
 import { honking } from "@/lib/horn";
 import { DRIVERS, EXTRAS, personHeight, type PersonId } from "@/data/drivers";
-import { loadCast, makeActor, type Actor } from "@/lib/people";
+import { loadCast, makeActor, settleHands, type Actor } from "@/lib/people";
 
 /* People on foot along the road: mostly in and around the towns (Lakkidi, Vythiri, Chundale, Kalpetta…), a sparse few on
  * the churam (never at a hairpin). They walk slowly up and down a stretch of shoulder, between the asphalt and the
@@ -298,7 +298,7 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
         else near.root.quaternion.slerp(T.q, 1 - Math.exp(-dt / (over ? 0.05 : 0.22)));
         const act = near.play(walking ? "walk" : "idle");
         if (act) act.timeScale = walking ? p.speed / 0.115 : 1;
-        near.mixer.update(dt);
+        near.mixer.update(dt); settleHands(near);
         continue;
       }
       for (const part of [parts.skirt, parts.torso, parts.head, parts.hair]) part.setMatrixAt(i, T.base);
