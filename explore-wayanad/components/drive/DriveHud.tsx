@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } from "@/lib/game";
-import { beep, honk, horn } from "@/lib/horn";
+import { beep, chime, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
 import { weather } from "@/lib/weather";
@@ -12,7 +12,7 @@ import ThemeToggle from "@/components/ui/ThemeToggle";
 import StartScreen, { panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb } from "@/lib/share";
 import { loading } from "@/lib/loading";
-import { mark } from "@/lib/stats";
+import { mark, markLoaded, tickPlay, watchLeaving } from "@/lib/stats";
 import { shareCard } from "@/lib/shareCard";
 import { begin, finish, resetPenalty, score } from "@/lib/score";
 import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } from "@/lib/badges";
@@ -128,6 +128,7 @@ export default function DriveHud() {
   const streaks = useRef<HTMLDivElement>(null), nitroKey = useRef<HTMLButtonElement>(null), doorKey = useRef<HTMLButtonElement>(null);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
+  const checkpoint = useRef<HTMLDivElement>(null), bendsSeen = useRef({ run: -1, n: 0 }); // the banner at each hairpin
   const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "" }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
@@ -178,8 +179,11 @@ export default function DriveHud() {
 
   // readouts, engine note, and the screens the drive asks for
   useEffect(() => {
-    let raf = 0;
+    let raf = 0, last = performance.now();
     const tick = () => {
+      // minutes of real driving, for the drop-off counts (lib/stats): not while paused, stopped at the gate or hidden
+      const now = performance.now(), dt = (now - last) / 1000; last = now;
+      if (game.started && game.phase === "drive" && !game.paused && document.visibilityState === "visible") tickPlay(dt);
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
       // the nitro key: its ring is the tank; lit while it fires, ready (glowing) when there's a good shot in it
       if (nitroKey.current) {
@@ -254,6 +258,19 @@ export default function DriveHud() {
         el.addEventListener("animationend", () => el.remove());
         pops.current.appendChild(el);
       }
+      // a hairpin passed: a banner with how far you've come and what's left (a climb is long: this marks the progress)
+      const B = bendsSeen.current;
+      if (B.run !== score.run) { B.run = score.run; B.n = game.bends; }
+      if (game.started && game.phase === "drive" && game.bends > B.n && game.clock > 2 && checkpoint.current) {
+        B.n = game.bends;
+        const left = 9 - game.bends, el = checkpoint.current;
+        el.replaceChildren();
+        const big = document.createElement("b"); big.textContent = `Hairpin ${game.bends} of 9`;
+        const small = document.createElement("span"); small.textContent = `${clock(game.clock)} · ${left ? `${left} to go` : "Lakkidi gate ahead"}`;
+        el.append(big, small);
+        el.removeAttribute("data-on"); void el.offsetWidth; el.setAttribute("data-on", "");
+        chime(true);
+      } else if (game.bends < B.n || game.clock <= 2) B.n = game.bends; // (reset back down the road; or placed part-way up at the start)
       // the tea stall below Lakkidi: a word as you come up to it, until you've had your tea this climb
       const toStall = game.stall - game.s, teaDue = game.stall > 0 && game.teaRun !== score.run && game.phase === "drive";
       const teaNote = !teaDue ? "" : Math.abs(toStall) < 0.45 ? (Math.abs(game.speed) < 0.03 ? "☕ Ordering a chaya…" : "☕ Stop here for a chai break") : toStall > 0 && toStall < 10 ? `☕ Tea stall in ${Math.round(toStall * 10)} m — stop for a chai break` : "";
@@ -272,7 +289,7 @@ export default function DriveHud() {
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
         if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" }); if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; } finish(game.clock, !game.jumped); if (P && P.mode === "race" && P.phase === "race" && racer) partyFinish(game.clock, score.points); if (!game.jumped) { mark("finished"); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
       } else summary.current.recorded = false;
-      if (loading.ready) mark("loaded");
+      if (loading.ready) markLoaded();
       setScreen((s) => (s === want ? s : want));
       raf = requestAnimationFrame(tick);
     };
@@ -280,6 +297,8 @@ export default function DriveHud() {
     return () => { cancelAnimationFrame(raf); engine(false, 0, 0); ambience({ on: false, rain: 0, night: 0, hood: false, speed: 0 }); };
   }, []);
 
+  // closed or switched away before the road loaded: counted, with how long they waited (lib/stats)
+  useEffect(() => watchLeaving(() => loading.ready), []);
   // iPhone in Safari, first drive: how to get the bars out of the way (once per device; not when opened from the Home Screen)
   useEffect(() => {
     if (screen !== "drive") return;
@@ -313,7 +332,7 @@ export default function DriveHud() {
   const start = () => {
     if (canFull) goFull(true);
     // Play with friends: the room comes first (make one, or join with a code); the drive starts from its lobby
-    if (net.enabled && playMode === "friends") { commitName(); setFriends(true); return; }
+    if (net.enabled && playMode === "friends") { commitName(); setFriends(true); mark("friends"); return; }
     // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
     // up from Adivaram. A climb started part-way isn't kept as your best time.
     const at = new URLSearchParams(location.search).get("at");
@@ -323,7 +342,7 @@ export default function DriveHud() {
     }
     game.started = true; game.phase = "drive"; game.paused = false;
     begin(game.s); startRun();
-    mark("started");
+    mark("started"); if (net.enabled && playMode === "open") mark("open");
     if (net.enabled) {
       const name = commitName();
       if (playMode === "open") void joinRoom(name, new URLSearchParams(location.search).get("room"), getChoice());
@@ -385,6 +404,7 @@ export default function DriveHud() {
       <div ref={rim} className={styles.mirror} data-mirror aria-hidden />
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />
+      <div ref={checkpoint} className={styles.checkpoint} role="status" aria-live="polite" />
       <div ref={countdown} className={styles.countdown} aria-live="assertive" />
       <div ref={tea} className={styles.tea} role="status" aria-live="polite">
         <TeaGlass />

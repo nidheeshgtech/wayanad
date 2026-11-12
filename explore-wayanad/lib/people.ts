@@ -12,6 +12,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
 import { isWomanPerson, personHeight, personModel, type PersonId } from "@/data/drivers";
+import { whenReady } from "@/lib/loading";
 
 export type Move = "idle" | "walk" | "sit" | "run";
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -33,7 +34,8 @@ const casts = new Map<string, Promise<[{ scene: Object3D; clips: AnimationClip[]
 export function loadCast(id: PersonId, lo = false) {
   const key = `${id}${lo ? ":lo" : ""}`;
   let p = casts.get(key);
-  if (!p) { p = Promise.all([loadDriver(id, lo), loadMoves()]); casts.set(key, p); }
+  // (the light copies are the roadside people and the traffic's crews: they wait until the road is ready, see whenReady)
+  if (!p) { p = (lo ? whenReady() : Promise.resolve()).then(() => Promise.all([loadDriver(id, lo), loadMoves()])); casts.set(key, p); }
   return p;
 }
 

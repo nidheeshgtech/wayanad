@@ -9,3 +9,13 @@ export const loading: LoadingState = ((globalThis as { __wayanadLoading?: Loadin
 
 /** 0–1 for a progress bar: loading counts for 90 %, the warm-up for the rest. */
 export const progress = () => (loading.ready ? 1 : loading.total ? 0.9 * (loading.loaded / loading.total) : 0.05);
+
+/**
+ * Resolves once the road is ready (Start can be pressed). The roadside people (lib/people light copies) wait for it, so
+ * the first download is only what the drive needs: on a phone over mobile data they were a third of it (~4 MB) and
+ * half the visitors left while it loaded.
+ */
+let readyP: Promise<void> | null = null;
+export function whenReady(): Promise<void> {
+  return (readyP ??= new Promise((done) => { const check = () => (loading.ready ? done() : setTimeout(check, 250)); check(); }));
+}

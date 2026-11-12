@@ -59,8 +59,9 @@ export default function Privacy() {
 
         <h2>Visitor counts</h2>
         <p>
-          We count visits with Vercel Web Analytics: how many people open the site, how many finish loading the road, start a drive,
-          and reach the Lakkidi gate. It uses no cookies, doesn&apos;t follow you to other sites, and shows us totals only, not who you are.
+          We count visits with Vercel Web Analytics: how many people open the site, how long the road takes to load and whether
+          they wait for it, how many start a drive, keep driving for 1, 3, 5, 10, 20 or 30 minutes, get out and walk, and reach the
+          Lakkidi gate. It uses no cookies, doesn&apos;t follow you to other sites, and shows us totals only, not who you are.
         </p>
 
         <h2>Sharing</h2>

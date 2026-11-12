@@ -16,6 +16,7 @@ import { sideContact, type Player } from "@/lib/traffic";
 import { honking } from "@/lib/horn";
 import { DRIVERS, EXTRAS, personHeight, type PersonId } from "@/data/drivers";
 import { loadCast, makeActor, settleHands, type Actor } from "@/lib/people";
+import { whenReady } from "@/lib/loading";
 
 /* People on foot along the road: mostly in and around the towns (Lakkidi, Vythiri, Chundale, Kalpetta…), a sparse few on
  * the churam (never at a hairpin). They walk slowly up and down a stretch of shoulder, between the asphalt and the
@@ -203,15 +204,16 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
     const C = cast.current; C.group.name = "pedestrians-3d"; built.group.add(C.group);
     let gone = false;
     const ids = [...DRIVERS.map((d) => d.id), ...EXTRAS.map((e) => e.id)].filter((id) => !small || SMALL_CAST.has(id));
-    // after the scene's first seconds, so the start isn't held up by them: the light copies first (they're most of who
-    // you see), then the full ones
-    const t = setTimeout(() => {
+    // once the road is ready (lib/loading whenReady), so Start isn't held up by them: the light copies first (they're
+    // most of who you see), then the full ones. Until then the built stand-ins walk.
+    void whenReady().then(() => {
+      if (gone) return;
       for (const id of ids) loadCast(id, true).then((v) => { if (!gone) C.ready.set(`${id}:lo`, v); }, () => {});
       // (phones: the light copies only, up close too — a fraction of the download)
       if (!small) for (const id of ids) loadCast(id).then((v) => { if (!gone) C.ready.set(id, v); }, () => {});
-    }, 2500);
+    });
     return () => {
-      gone = true; clearTimeout(t); built.group.remove(C.group);
+      gone = true; built.group.remove(C.group);
       for (const p of built.people) p.actor = null;
       for (const list of C.free.values()) for (const a of list) a.mixer.stopAllAction();
       C.free.clear(); C.out.clear(); C.group.clear();

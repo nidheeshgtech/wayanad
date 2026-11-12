@@ -11,6 +11,7 @@ import { announce } from "@/lib/score";
 import { height, roadShapeAt, SECTION } from "@/lib/terrain";
 import { driverOf, type DriverId } from "@/data/drivers";
 import { loadCast, makeActor, settleHands, type Actor } from "@/lib/people";
+import { mark } from "@/lib/stats";
 
 /* Out of the vehicle (lib/game `foot`): stopped, Enter (or the door key) gets your driver out by their door to walk
  * about — the same keys walk (up: forward, down: back, left/right: turn; Shift or the nitro key: run) — and look at the view; Enter
@@ -101,7 +102,7 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
         const from = T.a.set(-(CAR.halfW - 0.02), 0, z).applyMatrix4(car.matrixWorld).clone(), to = T.p.set(-(CAR.halfW + DOOR.out), 0, z).applyMatrix4(car.matrixWorld).clone();
         const fwd = T.dir.set(0, 0, 1).transformDirection(car.matrixWorld);
         const where = place(from.x, from.z, game.s);
-        Object.assign(F, { on: true, x: from.x, z: from.z, yaw: Math.atan2(fwd.x, fwd.z), near: true });
+        Object.assign(F, { on: true, x: from.x, z: from.z, yaw: Math.atan2(fwd.x, fwd.z), near: true }); mark("walked");
         Object.assign(S.current, { s: where.s, y: where.y, ready: false, moved: 0, step: { into: false, x: to.x, z: to.z, t: 0 } });
         holder.visible = true; A.play("walk", 0);
         announce(game.bike ? "Off the bike · Enter to ride on" : "Out of the car · Enter to drive on", "badge");
@@ -121,7 +122,7 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
           }
           const name = VEHICLES[v.kind].name, own = getChoice();
           // its driver moves over and rides along with you (the one you saw at the wheel, or someone who'd drive it)
-          setBorrow({ ...own, car: TAKE[name], paintHex: PAINTED.test(name) ? paintOf(v) : undefined, passenger: driverOfVehicle(v.id) ?? someDriver(v.id) });
+          setBorrow({ ...own, car: TAKE[name], paintHex: PAINTED.test(name) ? paintOf(v) : undefined, passenger: driverOfVehicle(v.id) ?? someDriver(v.id) }); mark("took");
           const t = Math.min(1, Math.max(0, v.distance / curve.getLength())), lat = laneLat(v, roadShapeAt(t).widen);
           resetCar(v.distance); game.lat = lat; game.prev.lat = lat;
           v.distance = (v.distance + curve.getLength() * 0.5) % curve.getLength(); // (gone from the road: it's yours now)
