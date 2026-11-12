@@ -7,7 +7,7 @@
  *    all the people share the same rig (bone names), so a clip made on one plays on any. Only rotations are kept, and the
  *    hips' height is carried across in proportion, so a short person doesn't float or sink in someone else's walk.
  */
-import { AnimationClip, AnimationMixer, Box3, Group, Quaternion, Vector3, VectorKeyframeTrack, type AnimationAction, type Object3D } from "three";
+import { AnimationClip, AnimationMixer, Box3, Group, Matrix4, Quaternion, Vector3, VectorKeyframeTrack, type AnimationAction, type Bone, type Object3D, type SkinnedMesh } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
@@ -44,9 +44,62 @@ export type Actor = {
   root: Group; mixer: AnimationMixer; bones: Map<string, Object3D>;
   /** fade to a move (0 s jumps) */ play: (move: Move, fade?: number) => AnimationAction | null;
   /** the hips' place in `root`'s frame in the current pose, after a mixer update */ hips: () => Vector3;
-  /** which way each palm faces, in its hand bone's own frame (from the rest pose: see makeActor) */
-  palms: { left: Vector3; right: Vector3; rest: { left: Quaternion; right: Quaternion } } | null;
+  /** each hand's shape, measured from the model (see handShape): null if the model has no skinned hands */
+  palms: { left: HandShape; right: HandShape } | null;
 };
+
+/** A hand as modelled, in its bone's own frame: `dir` wrist → middle of the hand (where the fingers point), `palm` the
+ * palm's side (flat across the hand), and the bone's rest rotation. */
+export type HandShape = { dir: Vector3; palm: Vector3; rest: Quaternion };
+const shapes = new WeakMap<Object3D, Map<string, HandShape | null>>();
+/**
+ * Measure a hand from the skin it moves: every vertex mostly on the hand bone, taken into that bone's frame. Their
+ * middle gives where the fingers point; the flattest direction through them, the palm (the side facing in and down at
+ * rest). The models were made bent at the wrist, so "in line with the forearm" has to come from the shape, not the bone.
+ * Cached per model file (`src`).
+ */
+function handShape(src: Object3D, body: Object3D, bones: Map<string, Object3D>, side: "Left" | "Right", hipsAt: Vector3): HandShape | null {
+  let bySrc = shapes.get(src); if (!bySrc) { bySrc = new Map(); shapes.set(src, bySrc); }
+  if (bySrc.has(side)) return bySrc.get(side)!;
+  const hand = bones.get(`${side}Hand`) as Bone | undefined, fore = bones.get(`${side}ForeArm`);
+  let out: HandShape | null = null;
+  if (hand && fore) {
+    const pts: Vector3[] = [], c = new Vector3(), m4 = new Matrix4();
+    body.traverse((o) => {
+      const m = o as SkinnedMesh; if (!m.isSkinnedMesh) return;
+      const bi = m.skeleton.bones.indexOf(hand); if (bi < 0) return;
+      const pos = m.geometry.getAttribute("position"), si = m.geometry.getAttribute("skinIndex"), sw = m.geometry.getAttribute("skinWeight");
+      if (!pos || !si || !sw) return;
+      m4.multiplyMatrices(m.skeleton.boneInverses[bi], m.bindMatrix);
+      for (let i = 0; i < pos.count; i++) {
+        let w = 0; for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === bi) w += sw.getComponent(i, k);
+        if (w < 0.5) continue;
+        const v = new Vector3().fromBufferAttribute(pos, i).applyMatrix4(m4); pts.push(v); c.add(v);
+      }
+    });
+    if (pts.length >= 12) {
+      c.divideScalar(pts.length);
+      const dir = c.clone().normalize();
+      // the spread of the points: the palm is the axis they spread least along (smallest of the covariance)
+      const C = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+      for (const p of pts) { const x = p.x - c.x, y = p.y - c.y, z = p.z - c.z; C[0] += x * x; C[1] += x * y; C[2] += x * z; C[4] += y * y; C[5] += y * z; C[8] += z * z; }
+      C[3] = C[1]; C[6] = C[2]; C[7] = C[5];
+      const mul = (v: Vector3) => new Vector3(C[0] * v.x + C[1] * v.y + C[2] * v.z, C[3] * v.x + C[4] * v.y + C[5] * v.z, C[6] * v.x + C[7] * v.y + C[8] * v.z);
+      let a = new Vector3(1, 0.3, 0.2).normalize(); for (let i = 0; i < 40; i++) a = mul(a).normalize();
+      let b = new Vector3(0.2, 1, 0.3); b.addScaledVector(a, -b.dot(a)).normalize();
+      for (let i = 0; i < 40; i++) { b = mul(b); b.addScaledVector(a, -b.dot(a)).normalize(); }
+      const palm = new Vector3().crossVectors(a, b).normalize();
+      palm.addScaledVector(dir, -palm.dot(dir)).normalize();
+      // which side is the palm: at rest it faces in toward the body and down
+      hand.updateWorldMatrix(true, false);
+      const H = hand.getWorldPosition(new Vector3()), want = hipsAt.clone().sub(H).setY(0).normalize().add(new Vector3(0, -1, 0)).normalize();
+      if (palm.clone().applyQuaternion(hand.getWorldQuaternion(new Quaternion())).dot(want) < 0) palm.negate();
+      out = { dir, palm, rest: hand.quaternion.clone() };
+    }
+  }
+  bySrc.set(side, out);
+  return out;
+}
 
 /**
  * One person ready to place: `height` tall in the caller's units, feet on y = 0, facing +z (the models don't all face
@@ -63,21 +116,13 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   const bones = new Map<string, Object3D>();
   body.traverse((o) => { o.frustumCulled = false; (o as { castShadow?: boolean }).castShadow = true; if ((o as { isBone?: boolean }).isBone) bones.set(o.name, o); });
   const root = new Group(); root.add(fit);
-  // the palms at rest: facing in toward the body and down (arms hanging, they face the thighs; held out, the floor),
-  // kept in each hand's own frame so reach() can turn the forearm until the palm meets the bars or the wheel
+  // each hand's real shape (which way the fingers point, which side the palm is), measured from the model once
+  root.updateMatrixWorld(true);
   let palms: Actor["palms"] = null;
-  {
-    root.updateMatrixWorld(true);
-    const hipsAt = bones.get("Hips")?.getWorldPosition(new Vector3()), get = (side: "Left" | "Right") => {
-      const fore = bones.get(`${side}ForeArm`), hand = bones.get(`${side}Hand`);
-      if (!fore || !hand || !hipsAt) return null;
-      const H = hand.getWorldPosition(new Vector3()), axis = H.clone().sub(fore.getWorldPosition(new Vector3())).normalize();
-      const want = hipsAt.clone().sub(H).setY(0).normalize().add(new Vector3(0, -1, 0));
-      want.addScaledVector(axis, -want.dot(axis)).normalize();
-      return want.applyQuaternion(hand.getWorldQuaternion(new Quaternion()).invert());
-    };
-    const left = get("Left"), right = get("Right"), lh = bones.get("LeftHand"), rh = bones.get("RightHand");
-    if (left && right && lh && rh) palms = { left, right, rest: { left: lh.quaternion.clone(), right: rh.quaternion.clone() } };
+  const hipsAt = bones.get("Hips")?.getWorldPosition(new Vector3());
+  if (hipsAt) {
+    const left = handShape(src.scene, body, bones, "Left", hipsAt), right = handShape(src.scene, body, bones, "Right", hipsAt);
+    if (left && right) palms = { left, right };
   }
   const mixer = new AnimationMixer(body);
   // the shared clips, fitted to this person: rotations as they are; the hips' track moved to their own hips' rest
@@ -106,7 +151,7 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   const play = (move: Move, fade = 0.25) => {
     const clip = fitted.get(move); if (!clip) return null;
     const next = mixer.clipAction(clip);
-    if (next === current) return next;
+    if (next === current) { if (!next.isRunning()) next.reset().play(); return next; } // (stopped, e.g. by stopAllAction: start again)
     next.reset().play();
     if (current && fade > 0) next.crossFadeFrom(current, fade, false); else current?.stop();
     current = next; return next;
@@ -148,19 +193,9 @@ export function reach(actor: Actor, targets: { left: Vector3; right: Vector3 }, 
     aim(upper, fore, elbow.clone().sub(S).normalize());
     fore.updateWorldMatrix(true, false);
     aim(fore, hand, T.clone().sub(vc.setFromMatrixPosition(fore.matrixWorld)).normalize());
-    // and the palm onto the grip: roll the forearm about its own length until the palm faces `palm`
-    const own = side === "Left" ? actor.palms?.left : actor.palms?.right, want = side === "Left" ? palm?.left : palm?.right;
-    if (own && want) {
-      hand.quaternion.copy(side === "Left" ? actor.palms!.rest.left : actor.palms!.rest.right); // (in line with the forearm; the bend below is made fresh each frame)
-      twist(fore, hand, own, want);
-      // and bend at the wrist toward the palm, fingers round the bar or the rim
-      hand.updateWorldMatrix(true, false);
-      const along = va.copy(T).sub(vb.setFromMatrixPosition(fore.matrixWorld)).normalize(), pw = vc.copy(own).applyQuaternion(hand.getWorldQuaternion(qa));
-      const k = vd.crossVectors(along, pw); if (k.lengthSq() > 1e-8) {
-        const world = hand.getWorldQuaternion(new Quaternion()).premultiply(qb.setFromAxisAngle(k.normalize(), FLEX));
-        hand.quaternion.copy(fore.getWorldQuaternion(new Quaternion()).invert().multiply(world));
-      }
-    }
+    // and the hand round the grip: palm onto it, fingers bent over
+    const want = side === "Left" ? palm?.left : palm?.right;
+    if (want) holdHand(actor, side, want, FLEX);
   }
 }
 const WRIST = 0.006; // units (6 cm): how far short of the grip the wrist stops
@@ -175,12 +210,36 @@ export function settleHands(actor: Actor) {
   const hips = actor.bones.get("Hips"); if (!hips || !actor.palms) return;
   hips.getWorldPosition(sh);
   for (const side of ["Left", "Right"] as const) {
-    const fore = actor.bones.get(`${side}ForeArm`), hand = actor.bones.get(`${side}Hand`);
-    if (!fore || !hand) continue;
+    const hand = actor.bones.get(`${side}Hand`); if (!hand) continue;
     hand.getWorldPosition(sw); sw.subVectors(sh, sw).setY(0);
     if (sw.lengthSq() < 1e-10) continue;
-    twist(fore, hand, side === "Left" ? actor.palms.left : actor.palms.right, sw.normalize());
+    holdHand(actor, side, sw.normalize(), RELAX);
   }
+}
+const RELAX = 0.12; // rad: a hanging hand's slight curl toward the palm
+/**
+ * Set a hand by its measured shape: fingers along the forearm, bent `flex` rad toward the palm, the palm toward `want`
+ * (world). The forearm is rolled first so the wrist doesn't have to twist.
+ */
+const hx = new Vector3(), hy = new Vector3(), hz = new Vector3(), hA = new Matrix4(), hB = new Matrix4(), hq = new Quaternion(), hq2 = new Quaternion();
+function holdHand(actor: Actor, side: "Left" | "Right", want: Vector3, flex: number) {
+  const shape = side === "Left" ? actor.palms?.left : actor.palms?.right, fore = actor.bones.get(`${side}ForeArm`), hand = actor.bones.get(`${side}Hand`);
+  if (!shape || !fore || !hand) return;
+  hand.quaternion.copy(shape.rest);
+  twist(fore, hand, shape.palm, want);
+  fore.updateWorldMatrix(true, true);
+  // the wanted frame in the world: fingers (x), palm (y), across (z)
+  const axis = hx.setFromMatrixPosition(hand.matrixWorld).sub(hy.setFromMatrixPosition(fore.matrixWorld)).normalize();
+  const P = hy.copy(want).addScaledVector(axis, -want.dot(axis)); if (P.lengthSq() < 1e-8) return; P.normalize();
+  const D = hz.copy(axis).multiplyScalar(Math.cos(flex)).addScaledVector(P, Math.sin(flex)).normalize();
+  P.addScaledVector(D, -P.dot(D)).normalize();
+  hA.makeBasis(D, P, new Vector3().crossVectors(D, P));
+  // the same frame in the hand's own terms
+  const d = shape.dir, p = shape.palm.clone().addScaledVector(d, -shape.palm.dot(d)).normalize();
+  hB.makeBasis(d, p, new Vector3().crossVectors(d, p));
+  const world = hq.setFromRotationMatrix(hA).multiply(hq2.setFromRotationMatrix(hB).invert());
+  hand.quaternion.copy(fore.getWorldQuaternion(new Quaternion()).invert().multiply(world));
+  hand.updateWorldMatrix(false, false);
 }
 /** Palms on the bars or the wheel, in the vehicle's frame (+x left, +z forward): seat() and lib/crew. */
 export const PALM = {
