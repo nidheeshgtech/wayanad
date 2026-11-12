@@ -275,8 +275,15 @@ export function lean(actor: Actor, angle: number, side: Vector3, up = new Vector
   }
   // and the eyes up, looking where the vehicle goes: the sitting clip looks down into the lap, which seen through a
   // windscreen is the top of a head. Forward is the frame's: up × side
-  const head = actor.bones.get("Head"), front = actor.root.getObjectByName("headfront");
+  const head = actor.bones.get("Head"), front = headFront(actor);
   if (head && front) aim(head, front, new Vector3().crossVectors(side, up).normalize().applyAxisAngle(side, 0.08));
+}
+/** The marker ahead of the face (found once per person: searching the skeleton each frame, for every seated person, added up). */
+const fronts = new WeakMap<Actor, Object3D | null>();
+function headFront(actor: Actor) {
+  let f = fronts.get(actor);
+  if (f === undefined) { f = actor.root.getObjectByName("headfront") ?? null; fronts.set(actor, f); }
+  return f;
 }
 export const isWoman = (id: PersonId) => isWomanPerson(id);
 export const heightOf = (id: PersonId) => personHeight(id);

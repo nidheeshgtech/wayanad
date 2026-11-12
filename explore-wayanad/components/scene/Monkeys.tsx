@@ -59,9 +59,10 @@ export default function Monkeys({ curve }: { curve: CatmullRomCurve3 }) {
 
   /** your car, and where on it a monkey sits (its own frame: roof toward the back, bonnet ahead of the windscreen) */
   const findCar = (scene: Object3D) => {
+    // (the same car until it's swapped for another: a name search walked the whole scene every frame)
+    if (carRef.current?.car.parent) return carRef.current;
     const car = scene.getObjectByName("player-car");
     if (!car) return null;
-    if (carRef.current?.car === car) return carRef.current;
     car.updateMatrixWorld(true); tmp.inv.copy(car.matrixWorld).invert(); tmp.box.makeEmpty();
     car.traverse((o) => { const g = (o as Mesh).geometry; if (!(o as Mesh).isMesh || !g) return; g.computeBoundingBox(); tmp.b.copy(g.boundingBox!).applyMatrix4(o.matrixWorld).applyMatrix4(tmp.inv); tmp.box.union(tmp.b); });
     if (tmp.box.isEmpty()) return null;

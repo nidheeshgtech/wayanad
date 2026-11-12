@@ -17,6 +17,7 @@ import { net } from '@/lib/net';
 import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from '@/lib/occupants';
 import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
+import { freeze } from '@/lib/freeze';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
@@ -200,6 +201,11 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       }
     }
     const seats = (people?.geometry.userData.seats as OccupiedSeat[] | undefined) ?? null;
+    // its parts never move within it (only the whole vehicle does, and the wheels' spinners and anyone aboard, added
+    // later): baked once, so ~6000 objects don't have their matrices rebuilt every frame
+    for (const c of root.children) if (!wheels.some(w => w.spinner.parent === c)) freeze(c);
+    for (const w of wheels) { w.spinner.matrixAutoUpdate = true; }
+    root.matrixWorldAutoUpdate = false; // (until it's in range and shown: see the frame loop)
     return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0, wheels, rolled: v.distance };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
@@ -249,7 +255,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
     for (let i = 0; i < fleet.length; i++) {
       const v = fleet[i], o = objects[i];
-      if (keep && !keep.has(v)) { if (o.root.visible) { o.root.visible = false; o.fresh = true; } continue; } // off the road for the race
+      if (keep && !keep.has(v)) { if (o.root.visible) { o.root.visible = false; o.root.matrixWorldAutoUpdate = false; o.fresh = true; } continue; } // off the road for the race
       // well out of range last time: look again only every dozen frames (nothing closes 15 units in a fifth of a
       // second), instead of working out its exact pose every frame for nothing — most of the fleet, most of the time
       if (o.skip > 0) { o.skip--; continue; }
@@ -260,6 +266,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // of the road, where the fleet wraps round from one end to the other
       const range = o.root.visible ? view + 4 : view;
       o.root.visible = far2 < range * range && v.distance > 3 && v.distance < length - 3;
+      o.root.matrixWorldAutoUpdate = o.root.visible; // (hidden ones are skipped by three's per-frame matrix walk)
       if (!o.root.visible) {
         o.fresh = true; if (o.people) o.people.visible = false;
         if (o.crew) { disembark(o.crew, o.root); o.crew = null; }

@@ -50,6 +50,7 @@ export default function TeaHedges({ curve, density = 1 }: { curve: CatmullRomCur
       mesh.castShadow = mesh.receiveShadow = true;
       mesh.frustumCulled = false; mesh.visible = false;
       mesh.name = "tea-hedges";
+      mesh.matrixAutoUpdate = false; mesh.matrixWorldAutoUpdate = false; // (at the origin: no per-frame matrix work)
       out.push({ centre: curve.getPointAt(Math.min(0.999, (c0 + CHUNK / 2) / L)), mesh });
     }
     return out;

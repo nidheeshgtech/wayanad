@@ -12,6 +12,7 @@ export default function PerfProbe() {
   // what the triangles are: per top-level group, visible and in view, with how much of it casts shadows
   useEffect(() => {
     if (!probing) return;
+    (window as unknown as { __wayanadPerfRoot: unknown }).__wayanadPerfRoot = scene; // (the scene itself, for poking at with ?perf)
     (window as unknown as { __wayanadPerfScene: () => unknown }).__wayanadPerfScene = () => {
       const frustum = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
       const out: Record<string, { tris: number; shadowTris: number; meshes: number }> = {};

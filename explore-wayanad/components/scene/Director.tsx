@@ -80,6 +80,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
   const forestLength = useMemo(() => forest?.getLength() ?? 1, [forest]);
   const lastRoad = useRef<CatmullRomCurve3 | null>(null);
   const exposure = useRef(1.15), lightning = useRef({ t: 1, next: 6 });
+  const terrainRef = useRef<Mesh | null>(null); // (found once: a name search walked the whole scene every frame)
   const { spots, end } = useMemo(() => {
     const end = curve.getPointAt(1);
     const onGround = ([x, y, z]: number[]) => { const wx = x + end.x, wz = z - PROTO_END_Z + end.z; return [wx, height(wx, wz) + y, wz]; };
@@ -209,7 +210,8 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     const flash = L.t < 1 ? Math.max(0, Math.sin(L.t * Math.PI * 3)) * (1 - L.t) : 0;
     gl.toneMappingExposure = exposure.current + flash * 0.9;
     fog.density += (fogDensity - fog.density) * (fogDensity > fog.density + 0.02 ? 0.25 : 0.08); // close in fast, clear slowly
-    const terrain = scene.getObjectByName("terrain") as Mesh | undefined;
+    if (!terrainRef.current?.parent) terrainRef.current = (scene.getObjectByName("terrain") as Mesh | undefined) ?? null;
+    const terrain = terrainRef.current;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white
     if (terrain) (terrain.material as MeshStandardMaterial).color.lerp(tint.current.set(P.ground).lerp(WHITE, 0.8), 0.05);
     if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e).lerp(MOON_LIGHT, n), 0.05);

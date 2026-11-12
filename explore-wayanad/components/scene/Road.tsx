@@ -127,7 +127,7 @@ function stripes() {
 
 /** `kind`: "ghat" (the churam and plateau road: hairpin widening, valley-side posts and rail up to the gateway) or
  * "forest" (the Muthanga road: plain two-lane asphalt). */
-export default function Road({ curve, detail = 900, kind = "ghat" }: { curve: CatmullRomCurve3; detail?: number; kind?: "ghat" | "forest" }) {
+export default function Road({ curve, detail = 900, kind = "ghat", small = false }: { curve: CatmullRomCurve3; detail?: number; kind?: "ghat" | "forest"; small?: boolean }) {
   const ghat = kind === "ghat";
   const surface = useMemo(() => timed("road", () => {
     const m = new Mesh(ribbon(curve, detail, ghat ? (t) => roadShapeAt(t).widen : () => 0), asphalt());
@@ -139,7 +139,8 @@ export default function Road({ curve, detail = 900, kind = "ghat" }: { curve: Ca
   const [posts, rail] = useMemo(() => {
     const n = Math.round(curve.getLength() / POSTS.every);
     const mesh = new InstancedMesh(
-      new CylinderGeometry(POSTS.radius, POSTS.radius, POSTS.height, 8),
+      // (phones: six sides and no caps — the ends are never seen, and ~6000 posts were ~200k triangles)
+      small ? new CylinderGeometry(POSTS.radius, POSTS.radius, POSTS.height, 6, 1, true) : new CylinderGeometry(POSTS.radius, POSTS.radius, POSTS.height, 8),
       new MeshStandardMaterial({ map: stripes(), roughness: 0.7 }),
       n,
     );
@@ -161,7 +162,7 @@ export default function Road({ curve, detail = 900, kind = "ghat" }: { curve: Ca
     mesh.instanceMatrix.needsUpdate = true;
     mesh.castShadow = true;
     return [mesh, guardRail(feet)];
-  }, [curve]);
+  }, [curve, small]);
 
   return (
     <group name="road">

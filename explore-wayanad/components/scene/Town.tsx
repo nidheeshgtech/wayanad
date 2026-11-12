@@ -1,5 +1,6 @@
 "use client";
 import { timed } from "@/lib/perf";
+import { freeze } from "@/lib/freeze";
 import { useMemo } from "react";
 import {
   BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
@@ -266,6 +267,7 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
     const wg = new BufferGeometry(); wg.setAttribute("position", new Float32BufferAttribute(wires, 3));
     g.add(new LineSegments(wg, new LineBasicMaterial({ color: 0x2a2a2a })));
     g.name = "town";
+    freeze(g, true); // (2000 buildings, wires and poles that never move: no matrix work per frame)
     return g;
   }), [curve]);
   return <primitive object={group} />;

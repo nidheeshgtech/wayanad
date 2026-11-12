@@ -84,6 +84,9 @@ export default function Props({ curve, density = 1, towns = true }: { curve: Cat
           mesh.instanceMatrix.needsUpdate = true;
           mesh.castShadow = k.shadow; mesh.receiveShadow = true;
           mesh.frustumCulled = false; mesh.visible = false;
+          // (at the origin, the instances carry their places: nothing for three's per-frame matrix walk to do — and
+          // there are ~1700 of these chunks)
+          mesh.matrixAutoUpdate = false; mesh.matrixWorldAutoUpdate = false;
           return mesh;
         };
         const meshes: InstancedMesh[] = [], light: InstancedMesh[] = [];

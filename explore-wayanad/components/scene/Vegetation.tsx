@@ -170,6 +170,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         mesh.receiveShadow = true;
         if (depth) { mesh.castShadow = true; mesh.customDepthMaterial = depth; }
         mesh.name = `veg-${s.name}`;
+        mesh.matrixAutoUpdate = false; mesh.matrixWorldAutoUpdate = false; // (at the origin: the instances carry their places; no per-frame matrix work)
         return mesh;
       });
     }).flat();

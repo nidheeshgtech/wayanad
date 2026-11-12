@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
+import { freeze } from "@/lib/freeze";
 import { BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Texture, TextureLoader, Vector3 } from "three";
 import { archT, bendTs, height } from "@/lib/terrain";
 import { duskness } from "@/lib/theme";
@@ -63,6 +64,7 @@ export default function Billboards({ curve }: { curve: CatmullRomCurve3 }) {
       group.add(board);
     }
     if (unsold) textures.push(unsold);
+    freeze(group, true); // (they never move; only their lighting changes)
     return { group, faces, textures };
   }, [curve]);
   useEffect(() => () => { for (const t of built.textures) t.dispose(); }, [built]);

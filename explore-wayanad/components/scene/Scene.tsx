@@ -147,9 +147,10 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Lighting sunRef={sunRef} shadows={!small} />
       <Sky />
       <ShowIn acts={FOREST_ACTS} not>
-      {grids.length ? grids.filter((g) => g.region !== "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
-      <RoadBand curve={curve} spacing={small ? 0.6 : 0.4} />
-      <Road curve={curve} detail={detail} />
+      {/* (phones: half the samples each way, a quarter of the triangles: the full tiles were ~520k triangles, a third of the frame) */}
+      {grids.length ? grids.filter((g) => g.region !== "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={small ? Math.round((g.size - 1) / 2) : g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
+      <RoadBand curve={curve} spacing={small ? 0.8 : 0.4} />
+      <Road curve={curve} detail={detail} small={small} />
       <Suspense fallback={null}><Traffic curve={curve} small={small} /></Suspense>
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
@@ -168,8 +169,8 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       </ShowIn>
       {forest && (
         <ShowIn acts={FOREST_ACTS} defer>
-          {grids.filter((g) => g.region === "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={g.size - 1} />)}
-          <RoadBand curve={forest.curve} spacing={small ? 0.6 : 0.4} />
+          {grids.filter((g) => g.region === "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={small ? Math.round((g.size - 1) / 2) : g.size - 1} />)}
+          <RoadBand curve={forest.curve} spacing={small ? 0.8 : 0.4} />
           <Road curve={forest.curve} detail={Math.round(forest.curve.getLength() * (small ? 2 : 4))} kind="forest" />
           <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" />
           <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
