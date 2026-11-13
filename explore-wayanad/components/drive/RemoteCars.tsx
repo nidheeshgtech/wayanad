@@ -1,5 +1,5 @@
 "use client";
-import { use, useMemo } from "react";
+import { use, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Box3, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, SRGBColorSpace, Sprite, SpriteMaterial, Vector3, type Material } from "three";
 import { loadVehicle } from "@/lib/vehicleAssets";
@@ -75,7 +75,13 @@ export default function RemoteCars({ curve, small }: { curve: CatmullRomCurve3; 
     };
     return [...Array.from({ length: n.full }, () => make(true)), ...Array.from({ length: n.lite }, () => make(false))];
   }, [lite, small]);
-  const group = useMemo(() => { const g = new Group(); g.name = "remote-cars"; for (const p of pool) g.add(p.root, p.tag); return g; }, [pool]);
+  // the slots join the group in an effect, not while rendering: React may render twice (dev Strict Mode) and keep the
+  // first group, and an object has one parent, so a second render's group took the cars and none were drawn
+  const group = useMemo(() => { const g = new Group(); g.name = "remote-cars"; return g; }, []);
+  useEffect(() => {
+    for (const p of pool) group.add(p.root, p.tag);
+    return () => { for (const p of pool) group.remove(p.root, p.tag); };
+  }, [group, pool]);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), look: new Vector3() }), []);
 
   const snaps = useMemo(() => new Map<number, Snap>(), []);

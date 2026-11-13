@@ -18,6 +18,7 @@ import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from 
 import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
 import { freeze } from '@/lib/freeze';
+import { stage, stageBlock } from '@/lib/stage';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
@@ -228,6 +229,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // in the way too: you on foot (standing in a lane stops it — wave one down), and your own car parked where you
       // left it when you took another (lib/game `parked`)
       const blocks: Obstacle[] = onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : [];
+      const rubble = stageBlock(); if (rubble) blocks.push({ ...rubble, lanes: [1, -1], keep: 0.12 }); // (a staged rockfall, filming only)
       if (onRoad && game.foot.on) blocks.push({ distance: game.foot.s, length: 0.06, lanes: playerLanes({ s: game.foot.s, lat: game.foot.lat, speed: 0, halfL: 0.03, halfW: 0.035 }), speed: 0, keep: 0.2 });
       const P0 = game.parked; if (onRoad && P0) blocks.push({ distance: P0.s, length: 0.4, lanes: playerLanes({ s: P0.s, lat: P0.lat, speed: 0, halfL: 0.2, halfW: 0.1 }), speed: 0 });
       if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks));
@@ -265,7 +267,8 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // in range, with a margin both ways so a vehicle near the limit doesn't flicker in and out; and not at the ends
       // of the road, where the fleet wraps round from one end to the other
       const range = o.root.visible ? view + 4 : view;
-      o.root.visible = far2 < range * range && v.distance > 3 && v.distance < length - 3;
+      o.root.visible = far2 < range * range && v.distance > 3 && v.distance < length - 3
+        && !(stage.phase !== 'none' && v.direction === -1 && Math.abs(v.distance - stage.s0) < 9); // (a staged rockfall: the rescue's lane kept clear)
       o.root.matrixWorldAutoUpdate = o.root.visible; // (hidden ones are skipped by three's per-frame matrix walk)
       if (!o.root.visible) {
         o.fresh = true; if (o.people) o.people.visible = false;

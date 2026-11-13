@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, use, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { CatmullRomCurve3, DirectionalLight, Points } from "three";
 import { addForest, archT, bendTs, buildRoadCurve, churamEndT, forestRoad, placesT, setHeightmaps, terrainGrids } from "@/lib/terrain";
@@ -26,6 +26,9 @@ import Monkeys from "./Monkeys";
 import Pedestrians from "./Pedestrians";
 import Rain from "./Rain";
 import Traffic from "./Traffic";
+import { stage } from "@/lib/stage";
+// filming only (?scene=rockfall): its own chunk, never loaded in normal play
+const Rockfall = lazy(() => import("./Rockfall"));
 import WeatherDebug from "./WeatherDebug";
 import ValleyClouds from "./ValleyClouds";
 import Particles from "./Particles";
@@ -152,6 +155,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <RoadBand curve={curve} spacing={small ? 0.8 : 0.4} />
       <Road curve={curve} detail={detail} small={small} />
       <Suspense fallback={null}><Traffic curve={curve} small={small} /></Suspense>
+      {stage.scene === "rockfall" && <Suspense fallback={null}><Rockfall curve={curve} /></Suspense>}
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
       <Waterfalls curve={curve} />
