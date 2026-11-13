@@ -53,6 +53,8 @@ targets:
           - arm64
         NSMicrophoneUsageDescription: Voice chat with your friends in a private room. Your voice goes straight to their phones and is never recorded.
         ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true   # (Debug testing against a dev server on the Mac; the game itself is https)
         LSApplicationQueriesSchemes:
           - whatsapp
           - instagram

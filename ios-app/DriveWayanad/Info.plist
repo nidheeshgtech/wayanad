@@ -31,6 +31,11 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Voice chat with your friends in a private room. Your voice goes straight to their phones and is never recorded.</string>
 	<key>UILaunchScreen</key>

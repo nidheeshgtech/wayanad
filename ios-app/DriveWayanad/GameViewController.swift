@@ -12,8 +12,15 @@ import Network
 ///  - the microphone for voice chat (iOS asks once, with NSMicrophoneUsageDescription)
 ///  - a reload if iOS stops the page for memory while the app is in the background
 final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-    static let home = URL(string: "https://www.drivewayanad.com/")!
-    private static let hosts: Set<String> = ["drivewayanad.com", "www.drivewayanad.com"]
+    /// The game. For testing, a Debug build can point at another copy of the site (a dev server on the Mac) with the
+    /// environment variable WAYANAD_URL, set in the scheme or by `simctl launch`.
+    static let home: URL = {
+        #if DEBUG
+        if let s = ProcessInfo.processInfo.environment["WAYANAD_URL"], let u = URL(string: s) { return u }
+        #endif
+        return URL(string: "https://www.drivewayanad.com/")!
+    }()
+    private static let hosts: Set<String> = Set(["drivewayanad.com", "www.drivewayanad.com", home.host?.lowercased()].compactMap { $0 })
 
     private var web: WKWebView!
     private let cover = LaunchCover()
