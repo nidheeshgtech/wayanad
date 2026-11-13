@@ -2,18 +2,29 @@ import UIKit
 
 /// Drive Wayanad for iPhone: one full-screen web view on the game (GameViewController), plus what the App Store
 /// expects of an app rather than a website — Game Center, haptics, the share sheet and an offline screen.
+/// Scene-based (iOS 27 requires it): the window is made in SceneDelegate.
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool { true }
+
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: "Game", sessionRole: session.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+}
+
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        let window = UIWindow(frame: UIScreen.main.bounds)
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        let window = UIWindow(windowScene: windowScene)
         window.backgroundColor = .wayanadBackground
         window.rootViewController = GameViewController()
         window.makeKeyAndVisible()
         self.window = window
         GameCenter.shared.signIn(presentingFrom: window.rootViewController)
-        return true
     }
 }
 

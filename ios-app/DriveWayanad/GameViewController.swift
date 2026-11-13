@@ -93,9 +93,18 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         if on { hideCover() }
     }
 
+    private var coverGone = false
     private func hideCover() {
-        guard cover.alpha > 0 else { return }
+        guard !coverGone else { return }
+        coverGone = true
+        // (an animation started before the window is on screen can stop half way: then just remove it)
+        guard view.window != nil else { cover.isHidden = true; return }
         UIView.animate(withDuration: 0.35, animations: { self.cover.alpha = 0 }) { _ in self.cover.isHidden = true }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if coverGone { cover.alpha = 0; cover.isHidden = true }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { hideCover() }
@@ -169,6 +178,9 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard Self.hosts.contains(message.frameInfo.securityOrigin.host.lowercased()),
               let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        #if DEBUG
+        print("bridge:", type, body["style"] ?? body["board"] ?? body["id"] ?? "")
+        #endif
         switch type {
         case "ready":
             hideCover()

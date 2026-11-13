@@ -38,6 +38,13 @@
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Voice chat with your friends in a private room. Your voice goes straight to their phones and is never recorded.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict/>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
