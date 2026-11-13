@@ -1,0 +1,19 @@
+// the pause menu's drivers list (Report / Block) and the privacy / contact links
+.drivers { display: grid; gap: 6px; font-size: 13px; color: var(--mute);
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  li { display: grid; gap: 6px; } }
+.empty { margin: 0; }
+.row { display: flex; align-items: center; gap: 6px;
+  b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink);
+    &[data-blocked] { color: var(--dim); text-decoration: line-through; } }
+  small { color: var(--dim); padding: 0 8px; }
+  button { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--mute); cursor: pointer;
+    &[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
+.why { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-radius: 12px; border: 1px solid var(--line);
+  button { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--amber); background: transparent; color: var(--ink); cursor: pointer;
+    &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } }
+  small { flex-basis: 100%; color: var(--dim); } }
+.links { display: flex; gap: 16px; margin: 0; font-size: 12px;
+  a { color: var(--dim); text-decoration: underline; text-underline-offset: 3px;
+    &:hover, &:focus-visible { color: var(--ink); } } }

@@ -30,6 +30,7 @@ import CarPicker from "@/components/garage/CarPicker";
 import HornPicker from "@/components/garage/HornPicker";
 import CarCard from "@/components/garage/CarCard";
 import { getChoice, setChoice, useChoice } from "@/lib/choice";
+import Drivers, { SafetyLinks } from "./Drivers";
 import styles from "./Drive.module.scss";
 
 /**
@@ -463,7 +464,7 @@ export default function DriveHud() {
         <StartScreen compact
           title={<>Drive to <br />Wayanad.</>}
           startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
-          onStart={start} presentedBy={PRESENTED_BY}
+          onStart={start} presentedBy={PRESENTED_BY} footer={<SafetyLinks />}
           beforeStart={<>
             {net.enabled && (
               <div className={panelStyles.nameField} data-big>
@@ -548,13 +549,17 @@ export default function DriveHud() {
             <span>Graphics</span>
             {QUALITY.map((q) => <button key={q} type="button" aria-pressed={mode === q} onClick={() => chooseQuality(q)}>{q[0].toUpperCase() + q.slice(1)}</button>)}
           </div>
-          {net.enabled && net.status !== "off" && !net.party && (
-            <div className={styles.setting}>
-              <span>{racing() ? `Race to Lakkidi: ${raceList()}` : roster.length ? `On the road with you: ${roster.join(", ")}` : "No one else on your road yet"}</span>
-              <button type="button" onClick={() => void invite()}>{invited || "Invite a friend"}</button>
-            </div>
-          )}
+          {net.enabled && net.status !== "off" && (<>
+            {!net.party && (
+              <div className={styles.setting}>
+                <span>{racing() ? `Race to Lakkidi: ${raceList()}` : roster.length ? "On the road with you" : "No one else on your road yet"}</span>
+                <button type="button" onClick={() => void invite()}>{invited || "Invite a friend"}</button>
+              </div>
+            )}
+            {(roster.length > 0 || net.party) && <Drivers empty="No one else in the room yet" />}
+          </>)}
           <Sponsors />
+          <SafetyLinks />
         </div>
       )}
       {screen === "between" && (

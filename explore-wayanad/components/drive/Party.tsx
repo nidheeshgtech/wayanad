@@ -193,7 +193,7 @@ export function Podium({ me }: { me: Choice }) {
       <ol>
         {P.results.map((r, i) => (
           <li key={`${r.id}-${i}`} data-medal={MEDAL[i]} data-me={r.id === net.id || undefined}>
-            <i>{i + 1}</i><b>{faces.has(r.id) && <DriverFace id={faces.get(r.id)!} size={i === 0 ? 34 : 26} />}<span>{r.id === net.id ? "You" : r.name}</span></b><span>{clock(r.time ?? 0)}</span><em>{(r.points ?? 0).toLocaleString("en-IN")} pts</em>
+            <i>{i + 1}</i><b>{faces.has(r.id) && <DriverFace id={faces.get(r.id)!} size={i === 0 ? 34 : 26} />}<span>{r.id === net.id ? "You" : net.blocked.has(r.id) ? "Blocked driver" : r.name}</span></b><span>{clock(r.time ?? 0)}</span><em>{(r.points ?? 0).toLocaleString("en-IN")} pts</em>
           </li>
         ))}
         {still.map((id) => (
@@ -236,7 +236,7 @@ function VoicePanel() {
         <div className={styles.talkers}>
           <span data-talking={v.meTalking || undefined}><GIcon name="mic" />You</span>
           {others.map((id) => {
-            const p = v.peers.get(id), muted = v.muted.has(id);
+            const p = v.peers.get(id), muted = v.muted.has(id) || net.blocked.has(id);
             return (
               <button key={id} type="button" data-talking={(p?.talking && !muted) || undefined} data-muted={muted || undefined} data-failed={p?.state === "failed" || undefined}
                 onClick={() => toggleMute(id)} title={muted ? "Unmute" : "Mute"}>

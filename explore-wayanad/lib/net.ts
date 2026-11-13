@@ -32,7 +32,12 @@ export type Party = {
 type NetState = {
   enabled: boolean; status: "off" | "connecting" | "live" | "retrying";
   id: number; name: string; room: string;
-  roster: { id: number; name: string; car: Choice }[];
+  /** the others in the room; a blocked driver's `name` reads "Blocked driver" (`real`: what they called themselves) */
+  roster: { id: number; name: string; real: string; car: Choice }[];
+  /** drivers you've blocked (Report / Block in the pause menu): no car, name or voice from them */
+  blocked: Set<number>;
+  /** drivers you've reported this visit */
+  reported: Set<number>;
   remotes: Map<number, Remote>;
   /** bumped on every roster change, so the HUD can poll cheaply */
   version: number;
@@ -49,8 +54,10 @@ const BASE = (process.env.NEXT_PUBLIC_MP_URL ?? "").replace(/\/$/, "");
 const SEND_MS = 80;
 
 export const net: NetState = ((globalThis as { __wayanadNet?: NetState }).__wayanadNet ??= {
-  enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0, party: null, voiceIds: [],
+  enabled: !!BASE, status: "off", id: 0, name: "", room: "", roster: [], remotes: new Map(), version: 0, party: null, voiceIds: [], blocked: new Set(), reported: new Set(),
 });
+net.blocked ??= new Set();
+net.reported ??= new Set();
 net.voiceIds ??= [];
 net.party ??= null; // (an object kept from before a hot reload)
 
@@ -97,6 +104,31 @@ const partySend = (m: object) => { if (ws?.readyState === WebSocket.OPEN) ws.sen
 /** Voice chat: join or leave it; a WebRTC message for another talker. */
 export const sendVoice = (on: boolean) => partySend({ t: "voice", on });
 export const sendRtc = (to: number, data: unknown) => partySend({ t: "rtc", to, data });
+/** Report a driver to the room (and to us): `why` one of REPORT_WHY. Two reports from different drivers in a room take
+ * the reported driver's name and voice away at once (multiplayer/src/index.ts). */
+export const REPORT_WHY = [
+  { id: "name", label: "Offensive name" }, { id: "voice", label: "Abusive voice" }, { id: "driving", label: "Ramming or cheating" }, { id: "other", label: "Something else" },
+] as const;
+export function reportDriver(id: number, why: (typeof REPORT_WHY)[number]["id"]) {
+  partySend({ t: "flag", id, why }); net.reported.add(id); net.version++;
+}
+
+/** Block a driver (or unblock): remembered on this device by name, so they stay blocked in later rooms too. */
+const BLOCK_KEY = "wayanad-blocked", BLOCKED = "Blocked driver";
+const plain = (name: string) => name.replace(/#\d+$/, "").trim().toLowerCase();
+function blockedNames(): string[] {
+  try { const v = JSON.parse(localStorage.getItem(BLOCK_KEY) ?? "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; }
+}
+export function setBlocked(id: number, on: boolean) {
+  const p = net.roster.find((r) => r.id === id);
+  if (!p) return;
+  const names = blockedNames().filter((n) => n !== plain(p.real));
+  if (on) names.unshift(plain(p.real));
+  try { localStorage.setItem(BLOCK_KEY, JSON.stringify(names.slice(0, 100))); } catch {}
+  if (on) { net.blocked.add(id); p.name = BLOCKED; net.remotes.delete(id); } else { net.blocked.delete(id); p.name = p.real; }
+  net.version++; net.onVoice?.();
+}
+
 /** The host: race or free drive (in the lobby). */
 export const partyMode = (mode: Party["mode"]) => partySend({ t: "mode", mode });
 /** The host: start the race (a countdown for everyone) or the free drive. */
@@ -123,11 +155,17 @@ function open(room: string, name: string, car: Choice) {
       sender ??= setInterval(send, SEND_MS);
       net.onWelcome?.();
     } else if (m.t === "roster") {
+      const blocked = blockedNames();
       net.roster = (m.players as { id: number; name: string; car?: { m: string; c: string; d?: string } }[]).filter((p) => p.id !== net.id)
-        .map((p) => ({ id: p.id, name: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"], driver: driverOf(p.car?.d).id } }));
+        .map((p) => ({ id: p.id, name: p.name, real: p.name, car: { car: (p.car?.m ?? "lakkidi") as Choice["car"], colour: (p.car?.c ?? "white") as Choice["colour"], driver: driverOf(p.car?.d).id } }));
+      net.blocked = new Set(net.roster.filter((p) => net.blocked.has(p.id) || blocked.includes(plain(p.real))).map((p) => p.id));
+      for (const p of net.roster) if (net.blocked.has(p.id)) p.name = BLOCKED;
+      for (const id of net.blocked) net.remotes.delete(id);
       for (const id of net.remotes.keys()) if (!net.roster.some((p) => p.id === id)) net.remotes.delete(id);
       for (const p of net.roster) { const r = net.remotes.get(p.id); if (r) { r.name = p.name; r.car = p.car; } }
       net.version++;
+    } else if (m.t === "renamed") { // the room took your name away (reported by other drivers)
+      net.name = m.name as string; net.version++;
     } else if (m.t === "voice") {
       net.voiceIds = (m.ids as number[]) ?? []; net.version++; net.onVoice?.();
     } else if (m.t === "voiceFull") { net.onVoiceFull?.();
@@ -142,6 +180,7 @@ function open(room: string, name: string, car: Choice) {
     } else if (m.t === "st") {
       const now = performance.now();
       for (const [id, s, lat, psi, v, br, ts] of m.p as number[][]) {
+        if (net.blocked.has(id)) continue; // blocked: their car isn't drawn and doesn't touch yours
         let r = net.remotes.get(id);
         if (!r) { const who = net.roster.find((p) => p.id === id); r = { id, name: who?.name ?? "Driver", car: who?.car ?? DEFAULT_CHOICE, buf: [] }; net.remotes.set(id, r); }
         // when the state was really sent, on our clock: their send time plus the offset between the clocks (the fastest

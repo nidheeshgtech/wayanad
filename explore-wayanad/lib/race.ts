@@ -22,10 +22,10 @@ const doneAt = new Map<number, number>();       // per driver (and you, id 0 →
 const lastS = new Map<number, number>();
 let run = -1;
 
-/** Who's in the race: everyone in the room, or in a private room's race this round's racers only. */
+/** Who's in the race: everyone in the room, or in a private room's race this round's racers only; never anyone you've blocked. */
 function field() {
-  const P = net.party;
-  return P && P.mode === "race" && P.phase !== "lobby" ? net.roster.filter((p) => P.racers.includes(p.id)) : net.roster;
+  const P = net.party, all = net.roster.filter((p) => !net.blocked.has(p.id));
+  return P && P.mode === "race" && P.phase !== "lobby" ? all.filter((p) => P.racers.includes(p.id)) : all;
 }
 
 const latest = (id: number) => { const b = net.remotes.get(id)?.buf; return b?.length ? b[b.length - 1] : null; };

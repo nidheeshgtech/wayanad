@@ -130,7 +130,7 @@ function gate() {
 /** Someone talking (for the HUD, and to duck the game's sound). */
 export function anyoneTalking() {
   if (!voice.on) return false;
-  for (const [id, p] of voice.peers) if (p.talking && !voice.muted.has(id)) return true;
+  for (const [id, p] of voice.peers) if (p.talking && !voice.muted.has(id) && !net.blocked.has(id)) return true;
   return false;
 }
 
@@ -148,6 +148,7 @@ function sync() {
   const ids = net.voiceIds.filter((id) => id !== net.id);
   for (const [id] of voice.peers) if (!ids.includes(id)) close(id);
   for (const id of ids) if (!voice.peers.has(id) && net.id < id) void offer(id);
+  for (const [id, p] of voice.peers) p.audio.muted = voice.muted.has(id) || net.blocked.has(id); // a block takes effect at once
   bump();
 }
 
@@ -155,7 +156,7 @@ function peer(id: number) {
   let p = voice.peers.get(id);
   if (p) return p;
   const pc = new RTCPeerConnection({ iceServers: ICE });
-  const audio = new Audio(); audio.autoplay = true; (audio as HTMLAudioElement & { playsInline: boolean }).playsInline = true; audio.muted = voice.muted.has(id);
+  const audio = new Audio(); audio.autoplay = true; (audio as HTMLAudioElement & { playsInline: boolean }).playsInline = true; audio.muted = voice.muted.has(id) || net.blocked.has(id);
   p = { pc, audio, level: null, queued: [], state: "connecting", talking: false };
   voice.peers.set(id, p);
   out?.stream.getAudioTracks().forEach((t) => pc.addTrack(t, out!.stream));

@@ -36,10 +36,16 @@
  *           on every change (phase: "lobby" | "countdown" | "race" | "results" | "free"; startIn / closeIn in ms from now)
  *           private rooms: { t: "voice", ids: [id] } who's on voice, on every change; { t: "voiceFull" } (VOICE_CAP talkers);
  *           { t: "rtc", from, data } from another talker
+ *
+ * Reports (any room): client → { t: "flag", id, why } reports another driver (why: name | voice | driving | other).
+ * Each report is logged in the Lobby (kept 90 days, at most MAX_FLAGS; read with GET /flags?key=<ADMIN_KEY>, a
+ * wrangler secret). Reports from FLAGS_TO_HUSH different drivers in a room "hush" the reported one at once: their name
+ * becomes "Driver", they're taken off voice and can't rejoin it, for as long as the room lasts (server → { t: "renamed",
+ * name } tells them). Blocking is the client's own business (lib/net setBlocked); the server isn't told.
  */
 import { cleanName } from "./names";
 
-export interface Env { ROOM: DurableObjectNamespace; LOBBY: DurableObjectNamespace }
+export interface Env { ROOM: DurableObjectNamespace; LOBBY: DurableObjectNamespace; ADMIN_KEY?: string }
 
 const CAPACITY = 25, HARD_CAP = 30, PRIVATE_CAP = 8;
 const VOICE_CAP = 4;         // talkers in a private room's voice chat (each phone connects to each other one)
@@ -63,6 +69,10 @@ const ALL_EVERY = 10;     // every 10th broadcast (1/s) carries everyone on the 
 const REPORT_EVERY = 600; // every 600th (1/min) the room tells the Lobby it's still here, so it isn't forgotten
 const MAX_SPEED = 2.8;    // units/s: the car's top speed (lib/game CAR.max)
 const CORS = { "Access-Control-Allow-Origin": "*" };
+const WHY = ["name", "voice", "driving", "other"];
+const FLAGS_TO_HUSH = 2;               // different drivers reporting someone in a room before their name and voice go
+const MAX_FLAGS = 1000, FLAG_KEEP = 90 * 24 * 3600_000; // the report log: how many, how long
+type Flag = { at: number; room: string; name: string; by: string; why: string };
 // the cars and paints a player can pick (data/cars.ts); anything else becomes the default
 const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode", "chembra", "kuruva"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
 // and who's driving (data/drivers.ts); older clients send none and get the first
@@ -76,6 +86,11 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname === "/join" || url.pathname === "/create") {
+      return env.LOBBY.get(env.LOBBY.idFromName("lobby")).fetch(req);
+    }
+    if (url.pathname === "/flags") {
+      // the report log, for us: only with the admin key (a wrangler secret); without one set, it doesn't exist
+      if (!env.ADMIN_KEY || url.searchParams.get("key") !== env.ADMIN_KEY) return new Response("not found", { status: 404 });
       return env.LOBBY.get(env.LOBBY.idFromName("lobby")).fetch(req);
     }
     const m = url.pathname.match(/^\/room\/([a-z0-9-]{1,24})$/);
@@ -109,6 +124,19 @@ export class Lobby {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url), now = Date.now();
+    if (url.pathname === "/flag" && req.method === "POST") {
+      // a driver reported (from a Room): logged, oldest dropped past 90 days or MAX_FLAGS
+      const f = await req.json<Flag>();
+      const log = ((await this.state.storage.get<Flag[]>("flags")) ?? []).filter((x) => now - x.at < FLAG_KEEP);
+      log.push(f);
+      await this.state.storage.put("flags", log.slice(-MAX_FLAGS));
+      return new Response("ok");
+    }
+    if (url.pathname === "/flags") {
+      // (the admin key was checked by the Worker) newest first, with when as a readable date
+      const log = ((await this.state.storage.get<Flag[]>("flags")) ?? []).slice().reverse();
+      return Response.json(log.map((f) => ({ ...f, when: new Date(f.at).toISOString() })));
+    }
     if (url.pathname === "/report") {
       const { room, count } = await req.json<{ room: string; count: number }>();
       // an empty private room keeps its code for a while (EMPTY_KEEP); an empty public one is forgotten
@@ -184,6 +212,9 @@ export class Room {
   private racers = new Map<string, Racer>();
   private finished = 0;
   private timer2: ReturnType<typeof setTimeout> | null = null;
+  // reports: who has reported whom (by key → the reporters' keys), and who's been hushed (by key) for the room's life
+  private flags = new Map<string, Set<string>>();
+  private hushed = new Set<string>();
 
   constructor(private state: DurableObjectState, private env: Env) {}
 
@@ -204,7 +235,7 @@ export class Room {
       try { msg = JSON.parse(typeof ev.data === "string" ? ev.data : ""); } catch { return; }
       if (msg.t === "hello" && !me) {
         const key = typeof msg.key === "string" && /^[a-z0-9]{8,40}$/i.test(msg.key) ? msg.key : Math.random().toString(36).slice(2);
-        me = { id: this.nextId++, key, name: this.unique(cleanName(String(msg.name ?? ""))), car: carOf(msg.car), ws, s: 3, lat: 0.2, psi: 0, v: 0, br: 0, leg: 0, at: Date.now(), seen: false, ts: 0 };
+        me = { id: this.nextId++, key, name: this.unique(this.hushed.has(key) ? "Driver" : cleanName(String(msg.name ?? ""))), car: carOf(msg.car), ws, s: 3, lat: 0.2, psi: 0, v: 0, br: 0, leg: 0, at: Date.now(), seen: false, ts: 0 };
         this.players.set(ws, me);
         ws.send(JSON.stringify({ t: "welcome", id: me.id, name: me.name, room: this.room, priv: this.priv }));
         if (this.priv) {
@@ -216,6 +247,7 @@ export class Room {
         this.timer ??= setInterval(() => this.tick(), TICK);
       } else if (msg.t === "s" && me) this.move(me, msg);
       else if (msg.t === "car" && me) { me.car = carOf(msg.car); this.roster(); }
+      else if (msg.t === "flag" && me) this.flag(me, msg);
       else if (this.priv && me && (msg.t === "voice" || msg.t === "rtc")) this.talk(me, msg);
       else if (this.priv && me) this.party(me, msg);
     });
@@ -271,6 +303,7 @@ export class Room {
   private talk(me: Player, m: Record<string, unknown>) {
     if (m.t === "voice") {
       const on = !!m.on;
+      if (on && this.hushed.has(me.key)) return; // reported off voice
       if (on && !me.voice && [...this.players.values()].filter((p) => p.voice).length >= VOICE_CAP) { try { me.ws.send(JSON.stringify({ t: "voiceFull" })); } catch { /* closing */ } return; }
       if (me.voice !== on) { me.voice = on; this.voices(); }
     } else if (m.t === "rtc" && me.voice) {
@@ -282,6 +315,28 @@ export class Room {
   private voices() {
     const msg = JSON.stringify({ t: "voice", ids: [...this.players.values()].filter((p) => p.voice).map((p) => p.id) });
     for (const p of this.players.values()) { try { p.ws.send(msg); } catch { /* closing */ } }
+  }
+
+  /** A report: logged in the Lobby; the FLAGS_TO_HUSH-th different reporter hushes the driver (name and voice gone). */
+  private flag(me: Player, m: Record<string, unknown>) {
+    const target = [...this.players.values()].find((p) => p.id === m.id);
+    if (!target || target.key === me.key) return;
+    const by = this.flags.get(target.key) ?? new Set<string>();
+    if (by.has(me.key)) return; // one report per driver per driver
+    by.add(me.key); this.flags.set(target.key, by);
+    const why = WHY.includes(String(m.why)) ? String(m.why) : "other";
+    const lobby = this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby"));
+    this.state.waitUntil(lobby.fetch("https://lobby/flag", { method: "POST", body: JSON.stringify({ at: Date.now(), room: this.room, name: target.name, by: me.name, why } satisfies Flag) }).then(() => {}, () => {}));
+    if (by.size < FLAGS_TO_HUSH || this.hushed.has(target.key)) return;
+    this.hushed.add(target.key);
+    for (const p of this.players.values()) {
+      if (p.key !== target.key) continue;
+      p.name = this.unique("Driver");
+      try { p.ws.send(JSON.stringify({ t: "renamed", name: p.name })); } catch { /* closing */ }
+      if (p.voice) p.voice = false;
+      const r = this.racers.get(p.key); if (r) r.name = p.name;
+    }
+    this.roster(); if (this.priv) { this.voices(); this.state_(); }
   }
 
   /** A private room's own messages: the host's choices, and racers reaching the gate. */

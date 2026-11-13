@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE}/privacy` },
 };
 
-const UPDATED = "12 November 2026";
+const UPDATED = "13 November 2026";
 
 /** The privacy policy for the website and the Android app (Google Play needs a public link to it). Server-rendered,
  * no canvas. Written against what the code actually does: lib/net (rooms), lib/voice (peer-to-peer voice),
@@ -34,6 +34,7 @@ export default function Privacy() {
           <li>your settings: graphics quality, light or dark look, and how you last played</li>
           <li>whether you have already seen a tip</li>
           <li>a random code, kept only until you close the tab, so you can rejoin the same room if the connection drops</li>
+          <li>the names of drivers you have blocked</li>
         </ul>
         <p>These never leave your device on their own. Clearing the site&apos;s data in your browser, or uninstalling the app, removes them.</p>
 
@@ -44,9 +45,17 @@ export default function Privacy() {
           Other players in the same room see your name and car. Names are filtered for abuse before anyone sees them.
         </p>
         <p>
-          The room server keeps this only while the room is open. It saves nothing about you; it only counts how many players each room has.
+          The room server keeps this only while the room is open. It saves nothing else about you (apart from reports, below); it only counts how many players each room has.
           To stop spam it looks at your internet (IP) address for up to a minute, in memory, and never writes it down.
           The room server runs on Cloudflare.
+        </p>
+
+        <h2>Reporting and blocking</h2>
+        <p>
+          In the pause menu you can report or block any other driver in your room. Blocking hides their car, name and voice from you,
+          and is remembered on your device by their name. A report sends us the reported driver&apos;s name, your name, the room and the
+          reason you picked; we keep reports for up to 90 days to deal with abuse. If two different drivers report someone, the room
+          takes away their name and voice at once.
         </p>
 
         <h2>Voice chat</h2>
