@@ -2,6 +2,7 @@
  * Sharing a climb and remembering your best. The best time lives on the player's device (localStorage) until there's a
  * shared leaderboard (needs a database). Sharing uses the phone's share sheet where there is one, else WhatsApp.
  */
+import { nativeShare, platform } from "@/lib/native";
 const BEST = "wayanad-best-climb";
 
 /** 402 s → "6:42". */
@@ -22,6 +23,7 @@ export function recordClimb(sec: number, keep = true): { best: number; isNew: bo
 export async function shareClimb(sec: number): Promise<"shared" | "copied" | "whatsapp" | "cancelled"> {
   const url = location.origin + "/";
   const text = `I drove up the Thamarassery Churam — nine hairpins to the Lakkidi gate — in ${clock(sec)}. Can you beat it?`;
+  if (platform() === "ios") { await nativeShare(text, url); return "shared"; } // the iPhone app's own share sheet (checked without waiting, so the web path keeps the tap)
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
   if (!nav.share) { window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener"); return "whatsapp"; }
   try { await nav.share({ title: "Explore Wayanad", text, url }); return "shared"; }

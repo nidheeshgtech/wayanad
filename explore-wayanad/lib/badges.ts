@@ -6,6 +6,7 @@
  */
 import { announce } from "@/lib/score";
 import { chime } from "@/lib/horn";
+import { haptic, nativeAchievement } from "@/lib/native";
 
 export type BadgeId = "finish" | "clean" | "hairpins" | "fast" | "coins" | "monkey" | "chaya" | "rain" | "night" | "friend";
 export const BADGES: { id: BadgeId; icon: string; name: string; how: string }[] = [
@@ -45,6 +46,7 @@ export function award(id: BadgeId) {
   try { localStorage.setItem(KEY, JSON.stringify(badges.earned)); } catch {}
   const b = BADGES.find((x) => x.id === id)!;
   announce(`🏅 ${b.icon} ${b.name}`); chime(true);
+  haptic("success"); nativeAchievement(id); // (the phone apps: a buzz, and Game Center on iPhone)
 }
 
 /** A new climb: the timed counters and "new this climb" start again. */

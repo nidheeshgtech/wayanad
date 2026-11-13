@@ -15,6 +15,7 @@
  * (a vehicle, or the barrier hard) drops it back to ×1. The score never goes below 0. Each gain or loss is queued in
  * `pops` for the HUD to float up ("+10", "−50", "×2").
  */
+import { haptic } from "@/lib/native";
 import { chime } from "@/lib/horn";
 import { NITRO, game } from "@/lib/game";
 
@@ -61,6 +62,7 @@ export function coin(big = false) {
   const n = (big ? POINTS.big : POINTS.coin) * score.mult;
   if (big) score.big++; else score.coins++;
   add(n); pop(`+${n}`, big ? "big" : "gain"); chime(big);
+  if (big) haptic("medium");
   game.nitro = Math.min(1, game.nitro + (big ? NITRO.big : NITRO.coin)); // coins fill the nitro
 }
 
@@ -74,6 +76,7 @@ export function bonus(n: number, label: string) {
 export function crash(penalty = true) {
   const lost = score.mult > 1;
   score.clean = 0; score.mult = 1;
+  haptic(penalty ? "heavy" : "medium"); // (the phone apps only)
   if (penalty) { score.crashes++; add(-POINTS.crash); pop(`−${POINTS.crash}`, "loss"); }
   else if (lost) pop("Streak lost", "loss");
 }

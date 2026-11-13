@@ -6,6 +6,7 @@
 import { clock } from "@/lib/share";
 import { BADGES } from "@/lib/badges";
 import { roundRect } from "@/lib/canvas";
+import { nativeShare } from "@/lib/native";
 
 type Shot = { run: number; blob: Blob | null };
 export const shot: Shot = ((globalThis as { __wayanadShot?: Shot }).__wayanadShot ??= { run: -1, blob: null });
@@ -83,6 +84,7 @@ export async function shareCard(c: Climb): Promise<"shared" | "downloaded" | "ca
   const text = `I climbed the Thamarassery Churam in Drive Wayanad: ${fmt(c.points)} points in ${clock(c.sec)}. Can you beat it?`;
   const url = "https://drivewayanad.com";
   const blob = await makeCard(c), file = new File([blob], "drive-wayanad.jpg", { type: "image/jpeg" });
+  if (await nativeShare(text, url, blob)) return "shared"; // the iPhone app's own share sheet
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] })) {
     try { await nav.share({ files: [file], text: `${text} ${url}` }); return "shared"; }
