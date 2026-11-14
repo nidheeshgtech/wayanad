@@ -31,7 +31,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .allButUpsideDown }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape } // (a racing game: sideways, either way round)
 
     override func loadView() {
         let config = WKWebViewConfiguration()

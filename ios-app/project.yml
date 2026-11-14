@@ -48,10 +48,9 @@ targets:
         UIStatusBarHidden: true
         UIViewControllerBasedStatusBarAppearance: true
         UIRequiresFullScreen: true
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
+        UISupportedInterfaceOrientations:   # a racing game: sideways only, either way round
           - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationLandscapeLeft
         UIRequiredDeviceCapabilities:
           - arm64
         NSMicrophoneUsageDescription: Voice chat with your friends in a private room. Your voice goes straight to their phones and is never recorded.
