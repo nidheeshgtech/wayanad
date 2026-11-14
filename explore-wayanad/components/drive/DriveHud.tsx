@@ -32,6 +32,7 @@ import HornPicker from "@/components/garage/HornPicker";
 import CarCard from "@/components/garage/CarCard";
 import { getChoice, setChoice, useChoice } from "@/lib/choice";
 import Drivers, { SafetyLinks } from "./Drivers";
+import { PedalArt, SteerArt } from "./TouchKeys";
 import RotateTip from "./RotateTip";
 import styles from "./Drive.module.scss";
 
@@ -454,13 +455,13 @@ export default function DriveHud() {
       {/* touch controls (shown on touch screens) */}
       <div className={styles.touch}>
         <div className={styles.steer} aria-hidden>
-          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? 1 : 0; })}><Icon name="left" /></button>
-          <button type="button" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; })}><Icon name="right" /></button>
+          <button type="button" data-side="left" {...hold((on) => { if (!game.paused) game.input.steer = on ? 1 : 0; if (on) haptic("light"); })}><SteerArt side="left" /></button>
+          <button type="button" data-side="right" {...hold((on) => { if (!game.paused) game.input.steer = on ? -1 : 0; if (on) haptic("light"); })}><SteerArt side="right" /></button>
         </div>
         <button type="button" className={styles.bigHorn} onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button>
         <div className={styles.pedals}>
-          <button type="button" className={styles.brake} {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; })}><Icon name="brake" /><small>Brake</small></button>
-          <button type="button" className={styles.gas} {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; })}><Icon name="go" /><small>Gas</small></button>
+          <button type="button" className={styles.brake} aria-label="Brake" {...hold((on) => { if (!game.paused) game.input.brake = on ? 1 : 0; if (on) haptic("light"); })}><PedalArt kind="brake" /><small>Brake</small></button>
+          <button type="button" className={styles.gas} aria-label="Accelerator" {...hold((on) => { if (!game.paused) game.input.throttle = on ? 1 : 0; if (on) haptic("light"); })}><PedalArt kind="gas" /><small>Gas</small></button>
         </div>
       </div>
 
