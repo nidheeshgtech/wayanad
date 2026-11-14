@@ -40,6 +40,12 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         // keep Safari's "Mobile/…" token (the site reads it) and add who we are, for the visitor counts
         config.applicationNameForUserAgent = "Mobile/15E148 DriveWayanadApp/1.0"
         config.userContentController.add(WeakHandler(self), name: "wayanad")
+        #if DEBUG
+        // testing: a script from the environment (WAYANAD_JS) run in the game once it has loaded — QC experiments
+        if let js = ProcessInfo.processInfo.environment["WAYANAD_JS"], !js.isEmpty {
+            config.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        }
+        #endif
 
         web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
@@ -70,8 +76,24 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         view = root
     }
 
+    #if DEBUG
+    /// Testing (Debug builds, the game opened with ?perf): the game's frame stats every 5 s in the console, for QC on a
+    /// real phone (read with `devicectl … process launch --console`).
+    private var perfTimer: Timer?
+    private func logPerf() {
+        perfTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.web.evaluateJavaScript("(function(){var p=window.__wayanadPerf,g=window.__wayanadGame;if(!p)return null;return JSON.stringify({fps:p.fps,p50:p.p50,p95:p.p95,js:p.jsMs,render:p.renderMs,draws:p.calls,tris:Math.round(p.triangles/1000)+'k',q:p.quality,dpr:p.dpr,s:g&&+g.s.toFixed(1),v:g&&+g.speed.toFixed(2),cpu:p.cpu,x:window.__qc||null})})()") { result, _ in
+                if let line = result as? String { print("perf:", line) }
+            }
+        }
+    }
+    #endif
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        #if DEBUG
+        logPerf()
+        #endif
         web.load(URLRequest(url: Self.home))
         monitor.pathUpdateHandler = { [weak self] path in
             guard path.status == .satisfied else { return }
