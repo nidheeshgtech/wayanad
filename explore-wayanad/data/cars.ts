@@ -21,7 +21,10 @@ export type Car = { id: CarId; name: string; file: string; length: number; paint
   /** a bus or lorry: its own size (width, m) and slow, wide handling (lib/game setVehicle), the camera further back */
   heavy?: { width: number };
   /** the police jeep and the ambulance: a light bar on the roof, lit, and the siren going (lib/emergency) */
-  siren?: boolean };
+  siren?: boolean;
+  /** a vehicle taken from the traffic drives like itself, not like a sports SUV: its top speed (units/s; 1 = 36 km/h)
+   * and how quickly it picks up (lib/game setVehicle) */
+  handling?: { max: number; accel: number } };
 
 export const CARS: Car[] = [
   { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/, plate: { material: "plate_bg.0" } },
@@ -36,17 +39,18 @@ export const CARS: Car[] = [
 /** The traffic's own models, driven: their paint stays theirs (the hatch and van take the colour they had on the road,
  * `Choice.paintHex`); the auto's driver sits in the middle. Lengths as in the traffic (lib/traffic VEHICLES). */
 export const BORROWABLE: Car[] = [
-  { id: "t-hatch", name: "Hatchback", file: "/models/traffic/wagonr-real.glb", length: 3.6, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.55, w: 0.42, h: 0.11 } } },
-  { id: "t-mpv", name: "MPV", file: "/models/traffic/innova-real.glb", length: 4.58, paint: /^$/, plate: { at: { y: 0.6, w: 0.45, h: 0.11 } } },
-  { id: "t-van", name: "Van", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 } },
-  { id: "t-auto", name: "Auto", file: "/models/traffic/auto-real.glb", length: 2.65, paint: /^$/, plate: { at: { y: 0.45, w: 0.3, h: 0.09 } }, seat: { x: 0, y: 0.36, z: 0.2 } },
+  // (top speeds as on the churam: a Wagon R ~85 km/h, an Innova ~90, an Omni ~70, an auto ~50; your own SUV does 100)
+  { id: "t-hatch", name: "Hatchback", file: "/models/traffic/wagonr-real.glb", length: 3.6, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.55, w: 0.42, h: 0.11 } }, handling: { max: 2.35, accel: 0.42 } },
+  { id: "t-mpv", name: "MPV", file: "/models/traffic/innova-real.glb", length: 4.58, paint: /^$/, plate: { at: { y: 0.6, w: 0.45, h: 0.11 } }, handling: { max: 2.5, accel: 0.42 } },
+  { id: "t-van", name: "Van", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, handling: { max: 1.95, accel: 0.34 } },
+  { id: "t-auto", name: "Auto", file: "/models/traffic/auto-real.glb", length: 2.65, paint: /^$/, plate: { at: { y: 0.45, w: 0.3, h: 0.09 } }, seat: { x: 0, y: 0.36, z: 0.2 }, handling: { max: 1.4, accel: 0.28 } },
   // the buses and the lorry (driver up front on the right), and the emergency services (painted white when taken)
-  { id: "t-bus", name: "KSRTC bus", file: "/models/traffic/ksrtc-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 } },
-  { id: "t-pbus", name: "Private bus", file: "/models/traffic/privatebus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 } },
-  { id: "t-tbus", name: "Tourist bus", file: "/models/traffic/tourbus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.14, z: 0.4 }, heavy: { width: 2.25 } },
-  { id: "t-lorry", name: "Lorry", file: "/models/traffic/lorry-real.glb", length: 7.8, paint: /^$/, plate: { at: { y: 0.45, w: 0.5, h: 0.12 } }, seat: { x: -0.075, y: 0.2, z: 0.37 }, heavy: { width: 2.71 } },
+  { id: "t-bus", name: "KSRTC bus", file: "/models/traffic/ksrtc-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.65, accel: 0.24 } },
+  { id: "t-pbus", name: "Private bus", file: "/models/traffic/privatebus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.75, accel: 0.26 } },
+  { id: "t-tbus", name: "Tourist bus", file: "/models/traffic/tourbus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.14, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.7, accel: 0.25 } },
+  { id: "t-lorry", name: "Lorry", file: "/models/traffic/lorry-real.glb", length: 7.8, paint: /^$/, plate: { at: { y: 0.45, w: 0.5, h: 0.12 } }, seat: { x: -0.075, y: 0.2, z: 0.37 }, heavy: { width: 2.71 }, handling: { max: 1.45, accel: 0.2 } },
   { id: "t-police", name: "Police jeep", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/, plate: { part: "boot_scorpio_n_ext_1.2_0" }, siren: true },
-  { id: "t-amb", name: "Ambulance", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, siren: true },
+  { id: "t-amb", name: "Ambulance", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, siren: true, handling: { max: 2.2, accel: 0.4 } },
 ];
 /** Paint: a little less saturated than a swatch would suggest, as car paint reads under the scene's light. */
 export const COLOURS: { id: ColourId; name: string; hex: string }[] = [
