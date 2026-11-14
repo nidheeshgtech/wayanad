@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, Raycaster, SRGBColorSpace, Texture, TextureLoader, Vector3, type Object3D } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
-import { advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
+import { AMBULANCE, POLICE, fileOf, advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
 import { CAR, game } from '@/lib/game';
 import { honk, honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
@@ -19,6 +19,10 @@ import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
+import { label, lightBar, redCross, siren } from '@/lib/emergency';
+import { paintCar } from '@/lib/carModel';
+import { loadVehicle as loadParts, mergeByMaterial } from '@/lib/vehicleAssets';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
@@ -81,8 +85,15 @@ function load(name: string) {
   if (!cache.has(name)) cache.set(name, loadVehicle(`/models/traffic/${name}.glb`, { merged: true }).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
   return cache.get(name)!;
 }
+/** The police patrol: the 4×4 painted white (by its own paint parts, which merging would lose), then merged. */
+let policeModel: Promise<Group | null> | null = null;
+const loadPolice = () => policeModel ??= loadParts('/models/traffic/player-4x4.glb').then(g => {
+  const c = cloneSkinned(g) as Group;
+  c.traverse(o => { const m = o as Mesh; if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
+  return mergeByMaterial(paintCar(c, '#f2f3f1') as Group);
+}).catch(e => { console.warn('Traffic asset unavailable: police', e); return null; });
 let assets: Promise<(Group | null)[]> | null = null;
-const loadAssets = () => assets ??= Promise.all(VEHICLES.map(v => load(v.name)));
+const loadAssets = () => assets ??= Promise.all(VEHICLES.map((_, k) => k === POLICE ? loadPolice() : load(fileOf(k))));
 const widen = (t: number) => roadShapeAt(t).widen;
 /** Where a vehicle drawn at `pose` would poke off the asphalt (giving way at its edge, a wide bus round a bend) or
  * into the bank (small mismatches between the baked terrain and the road cut): the nudge that puts it back — inward
@@ -133,7 +144,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0, wheels: [] as { spinner: Group; r: number }[], rolled: 0 };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, flash: null as ((t: number, on?: boolean) => void) | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0, wheels: [] as { spinner: Group; r: number }[], rolled: 0 };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
     // a bike without a rider in its file: a built one (sized before it, so the bike keeps its own proportions)
@@ -142,6 +153,11 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     const lights: MeshStandardMaterial[] = [], owned: MeshStandardMaterial[] = [];
     model.traverse(o => { if (!(o instanceof Mesh)) return; o.castShadow = !small; o.receiveShadow = true;
       const adapt = (m: MeshStandardMaterial) => {
+        if (v.kind === AMBULANCE && BODY.test(m.name)) { // ambulance white
+          const key = `${m.uuid}|ambulance`; let t = tinted.get(key);
+          if (!t) { t = m.clone(); t.map = null; t.color.setHex(0xf2f2ee); t.roughness = .38; t.metalness = .2; tinted.set(key, t); } // (its texture is the van's red: plain white instead)
+          return t;
+        }
         if (PAINTABLE.test(spec.name) && BODY.test(m.name)) {
           const hex = PAINTS[(v.id * 7 + v.kind) % PAINTS.length], key = `${m.uuid}|${hex}`;
           let t = tinted.get(key);
@@ -166,6 +182,24 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if (bike) light.scale.set(.45, .8, 1); // (one small round-ish lamp, not a car's)
       root.add(light);
     }
+    // the police patrol and the ambulance: a light bar on the roof, their names on the sides; the ambulance's red
+    // crosses and its name mirrored on the front (to read in a mirror)
+    let flash: ((t: number, on?: boolean) => void) | null = null;
+    if (v.kind === POLICE || v.kind === AMBULANCE) {
+      const police = v.kind === POLICE, lb = lightBar(police ? .12 : .1, .26);
+      lb.bar.position.set(0, spec.height + .004, police ? -.02 : .04); root.add(lb.bar); flash = lb.flash;
+      for (const side of [-1, 1]) {
+        const tag = police ? label('KERALA POLICE', .2, .03, '#1b3f9c', null) : label('AMBULANCE', .2, .032, '#d81e1e', null);
+        tag.position.set(side * (spec.width / 2 + .003), police ? .085 : .1, police ? -.02 : .02); tag.rotation.y = side * Math.PI / 2; root.add(tag);
+        owned.push(tag.material as MeshStandardMaterial);
+        if (!police) { const cross = redCross(.045); cross.position.set(side * (spec.width / 2 + .003), .1, -.12); cross.rotation.y = side * Math.PI / 2; root.add(cross); }
+      }
+      if (!police) {
+        const front = label('AMBULANCE', .13, .022, '#d81e1e', null, undefined, true);
+        front.position.set(0, .118, spec.length / 2 + .004); root.add(front);
+        const back = redCross(.05); back.position.set(0, .11, -spec.length / 2 - .004); back.rotation.y = Math.PI; root.add(back);
+      }
+    }
     // buses: a route board on the front — some in Malayalam, some English, some both
     if (hasBoard(spec.name)) {
       const board = destinationBoard(spec.name, (['ml', 'en', 'both'] as BoardText[])[Math.floor(v.id / 12) % 3], spec, model);
@@ -175,8 +209,9 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     }
     // the people inside (one merged mesh; drawn only near the camera, where the glass lets you see them)
     let people: Mesh | null = null;
-    if (hasOccupants(spec.name)) {
-      const geo = occupantsFor(spec.name, spec.length, v.id);
+    const seatsOf = v.kind === POLICE ? 'innova-real' : v.kind === AMBULANCE ? 'omni-real' : spec.name; // (a crew: seated as in the nearest model)
+    if (hasOccupants(seatsOf)) {
+      const geo = occupantsFor(seatsOf, spec.length, v.id);
       if (geo) { people = new Mesh(geo, occupantMaterial); people.castShadow = false; people.receiveShadow = true; people.name = 'occupants'; root.add(people); }
     }
     // advertising on both sides of a bus (one sponsor per bus, in turn)
@@ -207,7 +242,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     for (const c of root.children) if (!wheels.some(w => w.spinner.parent === c)) freeze(c);
     for (const w of wheels) { w.spinner.matrixAutoUpdate = true; }
     root.matrixWorldAutoUpdate = false; // (until it's in range and shown: see the frame loop)
-    return { root, lights, owned, people, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0, wheels, rolled: v.distance };
+    return { root, lights, owned, people, flash, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0, wheels, rolled: v.distance };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useEffect(() => { if (process.env.NODE_ENV !== 'production') (globalThis as { __trafficObjects?: unknown }).__trafficObjects = { objects, fleet }; }, [objects, fleet]);
@@ -251,7 +286,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     last.current = viewer ?? null;
     const st = trafficControl.staged >= 0 ? fleet.find(f => f.id === trafficControl.staged) : undefined; // dev review only
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
-    let visible = 0, aboard = 0;
+    let visible = 0, aboard = 0, nearestSiren = Infinity;
     const crewing = { ...(small ? CREW.small : CREW.full) }; crewing.cap = Math.round(crewing.cap * quality.people); crewFrame(); // (fewer as the quality steps down)
     const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
@@ -294,6 +329,13 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         if (!o.honked && jt > 0.35) { o.honked = true; honk({ audible: true, preview: true, kind: /bus|truck|lorry/i.test(VEHICLES[v.kind].name) ? 'bus' : 'car' }); }
       } else if (o.honked && !((v.jolt ?? 0) > 0)) o.honked = false;
       visible++;
+      // the emergency lights: the ambulance's always, a patrol's on for a stretch now and then; the nearest ambulance's
+      // siren (its loudness eased by lib/emergency)
+      if (o.flash) {
+        const now = performance.now() / 1000;
+        o.flash(now + v.id, v.kind === AMBULANCE || Math.floor((now + v.id * 13) / 25) % 3 === 0);
+        if (v.kind === AMBULANCE) nearestSiren = Math.min(nearestSiren, far2);
+      }
       // its wheels roll with the road it covers (its own way along it)
       if (o.wheels.length) { const d = (v.distance - o.rolled) * v.direction; o.rolled = v.distance; if (Math.abs(d) < 1) for (const w of o.wheels) w.spinner.rotation.x += d / Math.max(0.01, w.r); }
       // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
@@ -313,6 +355,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit || hazard;
     }
     trafficControl.count = visible; perfStats.people.crew = aboard;
+    siren(game.active && !game.paused ? Math.max(0, 1 - Math.sqrt(nearestSiren) / 12) : 0); // (heard within ~120 m)
   }));
   return <group name="mountain-traffic" dispose={null}>{objects.map((o,i) => <primitive key={i} object={o.root} />)}</group>;
 }

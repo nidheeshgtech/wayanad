@@ -14,7 +14,14 @@ export const VEHICLES = [
   { name: 'omni-real', height: .171, length: .34, width: .174, speed: .65 },
   { name: 'privatebus-real', height: .262, length: .94, width: .225, speed: .66 },
   { name: 'tourbus-real', height: .288, length: .94, width: .225, speed: .64 },
+  // emergency services (lib/emergency): a Kerala Police patrol (the 4×4 in white, a light bar) and an ambulance (the
+  // Omni van in white with a red cross, as many Kerala ambulances are); a few of each, handed out by createFleet
+  { name: 'police', file: 'player-4x4', height: .19, length: .466, width: .19, speed: .7 },
+  { name: 'ambulance', file: 'omni-real', height: .171, length: .34, width: .174, speed: .95 },
 ] as const;
+export const POLICE = 9, AMBULANCE = 10;
+/** The model file a kind is drawn from (most are named after theirs). */
+export const fileOf = (kind: number) => { const v = VEHICLES[kind] as { name: string; file?: string }; return v.file ?? v.name; };
 /** How a vehicle is behaving toward the viewer: see interactWithViewer. `shift` (0–1) eases it toward its own road edge. */
 export type Mode = 'cruise' | 'follow' | 'yield' | 'passed' | 'caution';
 export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: number; speed: number; mode?: Mode; shift?: number; wait?: number;
@@ -23,7 +30,9 @@ export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: n
   down?: number; fallSide?: 1 | -1; fall?: number;
   /** a car, bus or lorry hit hard by the player: seconds left stopped (hazards blinking), seconds since the hit, how hard
    * (0–1) and which way its tail was knocked (Traffic draws the jolt: a wobble that settles, a hop) */
-  jolt?: number; joltT?: number; joltKick?: number; joltSide?: 1 | -1 };
+  jolt?: number; joltT?: number; joltKick?: number; joltSide?: 1 | -1;
+  /** an ambulance is coming: seconds left pulled over to its edge and slowed (advanceTraffic) */
+  aside?: number };
 /** Hit harder than this (closing speed, units/s ≈ 11 km/h) a car, bus or lorry jolts and stops this long. */
 export const JOLT = { min: 0.3, stop: 3.2 };
 /** Two-wheelers fall over when you hit them (the rest are solid and just stop you). */
@@ -63,7 +72,9 @@ export function createFleet(length: number, density: (d: number) => number = () 
   const steps = 2000, cum = new Float64Array(steps + 1);
   for (let i = 0; i < steps; i++) cum[i + 1] = cum[i] + Math.max(0.05, density(2 + ((length - 4) * (i + 0.5)) / steps));
   const at = (u: number) => { let lo = 0, hi = steps; const x = u * cum[steps]; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= x) lo = mid; else hi = mid; } return 2 + ((length - 4) * (lo + (x - cum[lo]) / Math.max(1e-9, cum[hi] - cum[lo]))) / steps; };
-  return Array.from({ length: n }, (_, id) => ({ id, kind: MIX[id % MIX.length], direction: id % 2 ? -1 : 1, distance: at((id + 0.5) / n), speed: 0 }));
+  // one vehicle in 41 a police patrol, one in 83 an ambulance (about eight and four on the churam road), spread out
+  const kind = (id: number) => id % 83 === 29 ? AMBULANCE : id % 41 === 7 ? POLICE : MIX[id % MIX.length];
+  return Array.from({ length: n }, (_, id) => ({ id, kind: kind(id), direction: id % 2 ? -1 : 1, distance: at((id + 0.5) / n), speed: 0 }));
 }
 /** Snapshot-based car following: all movement uses the same previous frame, never update-order overtaking. */
 /** Something on the road traffic must not drive into: the player's car in drive mode. `lanes`: the lanes it covers;
@@ -88,6 +99,13 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     lane.forEach((v, i) => ahead.set(v, [lane[(i + 1) % lane.length], lane[(i + 2) % lane.length]].filter(o => o !== v)));
   }
   const bends = bendTable(curve);
+  // an ambulance coming, siren going: the vehicles a little ahead of it on its side of the road, and those coming the
+  // other way alongside it, pull over to their edge and slow right down; it goes by between them
+  for (const a of fleet) if (a.kind === AMBULANCE && !(a.jolt ?? 0)) for (const v of fleet) {
+    if (v === a || v.kind === AMBULANCE) continue;
+    const gap = (v.distance - a.distance) * a.direction;
+    if (v.direction === a.direction ? gap > 0 && gap < 3.5 : Math.abs(gap) < 2.5) v.aside = 1.2;
+  }
   const moves = fleet.map(v => {
     // a knocked-over bike lies where it fell; once it's back up (Traffic eases it upright) the rider sets off again
     // (over in ~0.4 s, picked up again in ~1.2 s)
@@ -97,8 +115,18 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     if ((v.jolt ?? 0) > 0) { v.jolt = Math.max(0, v.jolt! - dt); return { speed: 0, move: 0 }; } // shaken: stopped a moment
     if ((v.fall ?? 0) > 0) return { speed: 0, move: 0 };
     const spec = VEHICLES[v.kind], bend = bendAt(bends, v.distance);
+    // pulled over for an ambulance: ease to the edge (where there's room), crawl; then ease back out
+    const aside = (v.aside ?? 0) > 0;
+    if (v.aside !== undefined) {
+      v.aside -= dt;
+      if (aside && edgeRoom(v.kind) > 0) v.shift = Math.min(1, (v.shift ?? 0) + dt * 1.4);
+      if (v.aside <= 0) v.aside = undefined; // (back out: interactWith* eases its shift as usual)
+    }
+    // an ambulance goes by vehicles pulled over for it along the centre line (shift −4 × its edge room ≈ 2 m in), then
+    // eases back into its lane
+    if (v.kind === AMBULANCE) v.shift = (ahead.get(v) ?? []).some(o => (o.aside ?? 0) > 0 && ((o.distance - v.distance) * v.direction + span) % span < 1.6) ? Math.max(-4, (v.shift ?? 0) - dt * 4) : Math.min(0, (v.shift ?? 0) + dt * 2);
     // each vehicle its own pace (±10%), held back while it gives way or takes care (interactWithViewer)
-    const cap = v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
+    const cap = aside ? .2 : v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
     let desired = Math.min(spec.speed * pace(v.id) * cap, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
     const safe = .65 + Math.max(0, v.speed) * (2 + rain * 2);
     let room = stops.get(v.id) ?? Infinity;
@@ -106,6 +134,7 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     // its pace, so you can reverse down the road as far as you like and the queue behind you reverses with you
     let back = 0;
     for (const other of ahead.get(v)!) {
+      if (v.kind === AMBULANCE && (other.aside ?? 0) > 0 || (v.aside ?? 0) > 0 && other.kind === AMBULANCE) continue; // (it goes by them)
       const gap = ((other.distance - v.distance) * v.direction + span) % span;
       const clearance = gap - (spec.length + VEHICLES[other.kind].length) / 2;
       room = Math.min(room, clearance - safe);
@@ -213,7 +242,7 @@ export function interactWithViewer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
   }
   // ease toward the edge (or back into the lane) gently
   const k = 1 - Math.exp(-dt / DRIVE.ease);
-  for (const v of fleet) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k;
+  for (const v of fleet) if (v.kind !== AMBULANCE && !((v.aside ?? 0) > 0)) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k; // (an ambulance, and those pulled over for one: advanceTraffic)
   return { overtaking, following: !!lead && lead.mode === 'follow', held };
 }
 
@@ -272,7 +301,7 @@ export function interactWithPlayer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
     if ((out && g > -p.halfL && g < 8) || (alongside && g > -1 && g < 6)) v.mode = 'caution'; else if (v.mode === 'caution') v.mode = 'cruise';
   }
   const k = 1 - Math.exp(-dt / DRIVE.ease);
-  for (const v of fleet) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k;
+  for (const v of fleet) if (v.kind !== AMBULANCE && !((v.aside ?? 0) > 0)) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k; // (an ambulance, and those pulled over for one: advanceTraffic)
   return { overtaking: out || alongside, following: !!lead && lead.mode === 'follow', held };
 }
 
