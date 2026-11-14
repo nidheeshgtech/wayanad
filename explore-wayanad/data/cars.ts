@@ -8,7 +8,7 @@ import { DEFAULT_DRIVER, driverOf, type DriverId, type PersonId } from "./driver
 
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | BorrowId;
 /** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
-export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto";
+export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
  * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
@@ -17,7 +17,11 @@ export type Plate = { part?: string; material?: string; at?: { y: number; w: num
 /** `bike`: a two-wheeler — ridden (a rider is built on it), narrow, leans into bends (components/drive/PlayerCar). */
 /** `seat`: where the driver's steering wheel is, as fractions of the length (x + left, y up, z + forward), for models
  * whose wheel isn't a part of its own (PlayerCar finds it otherwise). */
-export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean; seat?: { x: number; y: number; z: number } };
+export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean; seat?: { x: number; y: number; z: number };
+  /** a bus or lorry: its own size (width, m) and slow, wide handling (lib/game setVehicle), the camera further back */
+  heavy?: { width: number };
+  /** the police jeep and the ambulance: a light bar on the roof, lit, and the siren going (lib/emergency) */
+  siren?: boolean };
 
 export const CARS: Car[] = [
   { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/, plate: { material: "plate_bg.0" } },
@@ -36,6 +40,13 @@ export const BORROWABLE: Car[] = [
   { id: "t-mpv", name: "MPV", file: "/models/traffic/innova-real.glb", length: 4.58, paint: /^$/, plate: { at: { y: 0.6, w: 0.45, h: 0.11 } } },
   { id: "t-van", name: "Van", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 } },
   { id: "t-auto", name: "Auto", file: "/models/traffic/auto-real.glb", length: 2.65, paint: /^$/, plate: { at: { y: 0.45, w: 0.3, h: 0.09 } }, seat: { x: 0, y: 0.36, z: 0.2 } },
+  // the buses and the lorry (driver up front on the right), and the emergency services (painted white when taken)
+  { id: "t-bus", name: "KSRTC bus", file: "/models/traffic/ksrtc-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 } },
+  { id: "t-pbus", name: "Private bus", file: "/models/traffic/privatebus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 } },
+  { id: "t-tbus", name: "Tourist bus", file: "/models/traffic/tourbus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.14, z: 0.4 }, heavy: { width: 2.25 } },
+  { id: "t-lorry", name: "Lorry", file: "/models/traffic/lorry-real.glb", length: 7.8, paint: /^$/, plate: { at: { y: 0.45, w: 0.5, h: 0.12 } }, seat: { x: -0.075, y: 0.2, z: 0.37 }, heavy: { width: 2.71 } },
+  { id: "t-police", name: "Police jeep", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/, plate: { part: "boot_scorpio_n_ext_1.2_0" }, siren: true },
+  { id: "t-amb", name: "Ambulance", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, siren: true },
 ];
 /** Paint: a little less saturated than a swatch would suggest, as car paint reads under the scene's light. */
 export const COLOURS: { id: ColourId; name: string; hex: string }[] = [

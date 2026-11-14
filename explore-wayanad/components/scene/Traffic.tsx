@@ -19,9 +19,9 @@ import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
-import { label, lightBar, redCross, siren } from '@/lib/emergency';
+import { label, lightBar, own, redCross, siren } from '@/lib/emergency';
 import { paintCar } from '@/lib/carModel';
-import { loadVehicle as loadParts, mergeByMaterial } from '@/lib/vehicleAssets';
+import { loadVehicle as loadParts, mergeByMaterial, mergeInto } from '@/lib/vehicleAssets';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
@@ -87,10 +87,30 @@ function load(name: string) {
 }
 /** The police patrol: the 4×4 painted white (by its own paint parts, which merging would lose), then merged. */
 let policeModel: Promise<Group | null> | null = null;
+// Its four wheels are kept apart from the merged body, each in a spinner ("wheel-spin", in a "wheel-pivot" at the
+// wheel's centre with its radius in userData) so they roll as it drives (Traffic's frame loop, as for the bikes).
 const loadPolice = () => policeModel ??= loadParts('/models/traffic/player-4x4.glb').then(g => {
   const c = cloneSkinned(g) as Group;
   c.traverse(o => { const m = o as Mesh; if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
-  return mergeByMaterial(paintCar(c, '#f2f3f1') as Group);
+  paintCar(c, '#f2f3f1'); c.updateMatrixWorld(true);
+  const isWheel = (n: Object3D) => /wheel_(lf|rf|lr|rr)_dummy/i.test(n.name);
+  const dummies: Object3D[] = []; c.traverse(o => { if (isWheel(o)) dummies.push(o); });
+  const units: Object3D[] = [];
+  for (const d of dummies) { // (one node may hold all four wheels: then each child with meshes is a wheel)
+    const kids = d.children.filter(k => { let any = false; k.traverse(o => { any ||= (o as Mesh).isMesh; }); return any; });
+    units.push(...(kids.length > 1 ? kids : [d]));
+  }
+  const wheels = new Group();
+  for (const u of units) {
+    const box = new Box3().setFromObject(u), pivot = new Group(), spinner = new Group();
+    pivot.name = 'wheel-pivot'; spinner.name = 'wheel-spin'; pivot.position.copy(box.getCenter(new Vector3())); pivot.userData.r = box.getSize(new Vector3()).y / 2;
+    pivot.add(spinner); pivot.updateMatrixWorld(true);
+    const own: Mesh[] = []; u.traverse(o => { if ((o as Mesh).isMesh) own.push(o as Mesh); });
+    mergeInto(own, spinner); u.removeFromParent();
+    wheels.add(pivot);
+  }
+  const out = mergeByMaterial(c); out.add(...wheels.children);
+  return out;
 }).catch(e => { console.warn('Traffic asset unavailable: police', e); return null; });
 let assets: Promise<(Group | null)[]> | null = null;
 const loadAssets = () => assets ??= Promise.all(VEHICLES.map((_, k) => k === POLICE ? loadPolice() : load(fileOf(k))));
@@ -236,6 +256,8 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         wheels = cut.wheels.map(w => { root.add(w.pivot); return { spinner: w.spinner, r: w.pivot.position.y }; });
       }
     }
+    // the police jeep's own wheels (kept apart from its body: see loadPolice) roll too
+    if (v.kind === POLICE) model.traverse(o => { if (o.name === 'wheel-spin') wheels.push({ spinner: o as Group, r: (o.parent!.userData.r as number) * model.scale.y }); });
     const seats = (people?.geometry.userData.seats as OccupiedSeat[] | undefined) ?? null;
     // its parts never move within it (only the whole vehicle does, and the wheels' spinners and anyone aboard, added
     // later): baked once, so ~6000 objects don't have their matrices rebuilt every frame
@@ -265,6 +287,11 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // left it when you took another (lib/game `parked`)
       const blocks: Obstacle[] = onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : [];
       const rubble = stageBlock(); if (rubble) blocks.push({ ...rubble, lanes: [1, -1], keep: 0.12 }); // (a staged rockfall, filming only)
+      // you, in the police jeep or the ambulance, siren going: the traffic ahead of you pulls over, as for theirs
+      if (own.siren && onRoad && Math.abs(game.speed) > .15) for (const v of live) {
+        const gap = v.distance - game.s;
+        if (v.direction === 1 ? gap > 0 && gap < 3.5 : Math.abs(gap) < 2.5) v.aside = 1.2;
+      }
       if (onRoad && game.foot.on) blocks.push({ distance: game.foot.s, length: 0.06, lanes: playerLanes({ s: game.foot.s, lat: game.foot.lat, speed: 0, halfL: 0.03, halfW: 0.035 }), speed: 0, keep: 0.2 });
       const P0 = game.parked; if (onRoad && P0) blocks.push({ distance: P0.s, length: 0.4, lanes: playerLanes({ s: P0.s, lat: P0.lat, speed: 0, halfL: 0.2, halfW: 0.1 }), speed: 0 });
       if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks));
@@ -355,7 +382,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit || hazard;
     }
     trafficControl.count = visible; perfStats.people.crew = aboard;
-    siren(game.active && !game.paused ? Math.max(0, 1 - Math.sqrt(nearestSiren) / 12) : 0); // (heard within ~120 m)
+    siren(game.active && !game.paused ? Math.max(own.siren && !game.foot.on ? .4 : 0, 1 - Math.sqrt(nearestSiren) / 12) : 0); // (heard within ~120 m; yours, if you're driving one)
   }));
   return <group name="mountain-traffic" dispose={null}>{objects.map((o,i) => <primitive key={i} object={o.root} />)}</group>;
 }

@@ -27,6 +27,7 @@ import { announce, crash, drive as scoreDrive, scrape as scoreScrape, score } fr
 import { frameTimed } from "@/lib/perf";
 import { mirror } from "@/lib/mirror";
 import type { ActId } from "@/data/acts";
+import { lightBar, own } from "@/lib/emergency";
 
 /* The car you drive: a compact SUV, unbranded (CC BY — public/models/traffic/ATTRIBUTION.md; scripts/retouch/player-suv.mjs
  * takes the maker's badges off and puts WAYANAD on the plates), 4.0 m long, in units
@@ -236,10 +237,14 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       panels.push({ mesh: m, orig: (m.geometry.getAttribute("position").array as Float32Array).slice() });
     });
     const dims = new Box3().setFromObject(body).getSize(new Vector3());
-    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims };
-  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike]);
+    // the police jeep and the ambulance: their light bar on the roof (lit while you drive them: see the frame loop)
+    let flash: ((t: number, on?: boolean) => void) | null = null;
+    if (car.siren) { const lb = lightBar(0.11, 0.24); lb.bar.position.set(0, new Box3().setFromObject(body).max.y + 0.002, 0); body.add(lb.bar); flash = lb.flash; }
+    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash };
+  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
-  useMemo(() => { setVehicle(!!car.bike); game.damage = 0; }, [car.bike, rig]); // eslint-disable-line react-hooks/exhaustive-deps
+  useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined); game.damage = 0; own.siren = !!car.siren; }, [car.bike, car.heavy, car.siren, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { own.siren = false; }, []);
   const dentRun = useRef(-1);
   /** A dent where the car was hit: `where` in the car's own frame (x right, y up, z forward), `k` 0–1. */
   const dent = (where: Vector3, k: number) => {
@@ -298,6 +303,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     return () => { gone = true; riding.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
   }, [rig, choice.passenger, car.bike, car.seat, LENGTH]);
   useFrame((_, dt) => {
+    rig.flash?.(performance.now() / 1000, !game.foot.on); // (the police jeep's / ambulance's lights while you drive it)
     const S = seated.current, R = riding.current;
     if (R) poseSeat(R, rig.body, dt);
     if (!S) return;
@@ -479,7 +485,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       want.copy(hv.at).applyMatrix4(root.matrixWorld); look.copy(hv.look).applyMatrix4(root.matrixWorld);
     } else {
       // a bike is half a car's size: the camera comes in closer and lower, so it fills the view the same
-      const v0 = VIEW[view], bk = car.bike ? 0.62 : 1, v = { back: v0.back * bk, up: v0.up * (car.bike ? 0.7 : 1), ahead: v0.ahead, aimUp: v0.aimUp * (car.bike ? 0.75 : 1) };
+      // (and a bus or lorry twice a car's size: further back and higher)
+      const big = car.heavy ? Math.max(1, LENGTH / 0.55) : 1;
+      const v0 = VIEW[view], bk = car.bike ? 0.62 : big, v = { back: v0.back * bk, up: v0.up * (car.bike ? 0.7 : big), ahead: v0.ahead, aimUp: v0.aimUp * (car.bike ? 0.75 : big) };
       // (swiped round: the camera swings about the car, and eases back behind it once let go)
       if (!game.look.held && game.look.yaw !== 0) { game.look.yaw *= Math.exp(-dt / 0.45); if (Math.abs(game.look.yaw) < 0.002) game.look.yaw = 0; }
       const swing = game.foot.on ? 0 : game.look.yaw;

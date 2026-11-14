@@ -1,15 +1,15 @@
 "use client";
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Group, Vector3, type CatmullRomCurve3, type Object3D } from "three";
+import { CanvasTexture, Group, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type CatmullRomCurve3, type Object3D } from "three";
 import { CAR, game, resetCar } from "@/lib/game";
 import { getBorrow, getChoice, setBorrow } from "@/lib/choice";
-import { laneLat, paintOf, trafficControl, VEHICLES } from "@/lib/traffic";
+import { laneLat, paintOf, trafficControl, vehiclePose, VEHICLES } from "@/lib/traffic";
 import type { BorrowId } from "@/data/cars";
 import { driverOfVehicle, someDriver } from "@/lib/crew";
 import { announce } from "@/lib/score";
 import { height, roadShapeAt, SECTION } from "@/lib/terrain";
-import { driverOf, type DriverId } from "@/data/drivers";
+import { driverOf, personHeight, type DriverId, type PersonId } from "@/data/drivers";
 import { loadCast, makeActor, settleHands, type Actor } from "@/lib/people";
 import { mark } from "@/lib/stats";
 
@@ -22,10 +22,43 @@ const ROAM = { side: 0.85, along: 25, climb: 0.03, drop: 0.05 }; // off the cent
 const PACE = { walk: 0.16, run: 0.5, turn: 2.4 };                   // units/s (1.6 m/s; a run, 5 m/s), radians/s
 const DOOR = { out: 0.055, reach: 0.11 };                           // stepped out this far beside it; back in from this close
 const CAMERA = { back: 0.36, up: 0.085, eye: 0.15, ahead: 0.6 };
-/** Traffic you can wave down and take (going your way, up the hill; not the buses or lorries), by its model, and how
- * close beside it you must be (units past its half-size). */
-const TAKE: Record<string, BorrowId | "kuruva"> = { "wagonr-real": "t-hatch", "innova-real": "t-mpv", "omni-real": "t-van", "auto-real": "t-auto", "pulsar-real": "kuruva" };
+/** Traffic you can take — anything stopped beside you, either way along the road: cars, the auto, bikes, the buses, the
+ * lorry, the police jeep and the ambulance — by its model, and how close beside it you must be (units past its
+ * half-size). Its driver gets out and gives you a piece of their mind (see `Thrown`). */
+const TAKE: Record<string, BorrowId | "kuruva"> = {
+  "wagonr-real": "t-hatch", "innova-real": "t-mpv", "omni-real": "t-van", "auto-real": "t-auto", "pulsar-real": "kuruva",
+  "ksrtc-real": "t-bus", "privatebus-real": "t-pbus", "tourbus-real": "t-tbus", "lorry-real": "t-lorry", police: "t-police", ambulance: "t-amb",
+};
 const PAINTED = /wagonr|omni/;
+const WHITE = /^(police|ambulance)$/;
+/** What the driver says as you drive off in their vehicle: a first line, then a second (Manglish, as on the churam). */
+const SCOLD: Record<string, string[][]> = {
+  bus: [["Eda! Ente bus! 😡", "Ithu KSRTC aanu! 🚌", "Passengers ellam ivide! 😤"], ["Depot-il parayum! 📞", "Ninne kandolaam! 😠"]],
+  lorry: [["Ente lorry! 😡", "Load undu, sookshichu! 😤"], ["Owner-ne vilikkum! 📞", "Police-ne vilikkum! 📞"]],
+  auto: [["Meter ittitt po! 😤", "Ente auto! 😡"], ["Police-ne vilikkum! 📞", "Ninne kandolaam! 😠"]],
+  bike: [["Ente bike! 😡", "Helmet evide? 😤"], ["Police-ne vilikkum! 📞", "Eda, nilkkada! 😠"]],
+  police: [["Ithu police vandiyaa! 🚓", "Eda! Nilkkada! 😠"], ["Ninne pidikkum! 🚨", "Wireless-il parayum! 📻"]],
+  ambulance: [["Ithu ambulance aanu! 🚑", "Eda! Ente vandi! 😡"], ["Police-ne vilikkum! 📞", "Ninne kandolaam! 😠"]],
+  car: [["Eda! Ente vandi! 😡", "Hey! My car! 😠", "Ayyo, ente car! 😩"], ["Police-ne vilikkum! 📞", "Ninne kandolaam! 😠", "Number note cheythu! 📝"]],
+};
+const scoldKind = (name: string) => /bus|ksrtc/.test(name) ? "bus" : /lorry/.test(name) ? "lorry" : /auto/.test(name) ? "auto" : /pulsar|enfield|bike/.test(name) ? "bike" : name === "police" ? "police" : name === "ambulance" ? "ambulance" : "car";
+
+/** A speech bubble: white, rounded, the words in dark ink, a little tail at the bottom; a sprite above someone's head. */
+function bubble(text: string) {
+  const c = document.createElement("canvas"); c.width = 640; c.height = 200;
+  const g = c.getContext("2d")!;
+  g.font = "700 64px 'Instrument Sans', Arial, sans-serif";
+  const w = Math.min(620, g.measureText(text).width + 70), x = (640 - w) / 2;
+  g.fillStyle = "rgba(255,255,255,.96)"; g.strokeStyle = "rgba(14,31,26,.85)"; g.lineWidth = 6;
+  g.beginPath(); g.moveTo(x + 36, 10); g.arcTo(x + w, 10, x + w, 150, 36); g.arcTo(x + w, 150, x, 150, 36);
+  g.lineTo(350, 150); g.lineTo(320, 190); g.lineTo(300, 150); g.arcTo(x, 150, x, 10, 36); g.arcTo(x, 10, x + w, 10, 36); g.closePath();
+  g.fill(); g.stroke();
+  g.fillStyle = "#0e1f1a"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 320, 82, w - 40);
+  const tex = new CanvasTexture(c); tex.colorSpace = SRGBColorSpace;
+  const sp = new Sprite(new SpriteMaterial({ map: tex, depthTest: false, transparent: true })); sp.renderOrder = 10;
+  sp.scale.set(0.3, 0.094, 1); sp.center.set(0.5, 0);
+  return sp;
+}
 // (in front of it, where it stopped for you — traffic keeps a few metres back — or beside its doors)
 const HOP = { ahead: 1.0, along: 0.08, across: 0.25, stopped: 0.12 };
 
@@ -49,6 +82,22 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
   const S = useRef({ s: 0, y: 0, camYaw: 0, ready: false, lift: 0, moved: 0, step: null as null | { into: boolean; x: number; z: number; t: number } });
   const T = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), a: new Vector3(), want: new Vector3(), look: new Vector3(), dir: new Vector3() }), []);
   const ride = useRef<Object3D | null>(null);
+  // the driver of a vehicle you took: out by their door, cross with you for a moment, then walking off down the road
+  const thrownGroup = useMemo(() => { const g = new Group(); g.name = "thrown-out"; return g; }, []);
+  const thrown = useRef<{ actor: Actor | null; h: number; x: number; z: number; y: number; s: number; yaw: number; away: number; t: number; lines: [string, string]; bubble: Sprite | null; said: number } | null>(null);
+  const throwOut = (id: PersonId, x: number, z: number, y: number, s: number, faceYaw: number, awayYaw: number, kind: string) => {
+    const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
+    const [first, second] = SCOLD[kind] ?? SCOLD.car;
+    if (thrown.current?.actor) { thrown.current.actor.mixer.stopAllAction(); }
+    thrownGroup.clear();
+    const T0 = { actor: null as Actor | null, h: personHeight(id) / 10, x, z, y, s, yaw: faceYaw, away: awayYaw, t: 0, lines: [pick(first), pick(second)] as [string, string], bubble: null as Sprite | null, said: -1 };
+    thrown.current = T0;
+    void loadCast(id, true).then(([src, clips]) => {
+      if (thrown.current !== T0) return;
+      const a = makeActor(id, src, clips, personHeight(id) / 10); a.play("idle", 0);
+      T0.actor = a; thrownGroup.add(a.root);
+    }, () => {});
+  };
 
   /** Where (x, z) is on the road: along it (s, kept from last time and nudged), across it, and the ground's height. */
   const place = (x: number, z: number, s: number) => {
@@ -87,6 +136,35 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
   useFrame(({ camera, scene }, dt) => {
     const F = game.foot, A = actor.current;
     dt = game.paused ? 0 : Math.min(dt, 0.1);
+    // the driver you took it from: stands and tells you off (two lines), facing you, then walks away down the road
+    const W = thrown.current;
+    if (W) {
+      W.t += dt;
+      const a = W.actor;
+      if (a) {
+        if (W.t < 2.8) {
+          const you = scene.getObjectByName("player-car");
+          if (you) { you.getWorldPosition(T.look); const want = Math.atan2(T.look.x - W.x, T.look.z - W.z); W.yaw += Math.atan2(Math.sin(want - W.yaw), Math.cos(want - W.yaw)) * Math.min(1, dt * 6); }
+          a.play("idle", 0.2);
+        } else {
+          W.yaw += Math.atan2(Math.sin(W.away - W.yaw), Math.cos(W.away - W.yaw)) * Math.min(1, dt * 4);
+          W.x += Math.sin(W.yaw) * 0.13 * dt; W.z += Math.cos(W.yaw) * 0.13 * dt;
+          const here = place(W.x, W.z, W.s); W.s = here.s; W.y = here.y;
+          const act = a.play("walk", 0.25); if (act) act.timeScale = 0.13 / 0.115;
+        }
+        a.root.position.set(W.x, W.y, W.z); a.root.rotation.set(0, W.yaw, 0);
+        a.mixer.update(dt); settleHands(a);
+        // what they say: the first line, then the second, over their head
+        const line = W.t < 0.25 ? -1 : W.t < 1.9 ? 0 : W.t < 4.6 ? 1 : -1;
+        if (line !== W.said) {
+          W.said = line;
+          if (W.bubble) { W.bubble.material.map?.dispose(); W.bubble.material.dispose(); W.bubble.removeFromParent(); W.bubble = null; }
+          if (line === 0 || line === 1) { W.bubble = bubble(W.lines[line]); thrownGroup.add(W.bubble); }
+        }
+        W.bubble?.position.set(W.x, W.y + W.h + 0.015, W.z);
+      }
+      if (W.t > 11) { W.bubble?.material.map?.dispose(); a?.mixer.stopAllAction(); thrownGroup.clear(); thrown.current = null; }
+    }
     // the drawn vehicle you came in (found again once the one we had is gone from the scene: after a swap the old
     // one is unmounted and the new one drawn in its place)
     if (!ride.current?.parent) ride.current = scene.getObjectByName("player-car") ?? null;
@@ -120,14 +198,22 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
             car.updateMatrixWorld(); const p = car.getWorldPosition(new Vector3()), q = car.quaternion;
             game.parked = { s: game.s, lat: game.lat, psi: game.psi, x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
           }
-          const name = VEHICLES[v.kind].name, own = getChoice();
-          // its driver moves over and rides along with you (the one you saw at the wheel, or someone who'd drive it)
-          setBorrow({ ...own, car: TAKE[name], paintHex: PAINTED.test(name) ? paintOf(v) : undefined, passenger: driverOfVehicle(v.id) ?? someDriver(v.id) }); mark("took");
-          const t = Math.min(1, Math.max(0, v.distance / curve.getLength())), lat = laneLat(v, roadShapeAt(t).widen);
+          const name = VEHICLES[v.kind].name, own = getChoice(), spec = VEHICLES[v.kind];
+          // its driver (the one you saw at the wheel, or someone who'd drive it) gets out by their door — the right — and
+          // isn't pleased; then walks off back down the road
+          const pose = vehiclePose(curve, v, (tt: number) => roadShapeAt(tt).widen);
+          const door = new Vector3(-(spec.width / 2 + 0.05), 0, spec.length * 0.18).applyQuaternion(pose.rotation).add(pose.position);
+          const fwd = new Vector3(0, 0, 1).applyQuaternion(pose.rotation), out = new Vector3(-1, 0, 0).applyQuaternion(pose.rotation);
+          const there = place(door.x, door.z, v.distance);
+          const awayDir = out.clone().multiplyScalar(0.35).addScaledVector(fwd, -1).normalize();
+          throwOut(spec.name === "police" ? "guard" : driverOfVehicle(v.id) ?? someDriver(v.id), // (the police jeep's: Varghese, in khaki)
+            door.x, door.z, there.y, there.s, Math.atan2(F.x - door.x, F.z - door.z), Math.atan2(awayDir.x, awayDir.z), scoldKind(name));
+          setBorrow({ ...own, car: TAKE[name], paintHex: WHITE.test(name) ? "#f2f3f1" : PAINTED.test(name) ? paintOf(v) : undefined }); mark("took");
+          const t = Math.min(1, Math.max(0, v.distance / curve.getLength())), lat = Math.max(-0.25, Math.min(0.25, laneLat(v, roadShapeAt(t).widen)));
           resetCar(v.distance); game.lat = lat; game.prev.lat = lat;
           v.distance = (v.distance + curve.getLength() * 0.5) % curve.getLength(); // (gone from the road: it's yours now)
           F.on = false; F.hop = -1; holder.visible = false; ride.current = null; // (the drawn vehicle is about to change)
-          announce(TAKE[name] === "kuruva" ? "Hopped on · they ride pillion" : "Hopped in · they've moved over", "badge");
+          announce(`Took the ${TAKE[name] === "kuruva" ? "bike" : spec.name === "police" ? "police jeep 🚓" : spec.name === "ambulance" ? "ambulance 🚑" : /bus|ksrtc/.test(spec.name) ? "bus 🚌" : /lorry/.test(spec.name) ? "lorry 🚚" : /auto/.test(spec.name) ? "auto 🛺" : "car"} · the driver's not happy 😠`, "badge");
         }
       } else if (F.on && F.near && !S.current.step && car) {
         // back in: they walk up to the door first, then they're in (not gone from wherever they stood)
@@ -187,7 +273,9 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     if (!F.near && game.leg === 0) for (const v of trafficControl.fleet) {
       const name = VEHICLES[v.kind].name;
       const ds = F.s - v.distance, half = VEHICLES[v.kind].length / 2;
-      if (!(name in TAKE) || v.direction !== 1 || Math.abs(v.speed) > HOP.stopped || ds > half + HOP.ahead || ds < -half - HOP.along) continue;
+      // (either way along the road: one coming down is turned round as you take it)
+      const front = v.direction === 1 ? ds : -ds;
+      if (!(name in TAKE) || Math.abs(v.speed) > HOP.stopped || front > half + HOP.ahead || front < -half - HOP.along) continue;
       const t = Math.min(1, Math.max(0, v.distance / curve.getLength()));
       if (Math.abs(laneLat(v, roadShapeAt(t).widen) - F.lat) > VEHICLES[v.kind].width / 2 + HOP.across) continue;
       F.hop = v.id; F.hopBike = TAKE[name] === "kuruva"; break;
@@ -214,5 +302,5 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     camera.position.copy(want); camera.lookAt(look);
   });
 
-  return <primitive object={holder} />;
+  return <><primitive object={holder} /><primitive object={thrownGroup} /></>;
 }

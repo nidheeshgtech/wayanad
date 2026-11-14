@@ -73,8 +73,13 @@ export const CAR = { halfL: 0.2, halfW: 0.1, max: 2.8, reverse: 0.45, accel: 0.5
 const CAR_DIMS = { ...CAR };
 /** A bike (data/cars `bike`): narrow and short (it slips between lanes), a little quicker off the line, turns tighter. */
 const BIKE_DIMS = { halfL: 0.105, halfW: 0.04, accel: 0.66, rMin: 0.4, reverse: 0.2 };
-/** What you're riding: sets CAR's size and handling for it (PlayerCar, when the vehicle changes). */
-export function setVehicle(bike: boolean) { Object.assign(CAR, CAR_DIMS, bike ? BIKE_DIMS : {}); game.bike = bike; }
+/** A bus or lorry you've taken: its own length and width, slower to pick up, a lower top speed, wide turns. */
+const HEAVY_DIMS = { max: 1.7, accel: 0.3, brake: 0.75, rMin: 0.95, reverse: 0.3 };
+/** What you're riding: sets CAR's size and handling for it (PlayerCar, when the vehicle changes). `heavy`: a bus or
+ * lorry's size (units). */
+export function setVehicle(bike: boolean, heavy?: { halfL: number; halfW: number }) {
+  Object.assign(CAR, CAR_DIMS, bike ? BIKE_DIMS : {}, heavy ? { ...HEAVY_DIMS, ...heavy } : {}); game.bike = bike;
+}
 
 /** Put the car back in its lane, facing up the road, stopped. */
 export function resetCar(at?: number) {

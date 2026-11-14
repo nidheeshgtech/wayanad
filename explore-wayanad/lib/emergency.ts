@@ -67,6 +67,9 @@ export function redCross(size: number) {
   return new Mesh(new PlaneGeometry(size, size), new MeshStandardMaterial({ map: tex, roughness: 0.5 }));
 }
 
+/** You're driving the police jeep or the ambulance (PlayerCar): its siren goes, and the traffic ahead pulls over. */
+export const own = { siren: false };
+
 /**
  * The ambulance siren: one wail for the nearest ambulance, `level` 0 (silent) … 1 (right beside you), set each frame.
  * Made only once there's sound (the game's sound switched on); eased, so it swells and fades as it comes and goes.

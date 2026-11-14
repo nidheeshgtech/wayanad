@@ -72,10 +72,18 @@ export function prepareVehicle(root: Object3D, car: Car, hex: string) {
   if (car.bike) return addRider(root, hex);
   // a vehicle taken from the traffic (data/cars BORROWABLE): tinted as the traffic tints it — its body's own material,
   // textures kept, in the colour it had on the road — so it doesn't change colour as you get in
+  // (the police jeep is the 4×4, painted as your own would be; the ambulance's body plain white, as in the traffic —
+  // its texture is the van's red, which a tint can't whiten)
+  if (car.id === "t-police") return paintCar(root, hex);
   if (car.id.startsWith("t-")) {
     root.traverse((o) => {
       const mesh = o as Mesh; if (!mesh.isMesh) return;
-      const tint = (m: Material) => { if (!car.paint.test(m.name)) return m; const c = (m as MeshStandardMaterial).clone(); c.color.set(hex); return c; };
+      const tint = (m: Material) => {
+        if (!car.paint.test(m.name)) return m;
+        const c = (m as MeshStandardMaterial).clone(); c.color.set(hex);
+        if (car.id === "t-amb") { c.map = null; c.roughness = 0.38; c.metalness = 0.2; }
+        return c;
+      };
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map(tint) : tint(mesh.material);
     });
     return root;
