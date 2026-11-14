@@ -4,7 +4,7 @@
  * (lib/people). Further off the vehicles keep their simple built occupants. Bodies are pooled per person and reused;
  * at most one new one is made a frame, so a busy junction never stalls a frame.
  */
-import { Quaternion, Vector3, type Object3D } from "three";
+import { Box3, Quaternion, Vector3, type Object3D } from "three";
 import { DRIVERS, EXTRAS, personHeight, type PersonId } from "@/data/drivers";
 import { lean, loadCast, makeActor, PALM, reach, seat as seatOnBike, settleHands, type Actor } from "@/lib/people";
 import type { OccupiedSeat } from "@/lib/occupants";
@@ -76,7 +76,21 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
       root.add(a.root); a.root.position.set(0, 0, 0); a.root.rotation.set(0, 0, 0); a.root.updateMatrixWorld(true);
       const head = a.bones.get("Head"), h = head ? a.root.worldToLocal(head.getWorldPosition(new Vector3())).multiply(a.root.scale) : new Vector3(0, 0.1, 0);
       a.root.position.set(s!.x - h.x, s!.y - h.y, s!.z - h.z);
-      const hands = driver ? { left: new Vector3(s!.x + 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k), right: new Vector3(s!.x - 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k) } : undefined;
+      // the top of the head no higher than the plan's head and a bit (a skull's height): measured on the body as it
+      // sits — "Head" isn't the same point on every model (on some it's down at the neck, and they came up through
+      // the roof) — and then the feet on the floor, not through it (they showed below the door sills), as far as
+      // that headroom allows (FLOOR: about 30 cm up in a car, more in a bus)
+      a.root.updateMatrixWorld(true);
+      const top = root.worldToLocal(new Box3().setFromObject(a.root, true).max.clone()).y, room = s!.y + 0.13 * k - top;
+      if (room < 0) a.root.position.y += room;
+      a.root.updateMatrixWorld(true);
+      const low = Math.min(...["LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"].map((n) => { const b = a.bones.get(n); return b ? root.worldToLocal(b.getWorldPosition(new Vector3())).y : Infinity; }));
+      const floor = FLOOR * (max > 8 ? 2.2 : 1);
+      if (low < floor) a.root.position.y += Math.max(0, Math.min(floor - low, Math.max(0, room), 0.14 * k));
+      // drivers' hands to the wheel; passengers' in their lap (the clip's arms, on someone it wasn't made on, could
+      // end up with a hand on the head)
+      const hands = driver ? { left: new Vector3(s!.x + 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k), right: new Vector3(s!.x - 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k) }
+        : { left: new Vector3(s!.x + 0.11 * k, s!.y - 0.52 * k, s!.z + 0.26 * k), right: new Vector3(s!.x - 0.11 * k, s!.y - 0.52 * k, s!.z + 0.26 * k) };
       C.people.push({ id, actor: a, driver, hands });
     }
   }
@@ -87,6 +101,8 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
   return C;
 }
 
+/** The floor of a car, in its frame (units): seated feet are kept above it. */
+const FLOOR = 0.032;
 const side = new Vector3(), up = new Vector3(), rq = new Quaternion(), tl = new Vector3(), tr = new Vector3();
 const POLE = { left: new Vector3(1, -1.2, -0.3).normalize(), right: new Vector3(-1, -1.2, -0.3).normalize() }, pl = new Vector3(), pr = new Vector3(), ql = new Vector3(), qr = new Vector3();
 // (on a bike the elbows tuck down and back, as lib/people seat())
@@ -101,8 +117,8 @@ export function poseCrew(C: Crew, root: Object3D, dt: number, bike: boolean) {
     lean(p.actor, bike ? 0.55 : -0.15, side, up);
     if (p.hands) reach(p.actor, { left: root.localToWorld(tl.copy(p.hands.left)), right: root.localToWorld(tr.copy(p.hands.right)) },
       { left: pl.copy((bike ? POLE_BIKE : POLE).left).applyQuaternion(rq), right: pr.copy((bike ? POLE_BIKE : POLE).right).applyQuaternion(rq) },
-      { left: ql.copy(bike ? PALM.bike.left : PALM.car.left).applyQuaternion(rq), right: qr.copy(bike ? PALM.bike.right : PALM.car.right).applyQuaternion(rq) });
-    else settleHands(p.actor);
+      p.driver ? { left: ql.copy(bike ? PALM.bike.left : PALM.car.left).applyQuaternion(rq), right: qr.copy(bike ? PALM.bike.right : PALM.car.right).applyQuaternion(rq) } : undefined);
+    if (!p.driver) settleHands(p.actor); // (a passenger's hands rest in the lap: the wrists as modelled)
   }
 }
 

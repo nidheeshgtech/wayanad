@@ -134,6 +134,9 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   fit.scale.setScalar(k); fit.position.set(-c.x * k, -box.min.y * k, -c.z * k);
   const bones = new Map<string, Object3D>();
   body.traverse((o) => { o.frustumCulled = false; (o as { castShadow?: boolean }).castShadow = true; if ((o as { isBone?: boolean }).isBone) bones.set(o.name, o); });
+  // the head as modelled, square on the neck (lean() puts it back there: the shared sitting clip, made on another
+  // person, tipped some heads well over to one side)
+  const headBone = bones.get("Head"); if (headBone) headBone.userData.rest = headBone.quaternion.clone();
   const root = new Group(); root.add(fit);
   // each hand's real shape (which way the fingers point, which side the palm is), measured from the model once
   root.updateMatrixWorld(true);
@@ -291,8 +294,10 @@ export function lean(actor: Actor, angle: number, side: Vector3, up = new Vector
     if (bone && tip) aim(bone, tip, dir);
   }
   // and the eyes up, looking where the vehicle goes: the sitting clip looks down into the lap, which seen through a
-  // windscreen is the top of a head. Forward is the frame's: up × side
+  // windscreen is the top of a head. Forward is the frame's: up × side. First the head square on the neck, as
+  // modelled (the clip's own head turn, fitted to someone else's neck, could leave it lolling on a shoulder)
   const head = actor.bones.get("Head"), front = headFront(actor);
+  if (head?.userData.rest) { head.quaternion.copy(head.userData.rest as Quaternion); head.updateWorldMatrix(false, true); }
   if (head && front) aim(head, front, new Vector3().crossVectors(side, up).normalize().applyAxisAngle(side, 0.08));
 }
 /** The marker ahead of the face (found once per person: searching the skeleton each frame, for every seated person, added up). */
