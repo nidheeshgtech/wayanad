@@ -8,6 +8,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { SECTION, archT, height, roadDistance } from "@/lib/terrain";
 import { inTown, townPlan } from "./Town";
 import { weather } from "@/lib/weather";
+import { ownGeometry } from "@/lib/instancing";
 
 /* Real 3D scans from Poly Haven (CC0, scripts/fetch-models.ts), placed along the road at true scale (models are in metres,
  * the scene in 10 m units). Too detailed to draw all 12 km at once, so instances are grouped into chunks of road and only
@@ -79,7 +80,7 @@ export default function Props({ curve, density = 1, towns = true }: { curve: Cat
         const radius = Math.max(...spots.map((b) => new Vector3().setFromMatrixPosition(b).distanceTo(centre))) + 1;
         // each fern part (the scan holds four clumps) takes its own share of the spots, so the clumps vary
         const make = (geometry: BufferGeometry, part: { material: Material }, mine: Matrix4[], tints: number[]) => {
-          const mesh = new InstancedMesh(geometry, part.material, mine.length);
+          const mesh = new InstancedMesh(ownGeometry(geometry), part.material, mine.length);
           mine.forEach((mat, i) => { mesh.setMatrixAt(i, mat); mesh.setColorAt(i, tint.setScalar(tints[i])); });
           mesh.instanceMatrix.needsUpdate = true;
           mesh.castShadow = k.shadow; mesh.receiveShadow = true;

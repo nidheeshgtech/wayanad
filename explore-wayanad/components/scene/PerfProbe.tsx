@@ -32,6 +32,16 @@ export default function PerfProbe() {
     };
   }, [scene, camera]);
   const gl = useThree((s) => s.gl), frames = useRef<number[]>([]), last = useRef(0), el = useRef<HTMLDivElement | null>(null);
+  // where a frame's time goes on the main thread: the whole update + render (from the first frame callback to the end
+  // of three's render) and the render alone. Far under the frame interval → the GPU or compositor is the limit.
+  const js = useRef({ start: 0, frame: 0, render: 0, n: 0 });
+  useEffect(() => {
+    if (!probing) return;
+    const render = gl.render.bind(gl);
+    gl.render = (s, c) => { const t0 = performance.now(); render(s, c); const t1 = performance.now(); js.current.render += t1 - t0; if (js.current.start) { js.current.frame += t1 - js.current.start; js.current.n++; js.current.start = 0; } };
+    return () => { gl.render = render; };
+  }, [gl]);
+  useFrame(() => { if (probing) js.current.start = performance.now(); }, -1000);
   useFrame(() => {
     if (!probing) return;
     // review: window.__wayanadCamera = { from: [x, y, z], to: [x, y, z] } holds the camera there (null lets go)
@@ -48,13 +58,14 @@ export default function PerfProbe() {
     const stats = {
       fps: +((frames.current.length * 1000) / total).toFixed(1), p50: +pct(0.5).toFixed(1), p95: +pct(0.95).toFixed(1), worst: +sorted[sorted.length - 1].toFixed(1),
       calls: gl.info.render.calls, triangles: gl.info.render.triangles, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures,
-      programs: gl.info.programs?.length ?? 0, heapMB: mem ? Math.round(mem.usedJSHeapSize / 1e6) : null, dpr: gl.getPixelRatio(), quality: perfStats.quality, cpu: sys,
+      programs: gl.info.programs?.length ?? 0, jsMs: +(js.current.frame / Math.max(1, js.current.n)).toFixed(1), renderMs: +(js.current.render / Math.max(1, js.current.n)).toFixed(1), heapMB: mem ? Math.round(mem.usedJSHeapSize / 1e6) : null, dpr: gl.getPixelRatio(), quality: perfStats.quality, cpu: sys,
     };
     (window as unknown as { __wayanadPerf: typeof stats }).__wayanadPerf = stats;
+    js.current.frame = js.current.render = js.current.n = 0;
     frames.current = []; for (const v of Object.values(perfStats.systems)) { v.ms = 0; v.n = 0; }
     if (!el.current) { el.current = document.createElement("div"); Object.assign(el.current.style, { position: "fixed", left: "8px", bottom: "56px", zIndex: "50", font: "11px/1.4 monospace", color: "#cfe", background: "rgba(0,0,0,.55)", padding: "6px 8px", borderRadius: "6px", pointerEvents: "none", whiteSpace: "pre" }); document.body.append(el.current); }
     const P = perfStats.people;
-    el.current.textContent = `${stats.fps} fps · p95 ${stats.p95} ms · worst ${stats.worst} ms\n${stats.calls} draws · ${(stats.triangles / 1e6).toFixed(2)} M tris · q${stats.quality} · dpr ${stats.dpr}${stats.heapMB ? ` · ${stats.heapMB} MB` : ""}\npeople: ${P.near} near · ${P.mid} light · ${P.crew} in traffic\n${Object.entries(sys).map(([k, v]) => `${k} ${v}`).join(" · ")}`;
+    el.current.textContent = `${stats.fps} fps · p95 ${stats.p95} ms · worst ${stats.worst} ms\njs ${stats.jsMs} ms (render ${stats.renderMs})\n${stats.calls} draws · ${(stats.triangles / 1e6).toFixed(2)} M tris · q${stats.quality} · dpr ${stats.dpr}${stats.heapMB ? ` · ${stats.heapMB} MB` : ""}\npeople: ${P.near} near · ${P.mid} light · ${P.crew} in traffic\n${Object.entries(sys).map(([k, v]) => `${k} ${v}`).join(" · ")}`;
   });
   return null;
 }

@@ -39,12 +39,35 @@ export function plainGeometry(g: BufferGeometry, m: Matrix4) {
   return out;
 }
 
-/** Merge meshes into one mesh per material (and attribute set), in the frame of `into` (added to it). */
-export function mergeInto(meshes: Mesh[], into: Object3D) {
+/** A plain colour-only surface (no textures, not see-through, not lit up), and not one the game finds by name later
+ * (paint, lamps, glass): it can share one material with others like it, its colour carried per vertex. */
+const plainSurface = (m: Material) => {
+  const s = m as MeshStandardMaterial;
+  return s.type === "MeshStandardMaterial" && !s.map && !s.normalMap && !s.roughnessMap && !s.metalnessMap && !s.emissiveMap && !s.alphaMap
+    && !s.aoMap && !s.lightMap && !s.bumpMap && !s.transparent && s.opacity === 1 && s.alphaTest === 0 && !s.vertexColors
+    && s.emissive.getHex() === 0 && !/paint|light|lamp|glass/i.test(s.name);
+};
+
+/** Merge meshes into one mesh per material (and attribute set), in the frame of `into` (added to it).
+ * `byLook`: plain colour-only surfaces that differ only in colour (same roughness, metalness, sides) merge too, into one
+ * material with the colours per vertex — a car interior's dozen dark plastics become one draw. Only where nothing
+ * recolours a material by name afterwards (the player's car, painted before it's merged). `looks`: the shared materials,
+ * to pass between calls that should share them (one car's four wheels: lib/wheelInstances needs them the same). */
+export function mergeInto(meshes: Mesh[], into: Object3D, { byLook = false, looks = new Map<string, MeshStandardMaterial>() } = {}) {
   into.updateMatrixWorld(true);
   const inv = new Matrix4().copy(into.matrixWorld).invert(), groups = new Map<string, { material: Material; parts: BufferGeometry[] }>();
   for (const mesh of meshes) {
-    const material = mesh.material as Material, g = plainGeometry(mesh.geometry, new Matrix4().multiplyMatrices(inv, mesh.matrixWorld));
+    let material = mesh.material as Material;
+    const g = plainGeometry(mesh.geometry, new Matrix4().multiplyMatrices(inv, mesh.matrixWorld));
+    if (byLook && plainSurface(material)) {
+      const s = material as MeshStandardMaterial, look = `${s.side}|${s.roughness.toFixed(2)}|${s.metalness.toFixed(2)}|${s.envMapIntensity}|${s.flatShading}|${s.depthWrite}|${s.polygonOffset}`;
+      if (!looks.has(look)) { const shared = s.clone(); shared.color.set(0xffffff); shared.vertexColors = true; shared.name = "plain"; looks.set(look, shared); }
+      material = looks.get(look)!;
+      g.deleteAttribute("uv");
+      const n = g.getAttribute("position").count, col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { col[i * 3] = s.color.r; col[i * 3 + 1] = s.color.g; col[i * 3 + 2] = s.color.b; }
+      g.setAttribute("color", new BufferAttribute(col, 3));
+    }
     const key = `${material.uuid}|${Object.keys(g.attributes).sort().join(",")}|${g.index ? 1 : 0}`;
     (groups.get(key) ?? groups.set(key, { material, parts: [] }).get(key)!).parts.push(g);
   }

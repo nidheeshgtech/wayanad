@@ -19,6 +19,7 @@ import { duskness, nightness } from "@/lib/theme";
 import { tickBadges } from "@/lib/badges";
 import { prepareVehicle } from "@/lib/carModel";
 import { cutBikeWheels } from "@/lib/bikeWheels";
+import { instanceWheels } from "@/lib/wheelInstances";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { driverOf, personHeight } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
@@ -149,6 +150,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
 
     const root = new Group(); root.name = "player-car";
     const body = new Group(); root.add(body); // pitches and rolls on its springs; the wheels stay on the road
+    const looks = new Map<string, MeshStandardMaterial>(); // (plain surfaces' shared materials: lib/vehicleAssets mergeInto)
     const under = (o: Object3D, test: (n: Object3D) => boolean) => { for (let p: Object3D | null = o; p; p = p.parent) if (test(p)) return p; return null; };
     const isWheel = (n: Object3D) => /wheel_(lf|rf|lr|rr)_dummy/i.test(n.name), isSteer = (n: Object3D) => /^steer/i.test(n.name);
     const meshes: Mesh[] = []; model.traverse((o) => { if ((o as Mesh).isMesh) meshes.push(o as Mesh); });
@@ -168,9 +170,10 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const pivot = new Group(), spinner = new Group(); pivot.position.copy(c); pivot.add(spinner); root.add(pivot);
       root.updateMatrixWorld(true);
       const own: Mesh[] = []; d.traverse((o) => { if ((o as Mesh).isMesh) own.push(o as Mesh); });
-      mergeInto(own, spinner);
+      mergeInto(own, spinner, { byLook: true, looks });
       wheels.push({ pivot, spinner, front: c.z > 0 });
     }
+    const wheelSet = instanceWheels(wheels, root); // (four copies of one wheel: one draw per material for all four)
     // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside).
     // They go in `body`, not `root`: a bike leans into bends as one piece (body rolls about the tyres' contact line,
     // y = 0), so wheels left upright in `root` came apart from a leaning bike.
@@ -189,11 +192,11 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const pts: Vector3[] = [];
       for (const m of steer) { const p = m.geometry.getAttribute("position"); for (let i = 0; i < p.count; i += 3) pts.push(new Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld)); }
       const { centre, normal } = plane(pts), pivot = new Group(); pivot.position.copy(centre); body.add(pivot); body.updateMatrixWorld(true);
-      mergeInto(steer, pivot);
+      mergeInto(steer, pivot, { byLook: true, looks });
       steering = { pivot, axis: normal };
       body.add(driver(centre));
     }
-    mergeInto(stat, body);
+    mergeInto(stat, body, { byLook: true, looks });
     // lamps: the model's own light materials glow (tail and brake lamps red, headlamps warm white)
     const lamps = { head: [] as MeshStandardMaterial[], tail: [] as MeshStandardMaterial[] };
     body.traverse((o) => {
@@ -212,7 +215,8 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const w = tail.max.x - tail.min.x, y = (tail.min.y + tail.max.y) / 2, z = tail.min.z - 0.004;
     const glow = (color: number, size: number, xs: number[]) => {
       const material = new SpriteMaterial({ map: glowTexture(), color, transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending, fog: false });
-      for (const x of xs) { const sp = new Sprite(material); sp.position.set(x, y, z); sp.scale.setScalar(size); body.add(sp); }
+      const sprites = xs.map((x) => { const sp = new Sprite(material); sp.position.set(x, y, z); sp.scale.setScalar(size); sp.visible = false; body.add(sp); return sp; });
+      material.userData.sprites = sprites; // (shown only while lit: a sprite at opacity 0 is still a draw call)
       return material;
     };
     const brakeGlow = glow(0xff2a14, 0.07, [tail.min.x + w * 0.1, tail.max.x - w * 0.1]);
@@ -240,7 +244,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // the police jeep and the ambulance: their light bar on the roof (lit while you drive them: see the frame loop)
     let flash: ((t: number, on?: boolean) => void) | null = null;
     if (car.siren) { const lb = lightBar(0.11, 0.24); lb.bar.position.set(0, new Box3().setFromObject(body).max.y + 0.002, 0); body.add(lb.bar); flash = lb.flash; }
-    return { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash };
+    return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash };
   }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
   useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; }, [car.bike, car.heavy, car.siren, car.handling, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -433,6 +437,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const plate = rig.plate, name = game.started ? (game.driver ?? "").toUpperCase() : "";
     if (plate && plate.text !== name) { plate.text = name; plate.mesh.visible = !!name; if (name) { drawPlate(plate.canvas, name); plate.tex.needsUpdate = true; } }
     for (const w of wheels) { w.spinner.rotation.x = game.wheel; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0; }
+    rig.wheelSet?.update();
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
 
     // lamps: brake lights whenever the brake is pressed (slowing or reversing), reversing lights going backwards; tail
@@ -442,6 +447,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     for (const l of lamps.tail) l.emissiveIntensity = braking ? 4 : 0.3 + dark * 1.2;
     brakeGlow.opacity += ((braking ? 0.95 : dark * 0.18) - brakeGlow.opacity) * Math.min(1, dt * 18);
     reverseGlow.opacity += ((reversing ? 0.9 : 0) - reverseGlow.opacity) * Math.min(1, dt * 12);
+    for (const g of [brakeGlow, reverseGlow]) for (const sp of g.userData.sprites as Sprite[]) sp.visible = g.opacity > 0.004;
     for (const l of lamps.head) l.emissiveIntensity = 0.15 + dark * 2.5;
     // (always in the scene, at zero by day: switching a light on or off rebuilds every material's shader — a stall)
     spot.intensity = dark * 6;

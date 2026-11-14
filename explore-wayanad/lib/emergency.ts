@@ -39,7 +39,7 @@ export function lightBar(width: number, halo = 0.28) {
     flash: (t: number, on = true) => lamps.forEach((l, i) => {
       const lit = on && Math.floor(t * 6 + i * 3) % 6 < 3;
       (l.lamp.material as MeshBasicMaterial).color.copy(l.col).multiplyScalar(lit ? 1 : on ? 0.08 : 0.25);
-      l.glowSprite.material.opacity = lit ? 0.9 : 0;
+      l.glowSprite.material.opacity = lit ? 0.9 : 0; l.glowSprite.visible = lit; // (unlit: not drawn at all)
     }),
   };
 }

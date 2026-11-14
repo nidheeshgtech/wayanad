@@ -6,6 +6,7 @@ import { CatmullRomCurve3, Color, IcosahedronGeometry, InstancedMesh, Matrix4, M
 import { archT, height, roadDistance } from "@/lib/terrain";
 import { onTeaRow, teaAt } from "@/lib/estates";
 import { inTown, townPlan } from "./Town";
+import { ownGeometry } from "@/lib/instancing";
 
 /* Tea bushes in 3D beside the plateau road, where lib/estates puts an estate: rounded, waist-high, standing on the
  * contour rows the ground shader paints further out. Grouped in chunks of road; only chunks near the camera draw. */
@@ -44,7 +45,7 @@ export default function TeaHedges({ curve, density = 1 }: { curve: CatmullRomCur
         }
       }
       if (!spots.length) continue;
-      const mesh = new InstancedMesh(geo, material, spots.length);
+      const mesh = new InstancedMesh(ownGeometry(geo), material, spots.length);
       spots.forEach((sp, i) => { mesh.setMatrixAt(i, sp.m); mesh.setColorAt(i, sp.c); });
       mesh.instanceMatrix.needsUpdate = true;
       mesh.castShadow = mesh.receiveShadow = true;

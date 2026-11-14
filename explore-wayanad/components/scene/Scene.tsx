@@ -162,7 +162,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <RoadStreams curve={curve} small={small} />
       <Suspense fallback={null}><Monkeys curve={curve} /></Suspense>
       <Pedestrians curve={curve} small={small} />
-      <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} />
+      <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} tile={small ? 320 : undefined} />
       <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
       <Gateway curve={curve} />
       <Town curve={curve} />
@@ -176,7 +176,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
           {grids.filter((g) => g.region === "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={small ? Math.round((g.size - 1) / 2) : g.size - 1} />)}
           <RoadBand curve={forest.curve} spacing={small ? 0.8 : 0.4} />
           <Road curve={forest.curve} detail={Math.round(forest.curve.getLength() * (small ? 2 : 4))} kind="forest" />
-          <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" />
+          <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" tile={small ? 320 : undefined} />
           <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
           <Shafts curve={forest.curve} count={small ? 40 : 90} />
           <Elephant curve={forest.curve} />

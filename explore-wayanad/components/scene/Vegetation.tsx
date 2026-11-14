@@ -12,6 +12,7 @@ import { SECTION, archT, churamEndT, height, roadDistance } from "@/lib/terrain"
 import { inTown, townPlan } from "./Town";
 import { teaAt } from "@/lib/estates";
 import { CLOUD_SHADOW_GLSL, cloudShadowUniforms } from "@/lib/weather";
+import { ownGeometry } from "@/lib/instancing";
 
 /* Species, true scale (1 unit = 10 m). Plants are cut-out cards (public/vegetation, see its README).
  * `perUnit`: plants per unit of road; `zone`: distance band from the road's centre line where they grow;
@@ -61,7 +62,8 @@ const grove = (x: number, z: number) => 0.5 + 0.3 * Math.sin(x * 0.11 + 1.7) * M
 /* On the plateau (Act 2) the forest gives way to tea estates and towns: each species keeps this share of its density. */
 const PLATEAU: Partial<Record<keyof typeof CARDS, number>> = { "tree-vines": 0.3, "tree-fern": 0.2, colocasia: 0.5, "tree-fig": 0.5, "tree-emergent": 0.2, banana: 0.8, shrub: 0.5, grass: 0.6, fern: 0.3, bush: 0.5, "tree-young": 0.45, bamboo: 0.5, "tree-broadleaf": 0.6, "palm-coconut": 0, "tree-evergreen": 0.3 };
 const CUT_FACE = 1.4; // slope (rise per unit) beyond which trees don't stand; ferns and grass still cling on
-const TILE = 128;    // units: the forest is split into map tiles this size, each culled on its own
+const TILE = 128;    // units: the forest is split into map tiles this size, each culled on its own (phones: `tile`, larger —
+                     // each tile is a draw per species, and on phones the draws, not the trees, are the cost)
 
 /** Deterministic random numbers, so the forest is the same on every visit. */
 function rng(seed: number) {
@@ -110,7 +112,7 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
       transformed.z += cos(uWind * 0.8 + phase * 1.3) * bend * 3.0;`);
 };
 
-export default function Vegetation({ curve, density = 1, alphaToCoverage = true, kind = "ghat" }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean; kind?: "ghat" | "forest" }) {
+export default function Vegetation({ curve, density = 1, alphaToCoverage = true, kind = "ghat", tile = TILE }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean; kind?: "ghat" | "forest"; tile?: number }) {
   const meshes = useMemo(() => timed("vegetation", () => {
     const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve), plateauFrom = churamEndT();
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
@@ -156,12 +158,12 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
       // random along the road, so Quality's thinning (drawing the first N) stays even.
       const tiles = new Map<string, number[]>();
       for (let i = 0; i < placed; i++) {
-        const key = `${Math.floor(mats[i * 16 + 12] / TILE)},${Math.floor(mats[i * 16 + 14] / TILE)}`;
+        const key = `${Math.floor(mats[i * 16 + 12] / tile)},${Math.floor(mats[i * 16 + 14] / tile)}`;
         (tiles.get(key) ?? tiles.set(key, []).get(key)!).push(i);
       }
       const depth = s.trunk ? new MeshDepthMaterial({ map, alphaTest: 0.45, depthPacking: RGBADepthPacking }) : null; // leaf-shaped shadows, not card-shaped ones
       return [...tiles.values()].map((ids) => {
-        const mesh = new InstancedMesh(geo, material, ids.length);
+        const mesh = new InstancedMesh(ownGeometry(geo), material, ids.length);
         ids.forEach((id, k) => { mesh.instanceMatrix.array.set(mats.subarray(id * 16, id * 16 + 16), k * 16); mesh.setColorAt(k, c.setRGB(cols[id * 3], cols[id * 3 + 1], cols[id * 3 + 2])); });
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -174,7 +176,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         return mesh;
       });
     }).flat();
-  }), [curve, density, alphaToCoverage, kind]);
+  }), [curve, density, alphaToCoverage, kind, tile]);
 
   useFrame((_, dt) => { wind.value += dt; });
   return <>{meshes.map((mesh) => <primitive key={mesh.uuid} object={mesh} />)}</>;
