@@ -197,7 +197,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
-      <Quality start={small ? 2 : 0} lite={small} />
+      <Quality start={small ? 3 : 0} lite={small} /> {/* (phones start a step lower and climb if smooth: a weak one never begins stuck) */}
       <PerfProbe />
       <Warmup needs={mode === "drive" ? ["mountain-traffic", "player-car"] : ["mountain-traffic"]} />
       {process.env.NODE_ENV !== "production" && <WeatherDebug />}

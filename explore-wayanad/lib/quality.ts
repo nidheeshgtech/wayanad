@@ -14,7 +14,8 @@ export const LEVELS = [
   { dpr: 0.85, forest: 0.55, shadows: false, people: 0.15 }, // 5 lowest (auto only)
 ];
 /** The lite tier (phones): no shadows already, and a sharp picture matters more on a small high-density screen than
- * forest density, so the resolution never drops below 1.25 and the forest thins first. */
+ * forest density, so the forest thins first; the last two steps (auto only) lower the resolution too, for the weakest
+ * phones, which otherwise stayed stuck below 30 fps at the bottom of the ladder. */
 export const LITE_LEVELS = [
   { dpr: 2, forest: 0.9, shadows: false, people: 1 },
   { dpr: 1.75, forest: 0.8, shadows: false, people: 0.85 },
@@ -22,6 +23,8 @@ export const LITE_LEVELS = [
   { dpr: 1.5, forest: 0.65, shadows: false, people: 0.5 },
   { dpr: 1.25, forest: 0.6, shadows: false, people: 0.3 },
   { dpr: 1.25, forest: 0.55, shadows: false, people: 0 },
+  { dpr: 1.1, forest: 0.5, shadows: false, people: 0 },   // (auto only)
+  { dpr: 1, forest: 0.45, shadows: false, people: 0 },    // (auto only)
 ];
 export const FIXED: Record<Exclude<QualityMode, "auto">, number> = { high: 0, medium: 2, low: 4 };
 

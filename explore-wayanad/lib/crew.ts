@@ -81,7 +81,7 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
       // the roof) — and then the feet on the floor, not through it (they showed below the door sills), as far as
       // that headroom allows (FLOOR: about 30 cm up in a car, more in a bus)
       a.root.updateMatrixWorld(true);
-      const top = root.worldToLocal(new Box3().setFromObject(a.root, true).max.clone()).y, room = s!.y + 0.13 * k - top;
+      const top = headTop(id, a, root), room = s!.y + 0.13 * k - top;
       if (room < 0) a.root.position.y += room;
       a.root.updateMatrixWorld(true);
       const low = Math.min(...["LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"].map((n) => { const b = a.bones.get(n); return b ? root.worldToLocal(b.getWorldPosition(new Vector3())).y : Infinity; }));
@@ -99,6 +99,17 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
   if (bike) { const r = root.getObjectByName("rider"); if (r) r.visible = false; }
   else for (const o of root.children) if (o.name === "occupants") o.visible = false;
   return C;
+}
+
+/** How far above the "Head" bone the top of a seated person's head is (per person, at their own scale): measured once
+ * on the posed body — the full measure walks every skinned vertex, too much to do each time someone sits down. */
+const tops = new Map<string, number>();
+function headTop(id: PersonId, a: Actor, root: Object3D) {
+  const head = a.bones.get("Head"), at = head ? root.worldToLocal(head.getWorldPosition(new Vector3())).y : 0;
+  const key = `${id}:${a.root.scale.x.toFixed(3)}`;
+  let over = tops.get(key);
+  if (over === undefined) { over = root.worldToLocal(new Box3().setFromObject(a.root, true).max.clone()).y - at; tops.set(key, over); }
+  return at + over;
 }
 
 /** The floor of a car, in its frame (units): seated feet are kept above it. */
