@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CanvasTexture, Group, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type CatmullRomCurve3, type Object3D } from "three";
 import { CAR, game, resetCar } from "@/lib/game";
+import { patrolNear, wanted } from "@/lib/chase";
 import { getBorrow, getChoice, setBorrow } from "@/lib/choice";
 import { laneLat, paintOf, trafficControl, vehiclePose, VEHICLES } from "@/lib/traffic";
 import type { BorrowId } from "@/data/cars";
@@ -214,6 +215,9 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
           v.distance = (v.distance + curve.getLength() * 0.5) % curve.getLength(); // (gone from the road: it's yours now)
           F.on = false; F.hop = -1; holder.visible = false; ride.current = null; // (the drawn vehicle is about to change)
           announce(`Took the ${TAKE[name] === "kuruva" ? "bike" : spec.name === "police" ? "police jeep 🚓" : spec.name === "ambulance" ? "ambulance 🚑" : /bus|ksrtc/.test(spec.name) ? "bus 🚌" : /lorry/.test(spec.name) ? "lorry 🚚" : /auto/.test(spec.name) ? "auto 🛺" : "car"} · the driver's not happy 😠`, "badge");
+          // the police see that (lib/chase; the apps): their own jeep, three stars; anything else with a patrol by, one
+          if (spec.name === "police") wanted("Took the police jeep", { stars: 3 });
+          else if (patrolNear(trafficControl.fleet, F.s)) wanted("A patrol saw that", { stars: 1 });
         }
       } else if (F.on && F.near && !S.current.step && car) {
         // back in: they walk up to the door first, then they're in (not gone from wherever they stood)

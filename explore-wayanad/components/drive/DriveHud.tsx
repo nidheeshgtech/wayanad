@@ -32,6 +32,7 @@ import HornPicker from "@/components/garage/HornPicker";
 import CarCard from "@/components/garage/CarCard";
 import { getChoice, setChoice, useChoice } from "@/lib/choice";
 import Drivers, { SafetyLinks } from "./Drivers";
+import { chase } from "@/lib/chase";
 import { PedalArt, SteerArt } from "./TouchKeys";
 import RotateTip from "./RotateTip";
 import styles from "./Drive.module.scss";
@@ -130,6 +131,7 @@ export default function DriveHud() {
   const km = useRef<HTMLElement>(null), kmTotal = useRef<HTMLSpanElement>(null), kmBar = useRef<HTMLElement>(null);
   const race = useRef<HTMLDivElement>(null), raceLine = useRef<HTMLDivElement>(null), raceAt = useRef(0);
   const readySent = useRef(false), boosted = useRef(-Infinity);
+  const wantedEl = useRef<HTMLDivElement>(null); // the police chase's stars (lib/chase)
   const streaks = useRef<HTMLDivElement>(null), nitroKey = useRef<HTMLButtonElement>(null), doorKey = useRef<HTMLButtonElement>(null);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
@@ -190,6 +192,15 @@ export default function DriveHud() {
       const now = performance.now(), dt = (now - last) / 1000; last = now;
       if (game.started && game.phase === "drive" && !game.paused && document.visibilityState === "visible") tickPlay(dt);
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
+      // wanted: the stars, redrawn when they change; blinking while you're getting away
+      const W = wantedEl.current;
+      if (W) {
+        if (W.dataset.v !== String(chase.version)) {
+          W.dataset.v = String(chase.version); W.hidden = chase.stars === 0;
+          W.innerHTML = Array.from({ length: 5 }, (_, i) => `<i${i < chase.stars ? " data-on" : ""}>★</i>`).join("");
+        }
+        W.toggleAttribute("data-losing", chase.stars > 0 && chase.nearest > 4);
+      }
       // the nitro key: its ring is the tank; lit while it fires, ready (glowing) when there's a good shot in it
       // nitro fires: a kick in the hand (the phone apps), once a burst (it flickers frame to frame while held)
       if (game.boosting) { const t = performance.now(); if (t - boosted.current > 700) haptic("light"); boosted.current = t; }
@@ -401,6 +412,7 @@ export default function DriveHud() {
         </div>
       </div>
       <div ref={streaks} className={styles.streaks} aria-hidden />
+      <div ref={wantedEl} className={styles.wanted} hidden role="status" aria-label="Wanted by the police" />
       <VoiceHud />
       {iosTip && (
         <div className={styles.iosTip} role="status">

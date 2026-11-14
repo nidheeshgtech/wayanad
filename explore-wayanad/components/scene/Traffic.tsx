@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, Raycaster, SRGBColorSpace, Texture, TextureLoader, Vector3, type Object3D } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
 import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
-import { AMBULANCE, POLICE, fileOf, advanceTraffic, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
+import { AMBULANCE, POLICE, fileOf, advanceTraffic, bendAtDistance, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehicleLat, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
 import { CAR, game } from '@/lib/game';
 import { honk, honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
@@ -19,7 +19,8 @@ import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
-import { label, lightBar, own, redCross, siren } from '@/lib/emergency';
+import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
+import { chase, tickChase } from '@/lib/chase';
 import { paintCar } from '@/lib/carModel';
 import { loadVehicle as loadParts, mergeByMaterial, mergeInto } from '@/lib/vehicleAssets';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -27,6 +28,7 @@ import { board, crewFrame, disembark, poseCrew, type Crew } from '@/lib/crew';
 /** Real people up close (lib/crew): vehicles this near the camera (units) get them, up to `cap` people in all, a bus's
  * nearest `bus` seats; phones fewer and nearer. */
 // (buses from further: they're big, their windows read from further off)
+const NO_CHASE: Set<number> = new Set();
 const CREW = { full: { near: 4.5, cap: 24, bus: 10, busNear: 7 }, small: { near: 3, cap: 8, bus: 4, busNear: 4.5 } };
 const RIDERLESS = /^(pulsar|enfield)-real$/;
 const JACKETS = ['#1d2230', '#7a2f34', '#2f4f7a', '#3f5f3a', '#4a4a52', '#8a5a2b'];
@@ -294,8 +296,10 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       }
       if (onRoad && game.foot.on) blocks.push({ distance: game.foot.s, length: 0.06, lanes: playerLanes({ s: game.foot.s, lat: game.foot.lat, speed: 0, halfL: 0.03, halfW: 0.035 }), speed: 0, keep: 0.2 });
       const P0 = game.parked; if (onRoad && P0) blocks.push({ distance: P0.s, length: 0.4, lanes: playerLanes({ s: P0.s, lat: P0.lat, speed: 0, halfL: 0.2, halfW: 0.1 }), speed: 0 });
-      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks));
-      if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(live, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
+      // a police chase (lib/chase): the patrols after you are driven there, not by the traffic
+      const driven = game.active ? tickChase(live, length, (d) => bendAtDistance(curve, d), (v) => vehicleLat(v, widen, length), Math.min(dt, .1)) : NO_CHASE;
+      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks, driven));
+      if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(driven.size ? live.filter(v => !driven.has(v.id)) : live, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
     if (!game.active && !trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, viewer);
@@ -313,7 +317,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     last.current = viewer ?? null;
     const st = trafficControl.staged >= 0 ? fleet.find(f => f.id === trafficControl.staged) : undefined; // dev review only
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
-    let visible = 0, aboard = 0, nearestSiren = Infinity;
+    let visible = 0, aboard = 0, nearestSiren = Infinity, nearestChaser = Infinity;
     const crewing = { ...(small ? CREW.small : CREW.full) }; crewing.cap = Math.round(crewing.cap * quality.people); crewFrame(); // (fewer as the quality steps down)
     const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
@@ -360,8 +364,10 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // siren (its loudness eased by lib/emergency)
       if (o.flash) {
         const now = performance.now() / 1000;
-        o.flash(now + v.id, v.kind === AMBULANCE || Math.floor((now + v.id * 13) / 25) % 3 === 0);
+        const chasing = chase.chasers.includes(v.id);
+        o.flash(now * (chasing ? 1.4 : 1) + v.id, v.kind === AMBULANCE || chasing || Math.floor((now + v.id * 13) / 25) % 3 === 0);
         if (v.kind === AMBULANCE) nearestSiren = Math.min(nearestSiren, far2);
+        if (chasing) nearestChaser = Math.min(nearestChaser, far2);
       }
       // its wheels roll with the road it covers (its own way along it)
       if (o.wheels.length) { const d = (v.distance - o.rolled) * v.direction; o.rolled = v.distance; if (Math.abs(d) < 1) for (const w of o.wheels) w.spinner.rotation.x += d / Math.max(0.01, w.r); }
@@ -383,6 +389,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     }
     trafficControl.count = visible; perfStats.people.crew = aboard;
     siren(game.active && !game.paused ? Math.max(own.siren && !game.foot.on ? .4 : 0, 1 - Math.sqrt(nearestSiren) / 12) : 0); // (heard within ~120 m; yours, if you're driving one)
+    policeSiren(game.active && !game.paused && chase.stars > 0 ? Math.max(.25, 1 - Math.sqrt(nearestChaser) / 14) : 0); // (a chase: the nearest patrol after you)
   }));
   return <group name="mountain-traffic" dispose={null}>{objects.map((o,i) => <primitive key={i} object={o.root} />)}</group>;
 }

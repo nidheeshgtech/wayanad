@@ -72,6 +72,11 @@ export function bonus(n: number, label: string) {
   add(pts); pop(`${label} +${pts}`, "big");
 }
 
+/** Points off with a reason (busted by the police: lib/chase), never below 0; the streak goes too. */
+export function fine(n: number, label: string) {
+  add(-n); pop(`${label} −${n}`, "loss"); score.clean = 0; score.mult = 1;
+}
+
 /** Hit a vehicle (`penalty`), or the barrier hard (no penalty, only the streak lost). */
 export function crash(penalty = true) {
   const lost = score.mult > 1;

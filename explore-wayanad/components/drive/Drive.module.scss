@@ -369,3 +369,17 @@
   .menu { bottom: auto; top: calc(58px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); }
   .tile kbd, .tile[data-desk] { display: none; }
 }
+
+// the police chase (lib/chase): five stars in a pill at the top, its edge flashing red and blue; the stars blink
+// while you're getting away
+.wanted { position: fixed; z-index: 6; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); translate: -50% 0; display: flex; gap: 3px;
+  padding: 5px 13px 6px; border-radius: 999px; background: rgba(14, 31, 26, .78); pointer-events: none;
+  animation: wantedFlash .8s steps(1) infinite;
+  i { font-style: normal; font-size: 20px; line-height: 1; color: rgba(238, 242, 238, .22);
+    &[data-on] { color: #ffd34d; text-shadow: 0 0 8px rgba(255, 190, 40, .75); } }
+  &[data-losing] i[data-on] { animation: wantedBlink 1s ease-in-out infinite; } }
+@keyframes wantedFlash {
+  0% { box-shadow: 0 0 0 2px rgba(255, 50, 50, .95), 0 0 18px rgba(255, 50, 50, .5); }
+  50% { box-shadow: 0 0 0 2px rgba(60, 110, 255, .95), 0 0 18px rgba(60, 110, 255, .5); } }
+@keyframes wantedBlink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .wanted, .wanted[data-losing] i[data-on] { animation: none; } .wanted { box-shadow: 0 0 0 2px rgba(255, 50, 50, .9); } }

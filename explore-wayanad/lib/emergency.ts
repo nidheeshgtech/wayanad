@@ -93,3 +93,26 @@ export function siren(level: number) {
   if (ctx.state === "suspended") void ctx.resume();
   out!.gain.setTargetAtTime(Math.max(0, Math.min(1, level)) * 0.55, ctx.currentTime, 0.25);
 }
+
+/**
+ * The police yelp (a chase: lib/chase): a fast rise and fall, sharper than the ambulance's wail; `level` as siren().
+ * Its own voice, so an ambulance and a chase can both be heard.
+ */
+let yelpOut: GainNode | null = null;
+export function policeSiren(level: number) {
+  if (!horn.sound) { if (yelpOut && ctx) yelpOut.gain.setTargetAtTime(0, ctx.currentTime, 0.1); return; }
+  if (level <= 0.001 && !yelpOut) return;
+  if (!ctx) ctx = new AudioContext();
+  if (!yelpOut) {
+    yelpOut = ctx.createGain(); yelpOut.gain.value = 0;
+    const tone = ctx.createOscillator(), sweep = ctx.createOscillator(), depth = ctx.createGain();
+    tone.type = "sawtooth"; tone.frequency.value = 1050; sweep.type = "triangle"; sweep.frequency.value = 3.2; depth.gain.value = 380;
+    sweep.connect(depth).connect(tone.frequency);
+    const soft = ctx.createBiquadFilter(); soft.type = "lowpass"; soft.frequency.value = 2400;
+    const mix = ctx.createGain(); mix.gain.value = 0.14;
+    tone.connect(mix).connect(soft).connect(yelpOut).connect(ctx.destination);
+    tone.start(); sweep.start();
+  }
+  if (ctx.state === "suspended") void ctx.resume();
+  yelpOut.gain.setTargetAtTime(Math.max(0, Math.min(1, level)) * 0.5, ctx.currentTime, 0.2);
+}

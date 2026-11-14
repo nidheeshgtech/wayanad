@@ -87,7 +87,7 @@ const BACK_AWAY = .6;
 /** How hard traffic brakes, and how quickly it gets going in reverse (units/s²: 1 ≈ 1 g). Speeds change at these rates,
  * never at once (they used to drop to nothing in a frame); the gap is still kept by limiting each step to the room. */
 const BRAKE = .65, REVERSE = .45, ACCEL = .12;
-export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = []) {
+export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = [], driven?: Set<number>) {
   const length = curve.getLength(), span = length - 4;
   dt = Math.min(.05, Math.max(0, dt));
   // the viewer rides up the road (direction 1) like a bus: it holds narrow bends against oncoming traffic too
@@ -107,6 +107,7 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     if (v.direction === a.direction ? gap > 0 && gap < 3.5 : Math.abs(gap) < 2.5) v.aside = 1.2;
   }
   const moves = fleet.map(v => {
+    if (driven?.has(v.id)) return { speed: v.speed, move: 0 }; // (a police chaser: lib/chase drives it)
     // a knocked-over bike lies where it fell; once it's back up (Traffic eases it upright) the rider sets off again
     // (over in ~0.4 s, picked up again in ~1.2 s)
     if (v.fall !== undefined) v.fall = (v.down ?? 0) > 0 ? Math.min(1, v.fall + dt / .4) : Math.max(0, v.fall - dt / 1.2);
@@ -326,6 +327,8 @@ function bendTable(curve: CatmullRomCurve3) {
   bendTables.set(curve, table);
   return table;
 }
+/** How sharply the road turns at `d` (radians over ~24 m): for anything else that drives the road (lib/chase). */
+export const bendAtDistance = (curve: CatmullRomCurve3, d: number) => bendAt(bendTable(curve), d);
 const bendAt = (table: Float32Array, d: number) => table[Math.min(table.length - 1, Math.max(0, Math.round(d / BEND_STEP)))];
 export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: (t: number) => number, p: Player) {
   const length = curve.getLength();
