@@ -78,7 +78,8 @@ const NAME_MAX = 10;
 const QUALITY: QualityMode[] = ["auto", "high", "medium", "low"];
 
 /** Where the camera view is remembered: phones keep their own (they start close behind, the car bigger on a small screen). */
-const viewKey = () => (typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? "drive-view-touch" : "drive-view");
+// (phones: a new key — everyone starts on Close once, nearer the car than Behind; they can still pick another)
+const viewKey = () => (typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? "drive-view-touch2" : "drive-view");
 /** The next camera view; remembered for next time. */
 function cycleView() {
   game.view = VIEWS[(VIEWS.indexOf(game.view) + 1) % VIEWS.length];
@@ -143,7 +144,7 @@ export default function DriveHud() {
   useEffect(() => {
     let v: View | null = null;
     try { v = localStorage.getItem(viewKey()) as View | null; } catch {}
-    if (!v || !VIEWS.includes(v)) v = viewKey() === "drive-view-touch" ? "near" : null;
+    if (!v || !VIEWS.includes(v)) v = viewKey() === "drive-view-touch2" ? "near" : null;
     if (v) { game.view = v; setView(v); }
   }, []);
   // phones: the settings menu (the top row's other keys live in it)

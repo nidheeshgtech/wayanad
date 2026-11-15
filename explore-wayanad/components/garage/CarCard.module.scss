@@ -90,3 +90,11 @@ $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f; $ink-dark: #1b1405;
     &::before { @include icon($icon-car, 18px); } }
   b { font: italic 800 20px/1.1 var(--font-sans), sans-serif; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); } }
 .edit { @include gold-key(10px, 10px); padding: 10px 12px; border-radius: 0; box-shadow: none; font-style: italic; }
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .card { min-height: 84px; gap: 10px; padding: 8px 10px 8px 8px; }
+  .thumb { width: 96px; height: 68px; }
+  .info { gap: 3px; small { font-size: 10px; &::before { width: 15px; height: 15px; } } b { font-size: 16px; } }
+  .meta { font-size: 11px; gap: 4px; }
+  .edit { padding: 8px 9px; font-size: 9px; svg { width: 15px; height: 15px; } }
+}

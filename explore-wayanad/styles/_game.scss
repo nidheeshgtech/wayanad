@@ -2,15 +2,18 @@
 // keys with chamfered corners, neon edges and glass faces. `@use "…/styles/game" as *;` in a module.
 // Bevelled game keys (the pedals, nitro, get out, the top-row keys, the wanted stars): dark glass with chamfered corners
 // (big cuts top-left and bottom-right, small ones on the others), a bright edge, a neon glow and a solid lip under it
-// for depth. The edge and the face are two clip-path layers (::before, ::after); the lip and glow are drop-shadows of
-// them on the key itself (a filter on a clipped element would be clipped away). Each key picks a tone (its colours).
+// for depth. The edge and the face are two clip-path layers (::before, ::after); the lip and glow are box-shadows on
+// the key itself, rounded to follow the cut corners. (Not a drop-shadow filter: a filter is redone every frame anything
+// inside changes — the speed readout, the turning car in its card — which made phones crawl.) Each key picks a tone.
 @mixin bevel($c1: 16px, $c2: 7px) {
   --c1: #{$c1}; --c2: #{$c2}; --lip-h: 4px; --glow-r: 7px;
   --edge-bg: initial; --fill: initial; --gloss: initial; // (not a parent key's: these inherit)
-  isolation: isolate; background: none; border: 0; border-radius: 0; box-shadow: none;
-  filter: drop-shadow(0 var(--lip-h) 0 var(--lip)) drop-shadow(0 0 var(--glow-r) var(--glow)) drop-shadow(0 7px 8px rgba(0, 0, 0, .45));
+  isolation: isolate; background: none; border: 0; filter: none;
+  contain: layout; // (its edge and face layers are sized to it, whatever its position: static keys too)
+  border-radius: calc(var(--c1) * .55) calc(var(--c2) * .55) calc(var(--c1) * .55) calc(var(--c2) * .55);
+  box-shadow: 0 var(--lip-h) 0 var(--lip), 0 0 var(--glow-r) var(--glow-s, 0px) var(--glow), 0 8px 12px -2px rgba(0, 0, 0, .45);
   transition: transform .06s ease-out;
-  &::before, &::after { content: ""; position: absolute; pointer-events: none; border-radius: 0; }
+  &::before, &::after { content: ""; position: absolute; pointer-events: none; border-radius: 0; box-shadow: none; }
   &::before { inset: 0; height: auto; z-index: -2;
     clip-path: polygon(var(--c1) 0, calc(100% - var(--c2)) 0, 100% var(--c2), 100% calc(100% - var(--c1)), calc(100% - var(--c1)) 100%, var(--c2) 100%, 0 calc(100% - var(--c2)), 0 var(--c1));
     background: var(--edge-bg, linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo))); }
@@ -54,3 +57,14 @@ $icon-road: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d
 $icon-flag: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 2h1.6v20H5z'/><path d='M7 3h3v3H7zM13 3h3v3h-3zM10 6h3v3h-3zM16 6h3v3h-3zM7 9h3v3H7zM13 9h3v3h-3zM10 12h3v1.5h-3zM16 12h3v1.5h-3z'/><path d='M7 3h12v10.5H7z' fill-opacity='.18'/></svg>";
 $icon-shield: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z'/></svg>";
 $icon-mail: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='3' y='5.5' width='18' height='13' rx='1.5'/><path d='M3.5 6.5 12 13l8.5-6.5'/></svg>";
+// a light running round the edge, and the glow breathing (the start screen's lit keys): the edge's gradient slides
+// (a repaint of a thin layer, no filters), the glow's size swells — cheap enough to leave on
+@mixin neon-alive($dur: 3.2s) {
+  &::before { background: linear-gradient(105deg, transparent 0 38%, rgba(255, 255, 255, .95) 47%, rgba(255, 255, 255, .95) 50%, transparent 59% 100%) 0 0 / 300% 100% no-repeat,
+      var(--edge-bg, linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo)));
+    animation: neonSweep $dur linear infinite; }
+  animation: neonBreathe ($dur * .75) ease-in-out infinite alternate;
+}
+@keyframes neonSweep { from { background-position: 150% 0, 0 0; } to { background-position: -150% 0, 0 0; } }
+@keyframes neonBreathe { from { --glow-s: -1px; } to { --glow-s: 3px; } }
+@property --glow-s { syntax: "<length>"; inherits: false; initial-value: 0px; }

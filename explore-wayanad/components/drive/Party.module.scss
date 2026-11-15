@@ -223,6 +223,13 @@ $ink-dark: #1b1405;
   .modeIcon { width: 34px; height: 34px; border-radius: 0; color: #5ff0e0; background: none; box-shadow: none;
     svg { width: 28px; height: 28px; filter: drop-shadow(0 0 4px rgba(47, 224, 207, .7)); } }
   b { font: italic 800 15px/1.05 var(--font-sans), sans-serif; letter-spacing: .02em; }
-  &[aria-checked="true"] { @include tone-gold; --glow-r: 12px; --face-top: #3a2f08; --face-bot: #0c1210; border-color: transparent; background: none; box-shadow: none;
+  &[aria-checked="true"] { @include tone-gold; @include neon-alive(3.4s); --glow-r: 12px; --face-top: #3a2f08; --face-bot: #0c1210; border-color: transparent; background: none; box-shadow: none;
     .modeIcon { color: #ffd34d; background: none; box-shadow: none; svg { filter: drop-shadow(0 0 4px rgba(255, 190, 40, .8)); } }
     b { color: #ffd34d; } } }
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .modes { gap: 8px; button { min-height: 50px; gap: 6px; padding: 6px 8px; } }
+  .modes .modeIcon { width: 26px; height: 26px; svg { width: 22px; height: 22px; } }
+  .modes b { font-size: 12.5px; }
+  .modeText small { display: none; }
+}
