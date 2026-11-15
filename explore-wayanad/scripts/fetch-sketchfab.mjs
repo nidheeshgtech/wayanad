@@ -71,6 +71,9 @@ const steps = ["optimize", gltf, out, "--compress", "meshopt", "--texture-compre
 if (ratio < 1) steps.push("--simplify", "true", "--simplify-ratio", String(ratio), "--simplify-error", String(error));
 else steps.push("--simplify", "false");
 if (keepParts) steps.push("--join-named", "false", "--flatten", "false");
+// --no-palette: keep flat-colour materials as they are (optimize otherwise packs them into one palette texture, and a
+// car's paint can then no longer be found by its material)
+if (rest.includes("--no-palette")) steps.push("--palette", "false");
 gt(...steps);
 
 const mb = (f) => (statSync(f).size / 1e6).toFixed(2) + " MB";

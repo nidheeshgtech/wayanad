@@ -51,6 +51,15 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
   (https://sketchfab.com/jasonjliang), CC BY 4.0, https://sketchfab.com/3d-models/audi-r8-57c798d774004b38a1a08f62f9c76651 —
   its display floor removed, made opaque, the maker's rings cut from the nose and tail, the dirt in the body texture
   cleaned so it can be painted; textures 1024 px, meshopt. Not affiliated with or endorsed by the manufacturer.
+- More garage cars, each CC BY 4.0, baked with scripts/fetch-sketchfab.mjs --keep-parts --no-palette --size 1024, turned to
+  face +Z where needed, makers' badges removed (scripts/retouch/player-super.notes.txt), painted by the game and
+  wearing its own livery. Not affiliated with or endorsed by the manufacturers.
+  - `player-fastback.glb` (Fastback, "Edakkal Drafter"): "AUDI RS7 Free | Low Poly" by Black Snow
+    (https://sketchfab.com/BlackSnow02), https://sketchfab.com/3d-models/audi-rs7-free-low-poly-d54df8dbc0904a3980d0dd1a8095caf8
+  - `player-bullet.glb` (Super GT, "Bathery Bullet"): "Bugatti Veyron 16.4 Super Sport - Lowpoly" by andikapratamaw
+    (https://sketchfab.com/andikapratamaw), https://sketchfab.com/3d-models/bugatti-veyron-164-super-sport-lowpoly-0ee4c65face949efa4500deb17c79150
+  - `player-hyper.glb` (Hypercar, "Muthanga Tusker"): "Koenigsegg One:1" by iSteven (https://sketchfab.com/OneSteven),
+    https://sketchfab.com/3d-models/koenigsegg-one1-b4e5a4c5fa5d4d45acd6715d3325254f
 
 People inside the vehicles (lib/occupants.ts) are simple shapes made in code for this project.
 

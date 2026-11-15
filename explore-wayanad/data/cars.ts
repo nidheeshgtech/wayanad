@@ -6,7 +6,7 @@
  */
 import { DEFAULT_DRIVER, driverOf, type DriverId, type PersonId } from "./drivers";
 
-export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | "kalpetta" | BorrowId;
+export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | "kalpetta" | "edakkal" | "bathery" | "muthanga" | BorrowId;
 /** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
 export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
@@ -40,6 +40,10 @@ export const CARS: Car[] = [
   { id: "kuruva", name: "Street bike", file: "/models/traffic/pulsar-real.glb", length: 2.0, paint: /^PAINT_PULSAR$/, plate: { at: { y: 0.66, w: 0.17, h: 0.09 } }, bike: true },
   // the supercar: low, wide, mid-engined; quicker than anything else on the churam (140 km/h, sharp pickup)
   { id: "kalpetta", name: "Supercar", file: "/models/traffic/player-super.glb", length: 4.43, paint: /^Body1$/, paintMask: true, livery: true, plate: { at: { y: 0.42, w: 0.48, h: 0.11 } }, handling: { max: 3.9, accel: 0.78 } },
+  // (the next three: CC BY models, badges off, in the game's livery; scripts/retouch/player-super.notes.txt)
+  { id: "edakkal", name: "Fastback", file: "/models/traffic/player-fastback.glb", length: 5.0, paint: /^material$/, livery: true, plate: { at: { y: 0.45, w: 0.48, h: 0.11 } }, handling: { max: 3.4, accel: 0.66 } },
+  { id: "muthanga", name: "Hypercar", file: "/models/traffic/player-hyper.glb", length: 4.5, paint: /^material_17$/, livery: true, plate: { at: { y: 0.4, w: 0.45, h: 0.1 } }, handling: { max: 4.1, accel: 0.86 } },
+  { id: "bathery", name: "Super GT", file: "/models/traffic/player-bullet.glb", length: 4.46, paint: /^M_Metalic_Orange$/, livery: true, plate: { at: { y: 0.45, w: 0.45, h: 0.1 } }, handling: { max: 4.0, accel: 0.8 } },
   { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 

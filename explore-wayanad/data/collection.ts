@@ -43,6 +43,12 @@ function fromGame(id: CarId) {
 export const COLLECTION: Entry[] = [
   { id: "lightning", name: "Lakkidi Lightning", type: "Supercar", cls: "super", ...fromGame("kalpetta"), seats: 2, play: "garage", paint: "#4a4e54",
     fact: "The fastest thing on the churam: low, wide, the engine behind the seats. It does 140 km/h — but can you keep it on the road round nine hairpins?" },
+  { id: "tusker", name: "Muthanga Tusker", type: "Hypercar", cls: "super", ...fromGame("muthanga"), seats: 2, play: "garage", paint: "#d45f1e",
+    fact: "Named after the wild elephants of Muthanga: big, fast and not to be messed with. The quickest pickup of any car in the game." },
+  { id: "bullet", name: "Bathery Bullet", type: "Super GT", cls: "super", ...fromGame("bathery"), seats: 2, play: "garage", paint: "#a3161c",
+    fact: "Sixteen cylinders' worth of attitude. It tops 140 km/h on the straights — then has to brake hard for every hairpin." },
+  { id: "drafter", name: "Edakkal Drafter", type: "Fastback", cls: "super", ...fromGame("edakkal"), seats: 4, play: "garage", paint: "#16181b",
+    fact: "A long, sleek four-door that seats the whole crew. Named after the Edakkal Caves, where people carved pictures in stone thousands of years ago." },
   { id: "cruiser", name: "Churam Cruiser", type: "Compact SUV", cls: "suv", ...fromGame("lakkidi"), seats: 5, play: "garage", paint: "#eceeec",
     fact: "The car most drivers start the churam in. It climbs all nine hairpins from Adivaram to the Lakkidi gate: 12.5 km of road, up to about 700 m above the sea." },
   { id: "zip", name: "Vythiri Zip", type: "Hatchback", cls: "car", ...fromGame("vythiri"), seats: 5, play: "garage", paint: "#a3161c",

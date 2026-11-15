@@ -19,13 +19,13 @@ export function paintMaterial(hex: string) {
 }
 
 /** Repaints `root` in place (call on a clone). */
-export function paintCar(root: Object3D, hex: string) {
+export function paintCar(root: Object3D, hex: string, match: RegExp = PAINT) {
   const paint = paintMaterial(hex);
   root.traverse((o) => {
     const mesh = o as Mesh;
     if (!mesh.isMesh) return;
     const mats = [mesh.material].flat() as Material[];
-    if (PAINT.test(mesh.name) || mats.some((m) => PAINT.test(m.name))) mesh.material = Array.isArray(mesh.material) ? mats.map(() => paint) : paint;
+    if (match.test(mesh.name) || mats.some((m) => match.test(m.name))) mesh.material = Array.isArray(mesh.material) ? mats.map(() => paint) : paint;
   });
   return root;
 }
@@ -121,7 +121,9 @@ export function prepareVehicle(root: Object3D, car: Car, hex: string) {
     });
     return root;
   }
-  return paintCar(root, hex);
+  // (the newer cars name their paint material their own way: data/cars `paint`; the first ones all say "primary")
+  paintCar(root, hex, car.livery ? car.paint : PAINT);
+  return car.livery ? addLivery(root, /^paint$/) : root;
 }
 
 const painted = new Map<string, Promise<Group>>();
@@ -181,10 +183,20 @@ export function addLivery(root: Object3D, body: RegExp) {
   const inv = new Matrix4().copy(root.matrixWorld).invert();
   const place = (geo: DecalGeometry, map: CanvasTexture, name: string) => { geo.applyMatrix4(inv); const d = new Mesh(geo, decalMaterial(map)); d.name = name; d.renderOrder = 1; root.add(d); };
   // each side: along the doors and rear wing, low on the body; projected inward
+  // the sides cross more than one part on some cars (a two-tone body is two meshes): project onto every solid outer
+  // part the lettering's box touches, only its outer skin (a shallow box at the side, not through to the cabin)
+  const solids: Mesh[] = [];
+  root.traverse((o) => { const m = o as Mesh; if (m.isMesh && !/^livery/.test(m.name) && [m.material].flat().every((x) => !(x as Material).transparent)) solids.push(m); });
   for (const side of [1, -1]) {
     // (between the wheel arches: the wheelbase is about the middle half of the car)
-    const at = new Vector3(mid.x + side * size.x * 0.5, box.min.y + size.y * 0.34, mid.z - size.z * 0.015);
-    place(new DecalGeometry(shell, at, new Euler(0, side * Math.PI / 2, 0), new Vector3(size.z * 0.47, size.z * 0.118, size.x * 0.5)), sideTexture(), "livery-side");
+    const at = new Vector3(mid.x + side * size.x * 0.47, box.min.y + size.y * 0.34, mid.z - size.z * 0.015);
+    const dims = new Vector3(size.z * 0.47, size.z * 0.118, size.x * 0.36), euler = new Euler(0, side * Math.PI / 2, 0);
+    const reach = new Box3().setFromCenterAndSize(at, new Vector3(size.x * 0.36, dims.y, dims.x));
+    for (const m of solids) {
+      if (!new Box3().setFromObject(m).intersectsBox(reach)) continue;
+      const geo = new DecalGeometry(m, at, euler, dims);
+      if (geo.getAttribute("position").count) place(geo, sideTexture(), "livery-side"); else geo.dispose();
+    }
   }
   // the bonnet badge: from above, on the front of the bonnet
   const nose = new Vector3(mid.x, box.max.y, mid.z + size.z * 0.33);

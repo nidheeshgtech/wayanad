@@ -74,3 +74,13 @@ print('cleaned', int(dirt.sum()))
 `], { stdio: "inherit" });
 t.setImage(readFileSync(join(d, "out.webp")));
 await io.write(process.argv[3], doc);
+
+/* ---- the next three (2026-11-15) ----
+ * fetch: node scripts/fetch-sketchfab.mjs <uid> <name> --keep-parts --no-palette --size 1024
+ *   player-fastback d54df8dbc0904a3980d0dd1a8095caf8 (turned 90° about Y), player-bullet 0ee4c65face949efa4500deb17c79150,
+ *   player-hyper b4e5a4c5fa5d4d45acd6715d3325254f (as alt-koenig)
+ * badges: fastback — drop parts ^(Circle_|Plane\.00[67]_) (rings front and rear, RS7, quattro script);
+ *   bullet — cut ^Object_8$ in box (-0.16,0.38,1.85 → 0.12,0.6,2.2) (the nose oval); the tail EB is under the livery;
+ *   hyper — cut Material\.008 in box (-0.08,0.1,-0.9 → 0.08,0.25,-0.7) (the rear-deck emblem)
+ * skipped as likely game rips (part names from game files / racing-game exports): the 918 models by sohyalebret, the
+ *   400Z (nolimitsofficial), both R8 Spyders (Car2022, tangwang920); the Z Proto (Lexyc16) unverified */

@@ -13,7 +13,7 @@ const SORTS: { id: Sort; name: string }[] = [
   { id: "size", name: "Biggest" }, { id: "name", name: "Name (A–Z)" },
 ];
 const PLAY: Record<Entry["play"], string> = { garage: "In your garage", traffic: "Take it from traffic", soon: "Coming soon" };
-const MAX_SPEED = 140;
+const MAX_SPEED = 150;
 
 const Ico = ({ d }: { d: string }) => <svg className={styles.ico} viewBox="0 0 24 24" aria-hidden><path d={d} /></svg>;
 
