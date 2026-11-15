@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { Quicksand } from "next/font/google";
 import Collection from "@/components/collection/Collection";
+
+// the vehicle names' rounded face (this page only)
+const quicksand = Quicksand({ subsets: ["latin"], weight: ["500"], variable: "--font-round", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Vehicle collection · Drive Wayanad",
@@ -8,5 +12,5 @@ export const metadata: Metadata = {
 };
 
 export default function CarsPage() {
-  return <Collection />;
+  return <div className={quicksand.variable}><Collection /></div>;
 }

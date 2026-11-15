@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { COLLECTION } from "@/data/collection";
 
-const ModelView = dynamic(() => import("@/components/collection/ModelView"), { ssr: false });
+const LotShot = dynamic(() => import("@/components/collection/LotShot"), { ssr: false });
 
 /** Development only: one collection vehicle (?id=) on a transparent canvas, for rendering the card pictures
  * (public/cars/*.webp; scripts render them with a headless browser). */
@@ -16,6 +16,6 @@ export default function DevThumbs() {
   if (!entry) return null;
   return (<>
     <style>{"html,body{background:transparent!important}"}</style>
-    <div id="thumb" style={{ width: 640, height: 400, background: "transparent" }}><ModelView entry={entry} still={-0.62} /></div>
+    <div id="thumb" style={{ width: 800, height: 500 }}><LotShot entry={entry} /></div>
   </>);
 }

@@ -11,7 +11,7 @@ import type { Entry } from "@/data/collection";
 
 /** A collection vehicle as a model: a game car painted as in the game (lib/carModel), or a plain model file. Cached. */
 const cache = new Map<string, Promise<Object3D>>();
-function modelOf(e: Entry) {
+export function modelOf(e: Entry) {
   if (!cache.has(e.id)) cache.set(e.id, e.car
     ? loadVehicle(carOf(e.car).file).then((src) => {
       const m = mergeByMaterial(prepareVehicle(src.clone(true), carOf(e.car!), e.paint ?? "#eceeec") as Group);

@@ -121,3 +121,22 @@
   .cols { grid-template-columns: 1fr !important; }
 }
 @media (prefers-reduced-motion: reduce) { .card, .pic img, .sheet, .veil, .bar u { transition: none; animation: none; } }
+
+// ---- as the vehicle sites lay them out: neutral dark cards, the name in a light rounded face over the photo, a fact
+// line with small outline icons, links in a soft accent ----
+.page { background: #121214; }
+.card { border-radius: 10px; background: #1c1c1f; border-color: #2c2c31; box-shadow: none;
+  &:hover { border-color: #4a4a52; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); transform: none; } }
+.pic::after { inset: 50% 0 0; background: linear-gradient(transparent, rgba(18, 18, 20, .55) 55%, rgba(28, 28, 31, .97)); }
+.name { left: 22px; bottom: 14px; font: 500 clamp(24px, 2.2vw, 30px)/1.1 var(--font-round), var(--font-sans), sans-serif; letter-spacing: .01em; text-shadow: 0 1px 6px rgba(0, 0, 0, .55); }
+.round { width: 40px; height: 40px; background: rgba(40, 40, 46, .72); border-color: rgba(255, 255, 255, .12); color: #e8e8ec; backdrop-filter: none;
+  svg { width: 17px; height: 17px; } }
+.line { padding: 16px 22px 20px; gap: 9px; font: 500 16px/1.2 var(--font-sans), sans-serif; color: #e8e8ec;
+  a { color: #b4a7f5; } em { color: #77777f; } }
+.ico { width: 17px; height: 17px; flex: none; fill: none; stroke: #bdbdc5; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tierInline { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 4px; font: italic 900 12px/1 var(--font-sans), sans-serif; color: #1b1405; background: #ffcc33;
+  &[data-tier="A"] { background: #2fe0cf; } &[data-tier="B"] { background: #8ec5ff; } &[data-tier="C"] { background: #c7d0cc; } }
+.more { width: 34px; height: 34px; background: transparent; border-color: #4a4a52; color: #bdbdc5; }
+.soon { left: 62px; right: auto; top: 20px; }
+.classes button[aria-pressed="true"] { border-color: #b4a7f5; background: rgba(180, 167, 245, .14); color: #d3cbff; small { background: #b4a7f5; color: #16161a; } }
+.tools input:focus { border-color: #b4a7f5; }

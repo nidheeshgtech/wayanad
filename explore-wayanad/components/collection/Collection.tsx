@@ -15,6 +15,8 @@ const SORTS: { id: Sort; name: string }[] = [
 const PLAY: Record<Entry["play"], string> = { garage: "In your garage", traffic: "Take it from traffic", soon: "Coming soon" };
 const MAX_SPEED = 110;
 
+const Ico = ({ d }: { d: string }) => <svg className={styles.ico} viewBox="0 0 24 24" aria-hidden><path d={d} /></svg>;
+
 function Bar({ label, value, of = 10, text }: { label: string; value: number; of?: number; text?: string }) {
   return (
     <div className={styles.bar}>
@@ -82,14 +84,13 @@ export default function Collection() {
               <button type="button" className={styles.round} data-at="right" aria-pressed={compare.includes(e.id)} onClick={() => toggle(e.id)} aria-label={compare.includes(e.id) ? `Remove ${e.name} from compare` : `Compare ${e.name}`}>
                 <svg viewBox="0 0 24 24" aria-hidden>{compare.includes(e.id) ? <path d="M4 7h11M4 12h9M4 17h7M15 14l5 5M20 14l-5 5" /> : <path d="M4 7h11M4 12h9M4 17h7M17.5 13v7M14 16.5h7" />}</svg>
               </button>
-              <span className={styles.tier} data-tier={tierOf(e)}>{tierOf(e)}</span>
               {e.play === "soon" && <span className={styles.soon}>Coming soon</span>}
               <h3 className={styles.name}>{e.name}</h3>
             </div>
             <div className={styles.line}>
-              <span><i aria-hidden>{CLASSES.find((c) => c.id === e.cls)?.icon}</i><a onClick={() => setCls(e.cls)}>{e.type}</a></span>
-              <em>·</em><span><i aria-hidden>⚡</i>{e.topSpeed} km/h</span>
-              <em>·</em><span><i aria-hidden>💺</i>{e.seats}</span>
+              <span><Ico d="M3 15V8h11v7M14 10h4l3 3v2M5.5 17.5a1.5 1.5 0 1 0 0-.01M17.5 17.5a1.5 1.5 0 1 0 0-.01M7 15h9" /><a onClick={() => setCls(e.cls)}>{e.type}</a></span>
+              <em>·</em><span><Ico d="M4 15a8 8 0 1 1 16 0M12 15l4-4" />{e.topSpeed} km/h</span>
+              <em>·</em><span><Ico d="M7 4v9a2 2 0 0 0 2 2h7v5M7 20h4" /><b className={styles.tierInline} data-tier={tierOf(e)}>{tierOf(e)}</b> class</span>
               <button type="button" className={styles.more} aria-expanded={expanded === e.id} onClick={() => setExpanded((x) => (x === e.id ? null : e.id))} aria-label="Stats">
                 <svg viewBox="0 0 24 24" aria-hidden><path d="m7 10 5 5 5-5" /></svg>
               </button>
