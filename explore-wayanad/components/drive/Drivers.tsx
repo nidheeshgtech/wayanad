@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { REPORT_WHY, net, reportDriver, setBlocked } from "@/lib/net";
-import { CONTACT_EMAIL } from "@/data/site";
 import styles from "./Drivers.module.scss";
 
 /**
@@ -48,7 +47,6 @@ export function SafetyLinks() {
   return (
     <p className={styles.links}>
       <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-      <a href={`mailto:${CONTACT_EMAIL}?subject=Drive%20Wayanad`}>Contact us</a>
     </p>
   );
 }

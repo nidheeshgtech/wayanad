@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CONTACT_EMAIL, SITE } from "@/data/site";
+import { SITE } from "@/data/site";
 import styles from "./privacy.module.scss";
 
 export const metadata: Metadata = {
@@ -105,9 +105,6 @@ export default function Privacy() {
 
         <h2>Changes</h2>
         <p>If this changes, we&apos;ll update this page and the date at the top.</p>
-
-        <h2>Contact</h2>
-        <p>Questions about privacy: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
 
         <p className={styles.back}><Link href="/">Back to the drive</Link></p>
       </article>

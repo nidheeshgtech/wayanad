@@ -3,4 +3,5 @@
 export const SITE = "https://www.drivewayanad.com";
 
 /** Where people reach the maker: shown on /privacy and in the Play Store listing (public). */
-export const CONTACT_EMAIL = "nitheeshworld@gmail.com";
+/** (no contact address shown for now: a new one is coming — the privacy page and the start screen link to it again then) */
+export const CONTACT_EMAIL = "";
