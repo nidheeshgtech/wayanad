@@ -67,9 +67,41 @@ export function addRider(model: Object3D, hex: string) {
   return model;
 }
 
+/** Paint where the body's own texture is white (its paint) and leave the rest of it — glass, lamps, trim, all in the
+ * same texture — as it is: the texel's whiteness picks the paint, shaded by the texel's own light and dark. */
+const masked = new Map<string, MeshStandardMaterial>();
+export function maskPaint(root: Object3D, match: RegExp, hex: string) {
+  root.traverse((o) => {
+    const mesh = o as Mesh; if (!mesh.isMesh) return;
+    const swap = (m: Material) => {
+      if (!match.test(m.name)) return m;
+      const key = `${m.uuid}:${hex}`;
+      if (!masked.has(key)) {
+        const c = (m as MeshStandardMaterial).clone(); c.name = m.name;
+        const paint = { value: new Color(hex) };
+        c.roughness = 0.32; c.metalness = 0.45;
+        c.onBeforeCompile = (sh) => {
+          sh.uniforms.uPaint = paint;
+          sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform vec3 uPaint;")
+            .replace("#include <map_fragment>", `#include <map_fragment>
+              float lo = min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b)), hi = max(diffuseColor.r, max(diffuseColor.g, diffuseColor.b));
+              float white = smoothstep(0.55, 0.8, lo) * (1.0 - smoothstep(0.06, 0.16, hi - lo)); // (light and colourless: the paint, smudges and all)
+              diffuseColor.rgb = mix(diffuseColor.rgb, uPaint * (0.55 + 0.45 * diffuseColor.r), white);`);
+        };
+        c.customProgramCacheKey = () => "mask-paint";
+        masked.set(key, c);
+      }
+      return masked.get(key)!;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+  });
+  return root;
+}
+
 /** A clone of the vehicle ready to draw: painted (cars), or with its rider in the chosen colour (bikes). */
 export function prepareVehicle(root: Object3D, car: Car, hex: string) {
   if (car.bike) return addRider(root, hex);
+  if (car.paintMask) return maskPaint(root, car.paint, hex);
   // a vehicle taken from the traffic (data/cars BORROWABLE): tinted as the traffic tints it — its body's own material,
   // textures kept, in the colour it had on the road — so it doesn't change colour as you get in
   // (the police jeep is the 4×4, painted as your own would be; the ambulance's body plain white, as in the traffic —

@@ -6,7 +6,7 @@
  */
 import { DEFAULT_DRIVER, driverOf, type DriverId, type PersonId } from "./drivers";
 
-export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | BorrowId;
+export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | "kalpetta" | BorrowId;
 /** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
 export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
@@ -18,6 +18,9 @@ export type Plate = { part?: string; material?: string; at?: { y: number; w: num
 /** `seat`: where the driver's steering wheel is, as fractions of the length (x + left, y up, z + forward), for models
  * whose wheel isn't a part of its own (PlayerCar finds it otherwise). */
 export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean; seat?: { x: number; y: number; z: number };
+  /** the body's colour is in its texture with the glass, lamps and trim (one material for the whole shell): paint only
+   * the white of it (lib/carModel maskPaint), not the whole material */
+  paintMask?: boolean;
   /** a bus or lorry: its own size (width, m) and slow, wide handling (lib/game setVehicle), the camera further back */
   heavy?: { width: number };
   /** the police jeep and the ambulance: a light bar on the roof, lit, and the siren going (lib/emergency) */
@@ -33,6 +36,8 @@ export const CARS: Car[] = [
   { id: "banasura", name: "Off-road 4×4", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/, plate: { part: "boot_scorpio_n_ext_1.2_0" } },
   { id: "chembra", name: "Classic bike", file: "/models/traffic/enfield-real.glb", length: 2.15, paint: /^PAINT_ENFIELD$/, plate: { at: { y: 0.62, w: 0.18, h: 0.1 } }, bike: true },
   { id: "kuruva", name: "Street bike", file: "/models/traffic/pulsar-real.glb", length: 2.0, paint: /^PAINT_PULSAR$/, plate: { at: { y: 0.66, w: 0.17, h: 0.09 } }, bike: true },
+  // the supercar: low, wide, mid-engined; quicker than anything else on the churam (140 km/h, sharp pickup)
+  { id: "kalpetta", name: "Supercar", file: "/models/traffic/player-super.glb", length: 4.43, paint: /^Body1$/, paintMask: true, plate: { at: { y: 0.42, w: 0.48, h: 0.11 } }, handling: { max: 3.9, accel: 0.78 } },
   { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 

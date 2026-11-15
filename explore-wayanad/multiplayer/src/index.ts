@@ -74,7 +74,7 @@ const FLAGS_TO_HUSH = 2;               // different drivers reporting someone in
 const MAX_FLAGS = 1000, FLAG_KEEP = 90 * 24 * 3600_000; // the report log: how many, how long
 type Flag = { at: number; room: string; name: string; by: string; why: string };
 // the cars and paints a player can pick (data/cars.ts); anything else becomes the default
-const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode", "chembra", "kuruva"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
+const CARS = ["lakkidi", "vythiri", "kabini", "banasura", "pookode", "chembra", "kuruva", "kalpetta"], COLOURS = ["white", "black", "red", "blue", "green", "yellow", "silver", "orange"];
 // and who's driving (data/drivers.ts); older clients send none and get the first
 const DRIVERS = ["rider", "racer", "guard", "trekker", "auto", "mechanic", "estate"];
 const carOf = (v: unknown): { m: string; c: string; d: string } => {

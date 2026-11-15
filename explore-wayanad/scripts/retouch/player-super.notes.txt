@@ -1,0 +1,76 @@
+// player-super.glb (data/cars "kalpetta"): the steps used, in order, on the fetch-sketchfab output
+// 1. drop the display floor (node/material "Ground")
+// 2. materials opaque; cut the rings: trim triangles in box(-0.62,2.92,-9.0 → 0.62,3.3,-8.5) [tail], box(-0.62,2.3,8.45 → 0.62,2.7,9.0) [nose], world coordinates
+// 3. body texture: light, slightly coloured dirt lifted to white (so lib/carModel maskPaint paints it)
+// fetch: node scripts/fetch-sketchfab.mjs 57c798d774004b38a1a08f62f9c76651 player-super --keep-parts --size 1024
+
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { prune } from "@gltf-transform/functions";
+import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
+await MeshoptDecoder.ready; await MeshoptEncoder.ready;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder, "meshopt.encoder": MeshoptEncoder });
+const doc = await io.read(process.argv[2]);
+for (const n of doc.getRoot().listNodes()) if (/Ground/.test(n.getName())) n.dispose();
+for (const m of doc.getRoot().listMaterials()) if (m.getName() === "Ground") m.dispose();
+await doc.transform(prune());
+await io.write(process.argv[3], doc);
+/* ---- step 2 ---- */
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { prune } from "@gltf-transform/functions";
+import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
+await MeshoptDecoder.ready; await MeshoptEncoder.ready;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder, "meshopt.encoder": MeshoptEncoder });
+const doc = await io.read(process.argv[2]);
+// solid paint and trim (the file marked them see-through)
+for (const m of doc.getRoot().listMaterials()) { m.setAlphaMode("OPAQUE"); m.setAlpha(1); }
+// the maker's rings on the tail: trim triangles whose centre lies in a box round them (model units; tail at −z)
+const box = { min: [-0.62, 2.3, 8.45], max: [0.62, 2.7, 9.0] }; // (the front rings, on the bonnet's nose)
+let cut = 0;
+for (const node of doc.getRoot().listNodes()) {
+  if (!/TrimAndWheels/.test(node.getName())) continue;
+  for (const prim of node.getMesh().listPrimitives()) {
+    const pos = prim.getAttribute("POSITION"), idx = prim.getIndices(), a = idx.getArray(), keep = [], M = node.getWorldMatrix();
+    const W = (v) => [0, 1, 2].map((k) => M[k] * v[0] + M[4 + k] * v[1] + M[8 + k] * v[2] + M[12 + k]);
+    const p = [0, 0, 0], q = [0, 0, 0], r = [0, 0, 0];
+    for (let i = 0; i < a.length; i += 3) {
+      pos.getElement(a[i], p); pos.getElement(a[i + 1], q); pos.getElement(a[i + 2], r);
+      const P = W(p), Q = W(q), R = W(r), c = [0, 1, 2].map((k) => (P[k] + Q[k] + R[k]) / 3);
+      const inside = c.every((v, k) => v >= box.min[k] && v <= box.max[k]);
+      if (inside) cut++; else keep.push(a[i], a[i + 1], a[i + 2]);
+    }
+    idx.setArray(new Uint32Array(keep));
+  }
+}
+console.log("cut triangles", cut);
+await doc.transform(prune());
+await io.write(process.argv[3], doc);
+/* ---- step 3 ---- */
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
+import { execFileSync } from "node:child_process";
+import { writeFileSync, readFileSync, mkdtempSync } from "node:fs";
+import { join } from "node:path"; import { tmpdir } from "node:os";
+await MeshoptDecoder.ready; await MeshoptEncoder.ready;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder, "meshopt.encoder": MeshoptEncoder });
+const doc = await io.read(process.argv[2]);
+const m = doc.getRoot().listMaterials().find((x) => x.getName() === "Body1"), t = m.getBaseColorTexture();
+const d = mkdtempSync(join(tmpdir(), "tex")); writeFileSync(join(d, "in.webp"), t.getImage());
+execFileSync("python3", ["-c", `
+from PIL import Image, ImageFilter
+import numpy as np
+im=Image.open('${d}/in.webp').convert('RGBA'); a=np.asarray(im).astype(float)
+rgb=a[...,:3]; lo=rgb.min(2); hi=rgb.max(2)
+# light, slightly coloured dirt next to white paint: lift it to the paint's white
+dirt=(lo>100)&((hi-lo)>6)&((hi-lo)<70)&(hi>140)
+mask=Image.fromarray((dirt*255).astype('uint8')).filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(1.5))
+w=np.asarray(mask).astype(float)[...,None]/255
+rgb=rgb*(1-w)+np.array([238,238,236])*w
+a[...,:3]=rgb
+Image.fromarray(a.clip(0,255).astype('uint8')).save('${d}/out.webp','WEBP',quality=88)
+print('cleaned', int(dirt.sum()))
+`], { stdio: "inherit" });
+t.setImage(readFileSync(join(d, "out.webp")));
+await io.write(process.argv[3], doc);

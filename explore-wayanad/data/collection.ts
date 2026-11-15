@@ -6,8 +6,9 @@
  */
 import { BORROWABLE, CARS, type CarId } from "./cars";
 
-export type VehicleClass = "car" | "suv" | "bike" | "heavy" | "emergency" | "kerala";
+export type VehicleClass = "super" | "car" | "suv" | "bike" | "heavy" | "emergency" | "kerala";
 export const CLASSES: { id: VehicleClass; name: string; icon: string }[] = [
+  { id: "super", name: "Supercars", icon: "🏎️" },
   { id: "car", name: "Cars", icon: "🚗" },
   { id: "suv", name: "SUVs & 4×4", icon: "🚙" },
   { id: "bike", name: "Bikes", icon: "🏍️" },
@@ -40,6 +41,8 @@ function fromGame(id: CarId) {
 }
 
 export const COLLECTION: Entry[] = [
+  { id: "lightning", name: "Lakkidi Lightning", type: "Supercar", cls: "super", ...fromGame("kalpetta"), seats: 2, play: "garage", paint: "#4a4e54",
+    fact: "The fastest thing on the churam: low, wide, the engine behind the seats. It does 140 km/h — but can you keep it on the road round nine hairpins?" },
   { id: "cruiser", name: "Churam Cruiser", type: "Compact SUV", cls: "suv", ...fromGame("lakkidi"), seats: 5, play: "garage", paint: "#eceeec",
     fact: "The car most drivers start the churam in. It climbs all nine hairpins from Adivaram to the Lakkidi gate: 12.5 km of road, up to about 700 m above the sea." },
   { id: "zip", name: "Vythiri Zip", type: "Hatchback", cls: "car", ...fromGame("vythiri"), seats: 5, play: "garage", paint: "#a3161c",
@@ -83,4 +86,4 @@ export const COLLECTION: Entry[] = [
 ];
 
 /** A power tier from the top speed, as racing games show it: S, A, B, C. */
-export const tierOf = (e: Entry) => (e.topSpeed >= 100 ? "S" : e.topSpeed >= 85 ? "A" : e.topSpeed >= 65 ? "B" : "C");
+export const tierOf = (e: Entry) => (e.topSpeed >= 130 ? "S" : e.topSpeed >= 95 ? "A" : e.topSpeed >= 70 ? "B" : "C");

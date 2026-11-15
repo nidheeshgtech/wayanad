@@ -47,6 +47,10 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — credit the author, l
   - `player-sedan.glb`: "2022 Maruti Suzuki Swift Dzire", https://sketchfab.com/3d-models/2022-maruti-suzuki-swift-dzire-95451c00cb2d48778f67d798167e7237
   - `player-4x4.glb`: "2022 Mahindra Scorpio-N", https://sketchfab.com/3d-models/2022-mahindra-scorpio-n-538b10f2860f44e694dc3e9d3e223bf8
   - `player-mpv.glb`: "2022 Suzuki Ertiga", https://sketchfab.com/3d-models/2022-suzuki-ertiga-4f14afac3ac44ec4a2fb153e18452f8b
+- `player-super.glb` (the Supercar, "Lakkidi Lightning" in the collection): "Audi R8" by jasonjliang
+  (https://sketchfab.com/jasonjliang), CC BY 4.0, https://sketchfab.com/3d-models/audi-r8-57c798d774004b38a1a08f62f9c76651 —
+  its display floor removed, made opaque, the maker's rings cut from the nose and tail, the dirt in the body texture
+  cleaned so it can be painted; textures 1024 px, meshopt. Not affiliated with or endorsed by the manufacturer.
 
 People inside the vehicles (lib/occupants.ts) are simple shapes made in code for this project.
 
