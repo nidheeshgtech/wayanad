@@ -1,4 +1,29 @@
 .locked, .locked body { overflow: hidden; height: 100%; overscroll-behavior: none; }
+// Bevelled game keys (the pedals, nitro, get out, the top-row keys, the wanted stars): dark glass with chamfered corners
+// (big cuts top-left and bottom-right, small ones on the others), a bright edge, a neon glow and a solid lip under it
+// for depth. The edge and the face are two clip-path layers (::before, ::after); the lip and glow are drop-shadows of
+// them on the key itself (a filter on a clipped element would be clipped away). Each key picks a tone (its colours).
+@mixin bevel($c1: 16px, $c2: 7px) {
+  --c1: #{$c1}; --c2: #{$c2}; --lip-h: 4px; --glow-r: 7px;
+  isolation: isolate; background: none; border: 0; border-radius: 0; box-shadow: none;
+  filter: drop-shadow(0 var(--lip-h) 0 var(--lip)) drop-shadow(0 0 var(--glow-r) var(--glow)) drop-shadow(0 7px 8px rgba(0, 0, 0, .45));
+  transition: transform .06s ease-out;
+  &::before, &::after { content: ""; position: absolute; pointer-events: none; border-radius: 0; }
+  &::before { inset: 0; height: auto; z-index: -2;
+    clip-path: polygon(var(--c1) 0, calc(100% - var(--c2)) 0, 100% var(--c2), 100% calc(100% - var(--c1)), calc(100% - var(--c1)) 100%, var(--c2) 100%, 0 calc(100% - var(--c2)), 0 var(--c1));
+    background: linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo)); }
+  &::after { inset: 2.5px; height: auto; z-index: -1;
+    clip-path: polygon(calc(var(--c1) - 1px) 0, calc(100% - var(--c2) + 1px) 0, 100% calc(var(--c2) - 1px), 100% calc(100% - var(--c1) + 1px), calc(100% - var(--c1) + 1px) 100%, calc(var(--c2) - 1px) 100%, 0 calc(100% - var(--c2) + 1px), 0 calc(var(--c1) - 1px));
+    background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .05) 46%, rgba(255, 255, 255, 0) 47%),
+      var(--fill, linear-gradient(transparent, transparent)), linear-gradient(165deg, var(--face-top), var(--face-bot)); }
+  &:active, &[data-on] { transform: translateY(3px); --lip-h: 1px; --glow-r: 13px; }
+}
+@mixin tone-gold { --edge-hi: #fff1b0; --edge: #ffcc33; --edge-lo: #a86f00; --glow: rgba(255, 190, 40, .75); --lip: #5c3d00; --face-top: #3b2d0b; --face-bot: #0d0a03; }
+@mixin tone-red { --edge-hi: #ffc2b8; --edge: #ff4a3a; --edge-lo: #8a1209; --glow: rgba(255, 60, 40, .75); --lip: #4a0805; --face-top: #5a120c; --face-bot: #170403; }
+@mixin tone-blue { --edge-hi: #c9ecff; --edge: #3aa8ff; --edge-lo: #0b4c9e; --glow: rgba(50, 150, 255, .8); --lip: #062a55; --face-top: #0f3566; --face-bot: #040f1f; }
+@mixin tone-glass { --edge-hi: #fff1b0; --edge: #e8b44a; --edge-lo: #7a5208; --glow: rgba(255, 190, 40, .4); --lip: #3a2a06; --face-top: #1e2a26; --face-bot: #070c0a; }
+
+
 .page { position: fixed; inset: 0; background: var(--bg); color: var(--ink); touch-action: none; user-select: none; }
 
 .top { position: fixed; z-index: 5; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 16px; padding: 16px 20px; pointer-events: none;
@@ -74,6 +99,10 @@
     &:active, &[data-on], &[aria-pressed="true"] { color: #2a1d05; background: linear-gradient(180deg, #ffd983, #D9A441); transform: translateY(3px);
       box-shadow: 0 1px 0 #85590f, 0 3px 6px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .2); }
     &.themeKey[data-theme="dusk"], &.themeKey[data-theme="night"] { color: var(--amber); border-color: var(--amber); }
+    // bevelled dark glass with a gold edge, like the driving keys
+    @include bevel(11px, 5px); @include tone-glass; border-radius: 0; color: #ffe08a;
+    svg { filter: drop-shadow(0 0 3px rgba(255, 190, 40, .6)); }
+    &:active, &[data-on], &[aria-pressed="true"] { background: none; box-shadow: none; color: #fff3c4; --face-top: #5a4310; }
     &:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; } } }
 
 .touch { display: none; }
@@ -95,27 +124,22 @@
     background: linear-gradient(rgba(255, 255, 255, .42), rgba(255, 255, 255, .04)); pointer-events: none; }
   &:active, &[data-on] { transform: translateY(5px); filter: brightness(1.1);
     box-shadow: 0 1px 0 var(--lip), 0 3px 8px rgba(0, 0, 0, .4), inset 0 0 0 1.5px rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .16); } }
-// steer: a dark glass disc holding half a steering wheel (components/drive/TouchKeys); held, the half-wheel turns that
-// way and an amber ring lights. Pedals: the pedal itself (TouchKeys), no key face round it; held, it tips down.
-.steer button, .pedals button { background: none; box-shadow: none; border-radius: 0; color: #EEF2EE;
+// steer: round dark-glass keys ringed in gold neon, a big chevron each; held, they sink and the ring flares
+.steer button { border-radius: 50%; color: #fff;
+  background: radial-gradient(circle at 50% 28%, rgba(70, 80, 72, .9), rgba(10, 14, 12, .92) 68%);
+  box-shadow: 0 0 0 3px #ffcc33, 0 0 16px rgba(255, 190, 40, .7), 0 9px 14px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .22), inset 0 -10px 18px rgba(0, 0, 0, .5);
+  transition: box-shadow .1s ease-out, transform .06s ease-out;
   &::after { content: none; }
-  &:active, &[data-on] { transform: none; filter: none; box-shadow: none; } }
-.steer button { border-radius: 50%; color: #EEF2EE;
-  background: radial-gradient(circle at 50% 30%, rgba(52, 84, 72, .92), rgba(14, 31, 26, .94) 70%);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, .45), inset 0 0 0 1.5px rgba(184, 199, 192, .26), inset 0 1.5px 0 rgba(255, 255, 255, .14), inset 0 -8px 16px rgba(0, 0, 0, .35);
-  transition: box-shadow .12s ease-out, transform .08s ease-out;
-  svg { width: 76%; height: 76%; stroke: none; filter: none; transition: transform .16s cubic-bezier(.3, 1.4, .5, 1); }
-  &:active, &[data-on] { transform: scale(.96); color: #ffd983;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, .4), 0 0 0 3px rgba(217, 164, 65, .85), 0 0 22px rgba(217, 164, 65, .45), inset 0 0 0 1.5px rgba(255, 233, 180, .3), inset 0 -8px 16px rgba(0, 0, 0, .35); }
-  &[data-side="left"]:active svg, &[data-side="left"][data-on] svg { transform: rotate(-18deg); }
-  &[data-side="right"]:active svg, &[data-side="right"][data-on] svg { transform: rotate(18deg); } }
-.pedals button { width: 66px; height: 90px; perspective: 260px; align-content: end; gap: 0;
-  svg { width: 100%; height: 100%; stroke: none; filter: none; transform-origin: 50% 92%; transition: transform .1s ease-out, filter .1s; }
-  small { position: absolute; left: 0; right: 0; bottom: 18%; text-align: center; color: rgba(238, 242, 238, .85); font-size: 9px; letter-spacing: .18em; text-shadow: 0 1px 2px #000; transition: transform .1s ease-out; }
-  &:active svg, &[data-on] svg { transform: rotateX(28deg) translateY(3px); filter: brightness(1.25); }
-  &:active small, &[data-on] small { transform: translateY(3px); } }
-.pedals .gas { small { color: #ffd983; } &:active svg, &[data-on] svg { filter: brightness(1.25) drop-shadow(0 0 8px rgba(217, 164, 65, .7)); } }
-.pedals .brake { small { color: #ffb3a6; } &:active svg, &[data-on] svg { filter: brightness(1.25) drop-shadow(0 0 8px rgba(224, 96, 76, .7)); } }
+  svg { width: 40px; height: 40px; fill: none; stroke: currentColor; stroke-width: 3.2; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)); }
+  &:active, &[data-on] { transform: translateY(3px) scale(.97); color: #fff3c4; filter: none;
+    background: radial-gradient(circle at 50% 28%, rgba(150, 115, 30, .95), rgba(40, 28, 4, .95) 70%);
+    box-shadow: 0 0 0 3px #fff1b0, 0 0 26px rgba(255, 200, 60, .95), 0 5px 9px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .3), inset 0 -10px 18px rgba(0, 0, 0, .4); } }
+// pedals: the accelerator gold and tall, the brake red; an icon and the word
+.pedals button { @include bevel(18px, 8px); width: 66px; height: 90px; gap: 4px; color: #fff;
+  svg { width: 40%; height: auto; aspect-ratio: 1; fill: none; stroke: currentColor; stroke-width: 2.4; filter: drop-shadow(0 0 4px var(--glow)); }
+  small { font: 900 12px/1 var(--font-sans), sans-serif; letter-spacing: .08em; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); } }
+.pedals .gas { @include tone-gold; --face-top: #8a6510; --face-bot: #2a1d04; color: #fff6d6; svg { color: #ffd34d; stroke-width: 3; } }
+.pedals .brake { @include tone-red; svg { color: #ff6a55; } }
 // the horn: round and cream, between the steer keys and the pedals
 .bigHorn { position: fixed; left: 50%; translate: -50% 0; border-radius: 50%; touch-action: manipulation;
   --top: #fbf6e6; --bot: #d8cfb6; --lip: #8a816a; --ink-k: #0e1f1a;
@@ -323,18 +347,18 @@
 
 /* nitro (DriveHud): a round key whose rim is the tank (--tank, conic), blue-lit while it fires, glowing when ready.
    Desktop: bottom left (hold N); phones: above the gas pedal; sideways: left of the brake */
-.nitro { position: fixed; z-index: 6; left: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; align-content: center; gap: 1px;
-  width: 74px; height: 74px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #dceaff; touch-action: none; -webkit-tap-highlight-color: transparent;
-  background: radial-gradient(circle at 50% 50%, #1d3a5a 0 56%, transparent 57%), conic-gradient(#5fb4ff var(--tank, 0%), rgba(0, 0, 0, .45) 0);
-  box-shadow: 0 5px 0 #0b1b2c, 0 10px 18px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(255, 255, 255, .12); transition: transform .06s, box-shadow .06s, filter .2s;
-  svg { width: 26px; height: 26px; fill: currentColor; stroke: none; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .4)); }
-  small { font: 800 9px/1 var(--font-sans), sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.nitro { position: fixed; z-index: 6; left: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; align-content: center; gap: 3px;
+  width: 74px; height: 74px; padding: 0; cursor: pointer; color: #fff; touch-action: none; -webkit-tap-highlight-color: transparent;
+  @include bevel(15px, 6px); @include tone-blue;
+  // the tank: the face filled from the bottom, as full as it is
+  --fill: linear-gradient(to top, rgba(70, 160, 255, .5) var(--tank, 0%), transparent var(--tank, 0%));
+  svg { width: 28px; height: 28px; fill: #7cc4ff; stroke: none; filter: drop-shadow(0 0 5px rgba(60, 160, 255, .9)); }
+  small { font: 900 10px/1 var(--font-sans), sans-serif; letter-spacing: .08em; text-transform: uppercase; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
   kbd { position: absolute; right: -4px; top: -4px; padding: 2px 6px; border-radius: 6px; font: 700 10px var(--font-sans), sans-serif; color: #0e1f1a; background: #dceaff; }
-  &[data-ready] { color: #fff; animation: nitroReady 1.4s ease-in-out infinite; }
-  &[data-firing] { transform: translateY(4px); color: #fff; box-shadow: 0 1px 0 #0b1b2c, 0 0 26px rgba(95, 180, 255, .85);
-    background: radial-gradient(circle at 50% 50%, #3d7fd0 0 56%, transparent 57%), conic-gradient(#9fd2ff var(--tank, 0%), rgba(0, 0, 0, .45) 0); }
-  &[data-empty] { filter: saturate(.3) brightness(.75); } }
-@keyframes nitroReady { 50% { box-shadow: 0 5px 0 #0b1b2c, 0 0 22px rgba(95, 180, 255, .7), inset 0 0 0 2px rgba(255, 255, 255, .2); } }
+  &[data-ready] { animation: nitroReady 1.4s ease-in-out infinite; }
+  &[data-firing] { transform: translateY(3px); --lip-h: 1px; --glow-r: 16px; --face-top: #2a6fc4; svg { fill: #fff; } }
+  &[data-empty] { opacity: .6; } }
+@keyframes nitroReady { 50% { --glow-r: 14px; filter: drop-shadow(0 4px 0 #062a55) drop-shadow(0 0 14px rgba(50, 150, 255, .95)) drop-shadow(0 7px 8px rgba(0, 0, 0, .45)); } }
 @media (pointer: coarse) {
   .nitro { left: auto; right: 14px; bottom: calc(18px + 110px + 18px + env(safe-area-inset-bottom, 0px)); width: 70px; height: 70px; kbd { display: none; } }
   @media (max-width: 375px) { .nitro { bottom: calc(18px + 98px + 16px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 64px; } }
@@ -346,13 +370,12 @@
 
 // get out / get in (OnFoot): beside the nitro key, the same chunky round key in the game's gold
 .door { position: fixed; z-index: 6; left: 108px; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); display: grid; place-items: center; align-content: center; gap: 2px;
-  width: 66px; height: 66px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #1b1405; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-  background: linear-gradient(180deg, #ffd983, #D9A441); box-shadow: 0 5px 0 #85590f, 0 10px 18px rgba(0, 0, 0, .45); transition: transform .06s, box-shadow .06s;
+  width: 66px; height: 66px; padding: 0; cursor: pointer; color: #fff; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  @include bevel(14px, 6px); @include tone-gold;
   animation: doorIn .25s ease-out;
-  svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; circle { fill: currentColor; stroke: none; } }
-  small { font: 800 8.5px/1 var(--font-sans), sans-serif; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+  svg { width: 24px; height: 24px; fill: none; stroke: #ffd34d; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(255, 190, 40, .8)); circle { fill: #ffd34d; stroke: none; } }
+  small { font: 900 8.5px/1 var(--font-sans), sans-serif; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
   kbd { position: absolute; right: -10px; top: -6px; padding: 2px 6px; border-radius: 6px; font: 700 10px var(--font-sans), sans-serif; color: #0e1f1a; background: #fff3d6; }
-  &:active { transform: translateY(4px); box-shadow: 0 1px 0 #85590f; }
   &[hidden] { display: none; } }
 @keyframes doorIn { from { transform: scale(.6); opacity: 0; } }
 @media (pointer: coarse) {
@@ -373,14 +396,15 @@
 // the police chase (lib/chase): five stars in a pill at the top, its edge flashing red and blue; the stars blink
 // while you're getting away
 .wanted { position: fixed; z-index: 6; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); translate: -50% 0; display: flex; gap: 3px;
-  padding: 5px 13px 6px; border-radius: 999px; background: rgba(14, 31, 26, .78); pointer-events: none;
+  padding: 7px 22px 8px; pointer-events: none;
+  @include bevel(14px, 14px); @include tone-glass;
   animation: wantedFlash .8s steps(1) infinite;
   i { font-style: normal; font-size: 20px; line-height: 1; color: rgba(238, 242, 238, .22);
     &[data-on] { color: #ffd34d; text-shadow: 0 0 8px rgba(255, 190, 40, .75); } }
   &[data-losing] i[data-on] { animation: wantedBlink 1s ease-in-out infinite; }
   &[hidden] { display: none; } } // (display: flex above would otherwise show it, empty, with no chase on)
 @keyframes wantedFlash {
-  0% { box-shadow: 0 0 0 2px rgba(255, 50, 50, .95), 0 0 18px rgba(255, 50, 50, .5); }
-  50% { box-shadow: 0 0 0 2px rgba(60, 110, 255, .95), 0 0 18px rgba(60, 110, 255, .5); } }
+  0% { filter: drop-shadow(0 3px 0 #3a2a06) drop-shadow(0 0 9px rgba(255, 50, 50, .95)); }
+  50% { filter: drop-shadow(0 3px 0 #3a2a06) drop-shadow(0 0 9px rgba(60, 110, 255, .95)); } }
 @keyframes wantedBlink { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .wanted, .wanted[data-losing] i[data-on] { animation: none; } .wanted { box-shadow: 0 0 0 2px rgba(255, 50, 50, .9); } }
+@media (prefers-reduced-motion: reduce) { .wanted, .wanted[data-losing] i[data-on] { animation: none; } .wanted { filter: drop-shadow(0 0 6px rgba(255, 50, 50, .9)); } }
