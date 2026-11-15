@@ -5,9 +5,12 @@
  * Plain SVG in the text colour: no images to load, crisp at any size.
  */
 export function SteerArt({ side }: { side: "left" | "right" }) {
+  // a double chevron (the leading one gold) with speed streaks trailing behind it, drawn pointing left and mirrored
   return (
-    <svg viewBox="0 0 24 24" aria-hidden strokeLinecap="round" strokeLinejoin="round">
-      <path d={side === "left" ? "M16 2.5 6.5 12l9.5 9.5" : "M8 2.5 17.5 12 8 21.5"} />
+    <svg viewBox="0 0 24 24" aria-hidden strokeLinecap="round" strokeLinejoin="round" style={side === "right" ? { transform: "scaleX(-1)" } : undefined}>
+      <path className="lead" d="M10 5 3.5 12 10 19" />
+      <path d="M16 5 9.5 12 16 19" />
+      <path className="streak" d="M17.5 9h4M18.5 12h3.5M17.5 15h4" />
     </svg>
   );
 }

@@ -282,3 +282,22 @@
   &:focus-visible { outline: 2px solid #ffd34d; outline-offset: 4px; }
   &[aria-expanded="true"] { margin-bottom: 14px; } }
 .screen[data-compact] .panel:has(.keysToggle[aria-expanded="false"]) { align-self: end; padding-block: 16px; .appsSoon { margin-top: 14px; } }
+
+// phones held upright: a tighter title screen — smaller labels, field and Start, every label left-aligned with its icon
+@media (max-width: 860px) and (orientation: portrait) {
+  .screen[data-compact] {
+    .body { gap: 10px; }
+    .nameField { gap: 5px; }
+    .nameField label { font-size: 11.5px; gap: 6px; }
+    .nameField label[for="driver-name"]::before { width: 14px; height: 14px; }
+    .nameField small { font-size: 10.5px; }
+    .nameBox input, .nameField[data-big] .nameBox input { height: 46px; padding: 0 74px 0 18px; font-size: 19px; &::placeholder { font-size: 17px; } }
+    .nameBox span { right: 16px; padding-left: 10px; font-size: 12.5px; }
+    .carLabel::before { @include icon($icon-car, 15px); color: #ffd34d; }
+    .modesLabel { justify-content: flex-start; &::after { content: none; } &::before { @include icon($icon-pad, 17px); color: #ffd34d; width: 17px; height: 17px; border-radius: 0; box-shadow: none; } }
+    .start { height: 52px; gap: 10px; padding: 0 16px; font-size: clamp(14px, 4.4vw, 18px);
+      > span { white-space: nowrap; } }
+    .flag { padding-right: 10px; &::before { width: 24px; height: 24px; } }
+    .chev { font-size: 22px; }
+  }
+}

@@ -123,3 +123,12 @@ $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f; $ink-dark: #1b1405;
   .arrow[data-side="right"] { left: auto; right: 24px; }
 }
 .wrap[data-big] .info small { display: none; } // "Your car" is already the label above the card
+
+// phones held upright: a slimmer card
+@media (max-width: 860px) and (orientation: portrait) {
+  .card { min-height: 0; gap: 10px; padding: 8px 10px 8px 8px; }
+  .thumb { width: clamp(84px, 26vw, 104px); height: 66px; }
+  .info { gap: 3px; small { font-size: 10.5px; &::before { width: 15px; height: 15px; } } b { font-size: 17px; } }
+  .meta { font-size: 11.5px; gap: 5px; }
+  .edit { padding: 8px 10px; font-size: 9.5px; gap: 3px; svg { width: 15px; height: 15px; } }
+}
