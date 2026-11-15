@@ -4,7 +4,8 @@
  * keep their own. Used by PlayerCar (before it rigs the wheels), the garage preview and RemoteCars (merged by
  * material, cached per car and colour, so twenty drivers in red Kabinis share one model).
  */
-import { Box3, CapsuleGeometry, Color, Group, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3, type Material, type Object3D } from "three";
+import { Box3, CanvasTexture, CapsuleGeometry, Color, Euler, Group, Matrix4, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, SRGBColorSpace, Vector3, type Material, type Object3D } from "three";
+import { DecalGeometry } from "three/addons/geometries/DecalGeometry.js";
 import { loadVehicle, mergeByMaterial } from "@/lib/vehicleAssets";
 import { carOf, colourOf, type Car, type Choice } from "@/data/cars";
 
@@ -101,7 +102,7 @@ export function maskPaint(root: Object3D, match: RegExp, hex: string) {
 /** A clone of the vehicle ready to draw: painted (cars), or with its rider in the chosen colour (bikes). */
 export function prepareVehicle(root: Object3D, car: Car, hex: string) {
   if (car.bike) return addRider(root, hex);
-  if (car.paintMask) return maskPaint(root, car.paint, hex);
+  if (car.paintMask) { maskPaint(root, car.paint, hex); return car.livery ? addLivery(root, car.paint) : root; }
   // a vehicle taken from the traffic (data/cars BORROWABLE): tinted as the traffic tints it — its body's own material,
   // textures kept, in the colour it had on the road — so it doesn't change colour as you get in
   // (the police jeep is the 4×4, painted as your own would be; the ambulance's body plain white, as in the traffic —
@@ -134,4 +135,59 @@ export function paintedCar(choice: Choice) {
     painted.set(key, p);
   }
   return p;
+}
+
+/* ---- the game's livery (data/cars `livery`): DRIVE WAYANAD down each side over a gold stripe, the road-curve logo in a
+ * badge on the bonnet — decals projected onto the curved body (three's DecalGeometry), drawn in canvas ---- */
+const ROAD = "M26 78 C26 52 74 50 74 30 C74 18 62 14 52 18"; // the logo's curve, in a 100 × 100 box (app/icon)
+function drawCurve(g: CanvasRenderingContext2D, x: number, y: number, size: number, width: number, colour: string) {
+  g.save(); g.translate(x, y); g.scale(size / 100, size / 100);
+  g.lineCap = "round"; g.lineWidth = width; g.strokeStyle = colour; g.stroke(new Path2D(ROAD)); g.restore();
+}
+let sideTex: CanvasTexture | null = null, badgeTex: CanvasTexture | null = null;
+function sideTexture() {
+  if (sideTex) return sideTex;
+  const c = document.createElement("canvas"); c.width = 1024; c.height = 256;
+  const g = c.getContext("2d")!;
+  // a gold stripe along the bottom, thin dark edges, fading out toward the front
+  const grad = g.createLinearGradient(0, 0, 1024, 0); grad.addColorStop(0, "rgba(255,204,51,0)"); grad.addColorStop(0.12, "#ffcc33"); grad.addColorStop(1, "#ffb81c");
+  g.fillStyle = "rgba(14,20,18,.85)"; g.fillRect(40, 186, 984, 34);
+  g.fillStyle = grad; g.fillRect(40, 190, 984, 26);
+  // the logo, then the words
+  g.fillStyle = "rgba(14,20,18,.0)"; drawCurve(g, 70, 30, 150, 15, "#14191a"); drawCurve(g, 70, 30, 150, 10, "#ffcc33");
+  g.font = "italic 900 92px Arial, sans-serif"; g.textBaseline = "middle";
+  g.lineWidth = 10; g.strokeStyle = "#14191a"; g.strokeText("DRIVE", 230, 108); g.fillStyle = "#ffffff"; g.fillText("DRIVE", 230, 108);
+  const w = g.measureText("DRIVE ").width;
+  g.strokeText("WAYANAD", 230 + w, 108); g.fillStyle = "#ffcc33"; g.fillText("WAYANAD", 230 + w, 108);
+  sideTex = new CanvasTexture(c); sideTex.colorSpace = SRGBColorSpace; sideTex.anisotropy = 8;
+  return sideTex;
+}
+function badgeTexture() {
+  if (badgeTex) return badgeTex;
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const g = c.getContext("2d")!;
+  g.beginPath(); g.arc(128, 128, 118, 0, Math.PI * 2); g.fillStyle = "#0e1f1a"; g.fill(); g.lineWidth = 10; g.strokeStyle = "#ffcc33"; g.stroke();
+  drawCurve(g, 28, 28, 200, 16, "#ffcc33");
+  badgeTex = new CanvasTexture(c); badgeTex.colorSpace = SRGBColorSpace; badgeTex.anisotropy = 8;
+  return badgeTex;
+}
+const decalMaterial = (map: CanvasTexture) => new MeshStandardMaterial({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 0.35, metalness: 0.2 });
+export function addLivery(root: Object3D, body: RegExp) {
+  root.updateMatrixWorld(true);
+  let shell: Mesh | null = null;
+  root.traverse((o) => { const m = o as Mesh; if (!shell && m.isMesh && [m.material].flat().some((x) => body.test((x as Material).name))) shell = m; });
+  if (!shell) return root;
+  const box = new Box3().setFromObject(shell), size = box.getSize(new Vector3()), mid = box.getCenter(new Vector3());
+  const inv = new Matrix4().copy(root.matrixWorld).invert();
+  const place = (geo: DecalGeometry, map: CanvasTexture, name: string) => { geo.applyMatrix4(inv); const d = new Mesh(geo, decalMaterial(map)); d.name = name; d.renderOrder = 1; root.add(d); };
+  // each side: along the doors and rear wing, low on the body; projected inward
+  for (const side of [1, -1]) {
+    // (between the wheel arches: the wheelbase is about the middle half of the car)
+    const at = new Vector3(mid.x + side * size.x * 0.5, box.min.y + size.y * 0.34, mid.z - size.z * 0.015);
+    place(new DecalGeometry(shell, at, new Euler(0, side * Math.PI / 2, 0), new Vector3(size.z * 0.47, size.z * 0.118, size.x * 0.5)), sideTexture(), "livery-side");
+  }
+  // the bonnet badge: from above, on the front of the bonnet
+  const nose = new Vector3(mid.x, box.max.y, mid.z + size.z * 0.33);
+  place(new DecalGeometry(shell, nose, new Euler(-Math.PI / 2, 0, 0), new Vector3(size.x * 0.22, size.x * 0.22, size.y * 1.2)), badgeTexture(), "livery-badge");
+  return root;
 }

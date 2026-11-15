@@ -21,6 +21,8 @@ export type Car = { id: CarId; name: string; file: string; length: number; paint
   /** the body's colour is in its texture with the glass, lamps and trim (one material for the whole shell): paint only
    * the white of it (lib/carModel maskPaint), not the whole material */
   paintMask?: boolean;
+  /** the game's livery on it: DRIVE WAYANAD down the sides, the logo on the bonnet (lib/carModel addLivery) */
+  livery?: boolean;
   /** a bus or lorry: its own size (width, m) and slow, wide handling (lib/game setVehicle), the camera further back */
   heavy?: { width: number };
   /** the police jeep and the ambulance: a light bar on the roof, lit, and the siren going (lib/emergency) */
@@ -37,7 +39,7 @@ export const CARS: Car[] = [
   { id: "chembra", name: "Classic bike", file: "/models/traffic/enfield-real.glb", length: 2.15, paint: /^PAINT_ENFIELD$/, plate: { at: { y: 0.62, w: 0.18, h: 0.1 } }, bike: true },
   { id: "kuruva", name: "Street bike", file: "/models/traffic/pulsar-real.glb", length: 2.0, paint: /^PAINT_PULSAR$/, plate: { at: { y: 0.66, w: 0.17, h: 0.09 } }, bike: true },
   // the supercar: low, wide, mid-engined; quicker than anything else on the churam (140 km/h, sharp pickup)
-  { id: "kalpetta", name: "Supercar", file: "/models/traffic/player-super.glb", length: 4.43, paint: /^Body1$/, paintMask: true, plate: { at: { y: 0.42, w: 0.48, h: 0.11 } }, handling: { max: 3.9, accel: 0.78 } },
+  { id: "kalpetta", name: "Supercar", file: "/models/traffic/player-super.glb", length: 4.43, paint: /^Body1$/, paintMask: true, livery: true, plate: { at: { y: 0.42, w: 0.48, h: 0.11 } }, handling: { max: 3.9, accel: 0.78 } },
   { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 
