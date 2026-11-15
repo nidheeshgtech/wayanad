@@ -337,7 +337,7 @@
   &[data-ready] { animation: nitroReady 1.4s ease-in-out infinite; }
   &[data-firing] { transform: translateY(3px); --lip-h: 1px; --glow-r: 16px; --face-top: #2a6fc4; svg { fill: #fff; } }
   &[data-empty] { opacity: .6; } }
-@keyframes nitroReady { 50% { box-shadow: 0 4px 0 #062a55, 0 0 16px 3px rgba(50, 150, 255, .95), 0 8px 12px -2px rgba(0, 0, 0, .45); } }
+@keyframes nitroReady { 50% { box-shadow: 0 0 16px 3px rgba(50, 150, 255, .95), 0 8px 12px -2px rgba(0, 0, 0, .45); } }
 @media (pointer: coarse) {
   .nitro { left: auto; right: 14px; bottom: calc(18px + 110px + 18px + env(safe-area-inset-bottom, 0px)); width: 70px; height: 70px; kbd { display: none; } }
   @media (max-width: 375px) { .nitro { bottom: calc(18px + 98px + 16px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 64px; } }
@@ -383,8 +383,8 @@
   &[data-losing] i[data-on] { animation: wantedBlink 1s ease-in-out infinite; }
   &[hidden] { display: none; } } // (display: flex above would otherwise show it, empty, with no chase on)
 @keyframes wantedFlash {
-  0% { box-shadow: 0 3px 0 #3a2a06, 0 0 12px 2px rgba(255, 50, 50, .95); }
-  50% { box-shadow: 0 3px 0 #3a2a06, 0 0 12px 2px rgba(60, 110, 255, .95); } }
+  0% { box-shadow: 0 0 12px 2px rgba(255, 50, 50, .95); }
+  50% { box-shadow: 0 0 12px 2px rgba(60, 110, 255, .95); } }
 @keyframes wantedBlink { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .wanted, .wanted[data-losing] i[data-on] { animation: none; } .wanted { box-shadow: 0 0 8px 2px rgba(255, 50, 50, .9); } }
 

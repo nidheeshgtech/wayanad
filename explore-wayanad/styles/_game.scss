@@ -10,16 +10,18 @@
   --edge-bg: initial; --fill: initial; --gloss: initial; --shade: initial; // (not a parent key's: these inherit)
   isolation: isolate; background: none; border: 0; filter: none;
   contain: layout; // (its edge and face layers are sized to it, whatever its position: static keys too)
-  border-radius: calc(var(--c1) * .55) calc(var(--c2) * .55) calc(var(--c1) * .55) calc(var(--c2) * .55);
+  border-radius: calc(var(--c1) * .95) calc(var(--c2) * .95) calc(var(--c1) * .95) calc(var(--c2) * .95); // (the glow's corners close to the cuts)
   // (the glow pulled in a little, so the cut corners don't show a square of it; --shade, a dark drop shadow, only on
   // the HUD's keys over the bright road — panels on the start screen have none, it read as a grey box behind them)
-  box-shadow: 0 var(--lip-h) 0 var(--lip), 0 0 var(--glow-r) calc(var(--glow-s, 0px) - 2px) var(--glow), 0 8px 12px -2px var(--shade, rgba(0, 0, 0, .45));
+  box-shadow: 0 0 var(--glow-r) calc(var(--glow-s, 0px) - 2px) var(--glow), 0 8px 12px -2px var(--shade, rgba(0, 0, 0, .45));
   transition: transform .06s ease-out;
   &::before, &::after { content: ""; position: absolute; pointer-events: none; border-radius: 0; box-shadow: none; }
   &::before { inset: 0; height: auto; z-index: -2;
     clip-path: polygon(var(--c1) 0, calc(100% - var(--c2)) 0, 100% var(--c2), 100% calc(100% - var(--c1)), calc(100% - var(--c1)) 100%, var(--c2) 100%, 0 calc(100% - var(--c2)), 0 var(--c1));
-    background: var(--edge-bg, linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo))); }
-  &::after { inset: 2.5px; height: auto; z-index: -1;
+    // (the lip — the key's thickness — is the bottom of the edge layer, inside its cut shape: as a box-shadow it was a
+    // rectangle, and showed as dark wedges past the cut corners)
+    background: linear-gradient(to top, var(--lip) 0 var(--lip-h), transparent var(--lip-h)), var(--edge-bg, linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo))); }
+  &::after { inset: 2.5px 2.5px calc(2.5px + var(--lip-h)) 2.5px; height: auto; z-index: -1; box-shadow: inset 0 0 9px -2px var(--glow); // (a neon glow inside the edge, too)
     clip-path: polygon(calc(var(--c1) - 1px) 0, calc(100% - var(--c2) + 1px) 0, 100% calc(var(--c2) - 1px), 100% calc(100% - var(--c1) + 1px), calc(100% - var(--c1) + 1px) 100%, calc(var(--c2) - 1px) 100%, 0 calc(100% - var(--c2) + 1px), 0 calc(var(--c1) - 1px));
     background: linear-gradient(180deg, rgba(255, 255, 255, var(--gloss, .24)), rgba(255, 255, 255, .05) 46%, rgba(255, 255, 255, 0) 47%),
       var(--fill, linear-gradient(transparent, transparent)), linear-gradient(165deg, var(--face-top), var(--face-bot)); }
@@ -44,7 +46,7 @@
 }
 // the bright gold key (Start, Change): a lit gold face, dark ink
 @mixin gold-key($c1: 16px, $c2: 16px) {
-  @include bevel($c1, $c2); @include tone-gold; --glow-r: 12px; --lip: #7a4f00; --face-top: #ffe46b; --face-bot: #f0a500; --gloss: .35; --shade: transparent;
+  @include bevel($c1, $c2); @include tone-gold; --glow-r: 9px; --lip: #7a4f00; --face-top: #ffe46b; --face-bot: #f0a500; --gloss: .35; --shade: transparent;
   color: #1b1405;
 }
 // a small icon drawn as a mask in the current colour (data-URI SVG)
@@ -63,11 +65,12 @@ $icon-mail: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='n
 // (a repaint of a thin layer, no filters), the glow's size swells — cheap enough to leave on
 @mixin neon-alive($dur: 3.2s) {
   &::before { background: linear-gradient(105deg, transparent 0 38%, rgba(255, 255, 255, .95) 47%, rgba(255, 255, 255, .95) 50%, transparent 59% 100%) 0 0 / 300% 100% no-repeat,
+      linear-gradient(to top, var(--lip) 0 var(--lip-h), transparent var(--lip-h)),
       var(--edge-bg, linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo)));
     animation: neonSweep $dur linear infinite; }
   animation: neonBreathe ($dur * .75) ease-in-out infinite alternate;
 }
-@keyframes neonSweep { from { background-position: 150% 0, 0 0; } to { background-position: -150% 0, 0 0; } }
+@keyframes neonSweep { from { background-position: 150% 0, 0 0, 0 0; } to { background-position: -150% 0, 0 0, 0 0; } }
 @keyframes neonBreathe { from { --glow-s: -1px; } to { --glow-s: 3px; } }
 @property --glow-s { syntax: "<length>"; inherits: false; initial-value: 0px; }
 $icon-horn: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 10h3l11-5v14L6 14H3z'/><path d='M7 14.5 8.4 19h2.4l-1.1-4.2z'/></svg>";
