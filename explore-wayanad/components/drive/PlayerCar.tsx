@@ -504,17 +504,20 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       // keep the hillside out of the shot. On a hairpin the camera swings out over the cut face: it comes in closer to
       // the car (as racing games do) and rises over whatever ground is still between — at once, never through it (it
       // used to rise only halfway at first, and the view went inside the mountain); it eases back out and down slowly.
+      // (sighted from just over the car's roof, not from its wheels: from the road itself, the road counted as ground in
+      // the way and the camera always came right in over the roof)
       const ground = (wx: number, wy: number, wz: number) => {
+        const top = C.y + 0.1 * (car.bike ? 0.7 : car.heavy ? Math.max(1, LENGTH / 0.55) : 1);
         let lift = 0;
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 2; i <= 6; i++) {
           const f = i / 6, x = root.position.x + (wx - root.position.x) * f, z = root.position.z + (wz - root.position.z) * f;
-          const need = height(x, z) + 0.09 - (C.y + (wy + lift - C.y) * f);
+          const need = height(x, z) + 0.05 - (top + (wy + lift - top) * f);
           if (need > 0) lift += need / f;
         }
         return lift;
       };
       const full = ground(want.x, want.y, want.z);
-      const boom = full > 0.02 ? Math.max(0.5, 1 - full * 1.4) : 1;
+      const boom = full > 0.03 ? Math.max(0.55, 1 - (full - 0.03) * 1.4) : 1;
       if (!game.paused) C.boom += (boom - C.boom) * (1 - Math.exp(-dt / (boom < C.boom ? 0.06 : 0.6)));
       want.set(root.position.x + (want.x - root.position.x) * C.boom, C.y + (want.y - C.y) * C.boom, root.position.z + (want.z - root.position.z) * C.boom);
       const lift = ground(want.x, want.y, want.z);
