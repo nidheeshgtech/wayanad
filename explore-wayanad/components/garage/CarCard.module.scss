@@ -98,3 +98,28 @@ $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f; $ink-dark: #1b1405;
   .meta { font-size: 11px; gap: 4px; }
   .edit { padding: 8px 9px; font-size: 9px; svg { width: 15px; height: 15px; } }
 }
+
+// ---- ‹ › over the picture: the previous / next car at once ----
+.wrap { position: relative; width: 100%; }
+.arrow { position: absolute; z-index: 2; top: 50%; display: grid; place-items: center; width: 30px; height: 30px; margin-top: -15px; padding: 0; cursor: pointer;
+  border: 0; color: #fff; background: rgba(4, 22, 26, .72); clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  box-shadow: inset 0 0 0 1.5px rgba(47, 224, 207, .7); transition: background .12s, transform .06s; -webkit-tap-highlight-color: transparent;
+  svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  &:hover { background: rgba(47, 224, 207, .35); }
+  &:active { transform: scale(.92); }
+  &:focus-visible { outline: 2px solid #ffd34d; outline-offset: 2px; }
+}
+
+// ---- desktop: one big card, the car (and driver) large on top, the name and Garage key under it ----
+.wrap[data-big] {
+  max-width: 600px;
+  .card { flex-wrap: wrap; align-items: center; gap: 12px 14px; padding: 12px 14px 14px 12px; }
+  .thumb { width: 100%; height: clamp(150px, 22vh, 210px); }
+  .info { gap: 5px; b { font-size: 24px; } }
+  .meta { font-size: 13px; }
+  .edit { grid-auto-flow: column; align-items: center; gap: 8px; padding: 12px 18px; font-size: 13px; svg { width: 18px; height: 18px; } }
+  .arrow { top: calc(12px + clamp(150px, 22vh, 210px) / 2); width: 40px; height: 40px; margin-top: -20px; svg { width: 22px; height: 22px; } }
+  .arrow[data-side="left"] { left: 22px; }
+  .arrow[data-side="right"] { left: auto; right: 24px; }
+}
+.wrap[data-big] .info small { display: none; } // "Your car" is already the label above the card

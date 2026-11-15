@@ -36,10 +36,12 @@ function Turntable({ choice, still, raw, driver }: { choice: Choice; still?: num
 }
 
 /** `still`: a fixed turn (radians) instead of turning — the dev review page (app/dev/car) shows fronts and backs. */
-/** `driver`: your driver stands beside it (the car sheet's big preview; the small thumbnails leave them out). */
-export default function CarPreview({ choice, still, raw, driver }: { choice: Choice; still?: number; raw?: boolean; driver?: boolean }) {
+/** `driver`: your driver stands beside it (the car sheet's big preview; the small thumbnails leave them out).
+ * `zoom`: the camera that much closer (a wide, short frame, as the desktop title screen's car card). */
+export default function CarPreview({ choice, still, raw, driver, zoom = 1 }: { choice: Choice; still?: number; raw?: boolean; driver?: boolean; zoom?: number }) {
+  const eye = (still !== undefined ? [0, 0.9, 3.2] : driver ? [3.9, 1.6, 4.2] : [3.4, 1.5, 3.4]).map((v, i) => i === 1 ? 0.55 + (v - 0.55) / zoom : v / zoom) as [number, number, number];
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: still !== undefined ? [0, 0.9, 3.2] : driver ? [3.9, 1.6, 4.2] : [3.4, 1.5, 3.4], fov: 32 }} onCreated={({ camera }) => camera.lookAt(0, 0.55, 0)} gl={{ antialias: true, alpha: true }}>
+    <Canvas dpr={[1, 2]} camera={{ position: eye, fov: 32 }} onCreated={({ camera }) => camera.lookAt(0, 0.55, 0)} gl={{ antialias: true, alpha: true }}>
       <hemisphereLight args={[0xdfe8ef, 0x1b2a22, 1.4]} />
       <directionalLight position={[4, 6, 3]} intensity={2.4} />
       <directionalLight position={[-5, 3, -4]} intensity={0.8} color={0xbcd0ff} />

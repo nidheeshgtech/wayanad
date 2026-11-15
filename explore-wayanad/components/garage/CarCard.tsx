@@ -18,25 +18,39 @@ const CarPreview = dynamic(() => import("./CarPreview"), { ssr: false, loading: 
  * makes the choice (lib/choice, lib/horn); closing without applying changes nothing. Same cars, paints and horns as the
  * full picker (components/garage/CarPicker, HornPicker), which desktop and the pause menu still use.
  */
-export default function CarCard() {
+export default function CarCard({ big = false }: { big?: boolean }) {
   const choice = useChoice(), [open, setOpen] = useState(false), [kind, setKind] = useState<HornKind>("car");
   useEffect(() => setKind(horn.kind), [open]);
   const car = carOf(choice.car), paint = colourOf(choice.colour), voice = HORNS.find((h) => h.id === kind) ?? HORNS[0];
   const openSheet = () => setOpen(true);
+  // ‹ › on the picture (desktop): the previous / next car straight away, paint and driver kept
+  const step = (d: number) => {
+    const i = Math.max(0, CARS.findIndex((c) => c.id === choice.car));
+    setChoice({ ...choice, car: CARS[(i + d + CARS.length) % CARS.length].id });
+  };
+  const arrow = (d: -1 | 1) => (
+    <button type="button" className={styles.arrow} data-side={d < 0 ? "left" : "right"} aria-label={d < 0 ? "Previous car" : "Next car"}
+      onClick={(e) => { e.stopPropagation(); step(d); }} onKeyDown={(e) => e.stopPropagation()}>
+      <svg viewBox="0 0 24 24" aria-hidden><path d={d < 0 ? "m14.5 6-6 6 6 6" : "m9.5 6 6 6-6 6"} /></svg>
+    </button>
+  );
   return (<>
-    <div className={styles.card} role="button" tabIndex={0} aria-label={`Your car: ${car.name}, ${paint.name}, ${voice.name} horn, driven by ${driverOf(choice.driver).name}. Customise`}
+    <div className={styles.wrap} data-big={big || undefined}>
+    <div className={styles.card} role="button" tabIndex={0} aria-label={`Your car: ${car.name}, ${paint.name}, ${voice.name} horn, driven by ${driverOf(choice.driver).name}. Open the garage`}
       onClick={openSheet} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheet(); } }}>
-      <span className={styles.thumb} aria-hidden>{!open && <CarPreview choice={choice} />}</span>
+      <span className={styles.thumb} aria-hidden>{!open && <CarPreview choice={choice} driver={big} zoom={big ? 1.55 : 1} />}</span>
       <span className={styles.info}>
         <small>Your car</small>
         <b>{car.name}</b>
         <span className={styles.meta}><DriverFace id={choice.driver} size={18} />{driverOf(choice.driver).name}<em>·</em>{driverOf(choice.driver).role}</span>
-        <span className={styles.meta}><i style={{ background: paint.hex }} />{paint.name}<em>·</em>{voice.icon}&nbsp;Horn</span>
+        <span className={styles.meta}><i style={{ background: paint.hex }} />{paint.name}</span>
       </span>
       <span className={styles.edit} aria-hidden>
         <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>
-        <span>Change</span>
+        <span>Garage</span>
       </span>
+    </div>
+    {big && <>{arrow(-1)}{arrow(1)}</>}
     </div>
     {open && <CarSheet initial={choice} horn={kind} onClose={() => setOpen(false)} />}
   </>);
@@ -57,7 +71,7 @@ function CarSheet({ initial, horn: initialHorn, onClose }: { initial: Choice; ho
     <div className={styles.veil} onClick={onClose} onKeyDown={(e) => e.stopPropagation()}>
       <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="Your car" onClick={(e) => e.stopPropagation()}>
         <span className={styles.grab} aria-hidden />
-        <header className={styles.ribbon}>Your car</header>
+        <header className={styles.ribbon}>Garage</header>
         <div className={styles.body}>
           <div className={styles.stage}>
             <CarPreview choice={draft} driver />
