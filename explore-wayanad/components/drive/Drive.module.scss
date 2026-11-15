@@ -377,7 +377,8 @@
   animation: wantedFlash .8s steps(1) infinite;
   i { font-style: normal; font-size: 20px; line-height: 1; color: rgba(238, 242, 238, .22);
     &[data-on] { color: #ffd34d; text-shadow: 0 0 8px rgba(255, 190, 40, .75); } }
-  &[data-losing] i[data-on] { animation: wantedBlink 1s ease-in-out infinite; } }
+  &[data-losing] i[data-on] { animation: wantedBlink 1s ease-in-out infinite; }
+  &[hidden] { display: none; } } // (display: flex above would otherwise show it, empty, with no chase on)
 @keyframes wantedFlash {
   0% { box-shadow: 0 0 0 2px rgba(255, 50, 50, .95), 0 0 18px rgba(255, 50, 50, .5); }
   50% { box-shadow: 0 0 0 2px rgba(60, 110, 255, .95), 0 0 18px rgba(60, 110, 255, .5); } }
