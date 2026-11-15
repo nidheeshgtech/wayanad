@@ -1,27 +1,6 @@
+@use "../../styles/game" as *;
+
 .locked, .locked body { overflow: hidden; height: 100%; overscroll-behavior: none; }
-// Bevelled game keys (the pedals, nitro, get out, the top-row keys, the wanted stars): dark glass with chamfered corners
-// (big cuts top-left and bottom-right, small ones on the others), a bright edge, a neon glow and a solid lip under it
-// for depth. The edge and the face are two clip-path layers (::before, ::after); the lip and glow are drop-shadows of
-// them on the key itself (a filter on a clipped element would be clipped away). Each key picks a tone (its colours).
-@mixin bevel($c1: 16px, $c2: 7px) {
-  --c1: #{$c1}; --c2: #{$c2}; --lip-h: 4px; --glow-r: 7px;
-  isolation: isolate; background: none; border: 0; border-radius: 0; box-shadow: none;
-  filter: drop-shadow(0 var(--lip-h) 0 var(--lip)) drop-shadow(0 0 var(--glow-r) var(--glow)) drop-shadow(0 7px 8px rgba(0, 0, 0, .45));
-  transition: transform .06s ease-out;
-  &::before, &::after { content: ""; position: absolute; pointer-events: none; border-radius: 0; }
-  &::before { inset: 0; height: auto; z-index: -2;
-    clip-path: polygon(var(--c1) 0, calc(100% - var(--c2)) 0, 100% var(--c2), 100% calc(100% - var(--c1)), calc(100% - var(--c1)) 100%, var(--c2) 100%, 0 calc(100% - var(--c2)), 0 var(--c1));
-    background: linear-gradient(155deg, var(--edge-hi), var(--edge) 45%, var(--edge-lo)); }
-  &::after { inset: 2.5px; height: auto; z-index: -1;
-    clip-path: polygon(calc(var(--c1) - 1px) 0, calc(100% - var(--c2) + 1px) 0, 100% calc(var(--c2) - 1px), 100% calc(100% - var(--c1) + 1px), calc(100% - var(--c1) + 1px) 100%, calc(var(--c2) - 1px) 100%, 0 calc(100% - var(--c2) + 1px), 0 calc(var(--c1) - 1px));
-    background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .05) 46%, rgba(255, 255, 255, 0) 47%),
-      var(--fill, linear-gradient(transparent, transparent)), linear-gradient(165deg, var(--face-top), var(--face-bot)); }
-  &:active, &[data-on] { transform: translateY(3px); --lip-h: 1px; --glow-r: 13px; }
-}
-@mixin tone-gold { --edge-hi: #fff1b0; --edge: #ffcc33; --edge-lo: #a86f00; --glow: rgba(255, 190, 40, .75); --lip: #5c3d00; --face-top: #3b2d0b; --face-bot: #0d0a03; }
-@mixin tone-red { --edge-hi: #ffc2b8; --edge: #ff4a3a; --edge-lo: #8a1209; --glow: rgba(255, 60, 40, .75); --lip: #4a0805; --face-top: #5a120c; --face-bot: #170403; }
-@mixin tone-blue { --edge-hi: #c9ecff; --edge: #3aa8ff; --edge-lo: #0b4c9e; --glow: rgba(50, 150, 255, .8); --lip: #062a55; --face-top: #0f3566; --face-bot: #040f1f; }
-@mixin tone-glass { --edge-hi: #fff1b0; --edge: #e8b44a; --edge-lo: #7a5208; --glow: rgba(255, 190, 40, .4); --lip: #3a2a06; --face-top: #1e2a26; --face-bot: #070c0a; }
 
 
 .page { position: fixed; inset: 0; background: var(--bg); color: var(--ink); touch-action: none; user-select: none; }
@@ -408,3 +387,19 @@
   50% { filter: drop-shadow(0 3px 0 #3a2a06) drop-shadow(0 0 9px rgba(60, 110, 255, .95)); } }
 @keyframes wantedBlink { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .wanted, .wanted[data-losing] i[data-on] { animation: none; } .wanted { filter: drop-shadow(0 0 6px rgba(255, 50, 50, .9)); } }
+
+// ---- phones: the readouts in one bevelled glass panel (the game's look): speed with a gauge, the road done with a
+// road sign, the coins; a line between each ----
+@media (pointer: coarse) {
+  .speed { @include bevel(16px, 8px); @include tone-glass; --lip-h: 0px; --gloss: .08; --glow-r: 8px; --face-top: rgba(22, 46, 36, .9); --face-bot: rgba(6, 14, 11, .92);
+    display: grid; grid-template-columns: auto 1fr; align-items: end; column-gap: 6px; padding: 10px 18px 10px 14px; min-width: 150px;
+    b { grid-column: 1; display: flex; align-items: center; gap: 10px; font: italic 900 30px/1 var(--font-sans), sans-serif; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+      &::before { @include icon($icon-gauge, 30px); color: #ffd34d; filter: drop-shadow(0 0 4px rgba(255, 190, 40, .7)); } }
+    small { grid-column: 2; padding-bottom: 3px; font: italic 700 13px/1 var(--font-sans), sans-serif; color: #fff; } }
+  .km { grid-column: 1 / -1; justify-content: start; align-items: center; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(238, 242, 238, .14);
+    font: italic 700 13px/1 var(--font-sans), sans-serif; color: #fff;
+    > span:first-of-type { display: inline-flex; width: 30px; margin-right: 6px; font-size: 0; &::before { @include icon($icon-road, 24px); color: #ffd34d; } }
+    em { font: italic 900 17px/1 var(--font-sans), sans-serif; } }
+  .score { grid-column: 1 / -1; margin-top: 7px !important; padding-top: 7px; border-top: 1px solid rgba(238, 242, 238, .14); font: italic 900 17px/1 var(--font-sans), sans-serif;
+    &::before { width: 24px; height: 24px; margin: 0 9px 0 3px; } }
+}

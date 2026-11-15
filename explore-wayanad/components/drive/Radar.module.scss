@@ -12,7 +12,7 @@
 @media (prefers-reduced-motion: reduce) { .radar { transition: opacity .3s; transform: none; } }
 
 // the rim
-.bezel { stroke: rgba(238, 242, 238, .22); stroke-width: 1; }
+.bezel { stroke: #ffcc33; stroke-width: 1.6; filter: drop-shadow(0 0 3px rgba(255, 190, 40, .9)); } // (a gold neon ring, as the game's keys)
 .track { fill: none; stroke: rgba(0, 0, 0, .45); stroke-width: 7; }
 .fill { fill: none; stroke: #D9A441; stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(217, 164, 65, .7)); }
 .notch { fill: #EEF2EE; stroke: #0e1f1a; stroke-width: 1.2; stroke-linejoin: round; }

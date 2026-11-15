@@ -1,3 +1,4 @@
+@use "../../styles/game" as *;
 // the pause menu's drivers list (Report / Block) and the privacy / contact links
 .drivers { display: grid; gap: 6px; font-size: 13px; color: var(--mute);
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -17,3 +18,10 @@
 .links { display: flex; gap: 16px; margin: 0; font-size: 12px;
   a { color: var(--dim); text-decoration: underline; text-underline-offset: 3px;
     &:hover, &:focus-visible { color: var(--ink); } } }
+
+// the start screen's links: a gold icon each (a shield, an envelope), a line between
+.links { align-items: center;
+  a { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; color: #e6efe9; text-decoration: none; }
+  a[href="/privacy"]::before { @include icon($icon-shield, 16px); color: #ffd34d; }
+  a[href^="mailto:"]::before { @include icon($icon-mail, 18px); color: #ffd34d; }
+  a + a { padding-left: 16px; border-left: 1.5px solid rgba(238, 242, 238, .3); } }

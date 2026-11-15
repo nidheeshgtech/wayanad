@@ -508,7 +508,7 @@ export default function DriveHud() {
             </>)}
             {net.enabled && (
               <div className={panelStyles.nameField}>
-                <label>How to play</label>
+                <label className={panelStyles.modesLabel}>How to play</label>
                 <PlayModes value={playMode} onChange={choosePlayMode} code={inviteCode} />
               </div>
             )}

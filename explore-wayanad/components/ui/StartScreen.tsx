@@ -80,7 +80,7 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
           {beforeStart}
           <div className={styles.actions}>
             <button type="button" ref={startButton} className={styles.start} onClick={onStart}>
-              <span>{startLabel}</span><kbd aria-hidden>Enter ↵</kbd>
+              {compact && <i className={styles.flag} aria-hidden />}<span>{startLabel}</span>{compact && <b className={styles.chev} aria-hidden>»</b>}<kbd aria-hidden>Enter ↵</kbd>
             </button>
             {footer}
           </div>

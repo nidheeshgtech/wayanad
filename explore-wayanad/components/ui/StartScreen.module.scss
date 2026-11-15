@@ -1,3 +1,5 @@
+@use "../../styles/game" as *;
+
 // The title screen (StartScreen.tsx): a dim veil over the landscape, a fixed rhythm of 8 px steps, one amber accent.
 .screen, .loader { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; color: var(--ink);
   padding: calc(24px + env(safe-area-inset-top, 0px)) clamp(20px, 5vw, 72px) calc(32px + env(safe-area-inset-bottom, 0px)); }
@@ -189,3 +191,33 @@
   50% { box-shadow: 0 0 0 6px rgba(217, 164, 65, .16), 0 8px 32px rgba(217, 164, 65, .38); }
 }
 @media (prefers-reduced-motion: reduce) { .screen, .loader, .track span { transition: none; } .status::before { animation: none; } .start, .screen[data-compact] .start { transition: none; animation: none; } }
+
+// ---- the drive's title screen in the game's neon look (compact): the name in a neon field (teal, gold at the ends),
+// labels in bold italic with a gold icon, Start a lit gold key with a chequered flag and chevrons ----
+.screen[data-compact] {
+  .nameField label { display: flex; align-items: center; gap: 8px; font: italic 800 13px/1 var(--font-sans), sans-serif; letter-spacing: .06em; color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  .nameField label[for="driver-name"]::before { @include icon($icon-person, 17px); color: #ffd34d; }
+  .modesLabel { justify-content: center;
+    &::before, &::after { content: ""; width: 24px; height: 3px; border-radius: 2px; background: #ffcc33; box-shadow: 0 0 6px rgba(255, 190, 40, .8); } }
+  .nameBox { @include neon-panel(16px); position: relative;
+    &:focus-within { --glow-r: 14px; }
+    input { position: relative; height: 56px; padding: 0 96px 0 26px; border: 0; border-radius: 0; background: transparent; color: #fff;
+      font: italic 800 24px/1 var(--font-sans), sans-serif; letter-spacing: 0; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+      &::placeholder { font: italic 700 20px var(--font-sans), sans-serif; color: rgba(238, 242, 238, .45); } }
+    span { right: 22px; padding-left: 14px; border-left: 1.5px solid rgba(255, 211, 77, .5); font: italic 800 15px/1.6 var(--font-sans), sans-serif; color: #ffd34d; } }
+  .start { @include gold-key(20px, 20px); justify-content: center; gap: 18px; padding: 0 26px; overflow: visible; text-shadow: none;
+    font: italic 900 22px/1 var(--font-sans), sans-serif; letter-spacing: .02em; text-transform: uppercase;
+    animation: startGlow 2.6s ease-in-out infinite;
+    &::after { content: ""; } // (the face: the bevel's, not the old shine)
+    &:active { box-shadow: none; }
+    &:focus-visible { outline: none; } // (it's focused on arrival, for Enter; it glows anyway)
+    > span { flex: 1; text-align: center; } }
+  .flag { display: flex; align-items: center; padding-right: 16px; border-right: 2px solid rgba(27, 20, 5, .35); color: #1b1405;
+    &::before { @include icon($icon-flag, 34px); } }
+  .chev { font: italic 900 30px/1 var(--font-sans), sans-serif; letter-spacing: -.12em; color: #1b1405; padding-right: 4px; }
+}
+@keyframes startGlow {
+  0%, 100% { filter: drop-shadow(0 4px 0 #7a4f00) drop-shadow(0 0 10px rgba(255, 190, 40, .7)) drop-shadow(0 7px 8px rgba(0, 0, 0, .45)); }
+  50% { filter: drop-shadow(0 4px 0 #7a4f00) drop-shadow(0 0 22px rgba(255, 205, 70, .95)) drop-shadow(0 7px 8px rgba(0, 0, 0, .45)); } }
+@media (prefers-reduced-motion: reduce) { .screen[data-compact] .start { animation: none; } }

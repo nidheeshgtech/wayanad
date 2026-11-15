@@ -1,3 +1,4 @@
+@use "../../styles/game" as *;
 // The phone start screen's car card and its sheet (CarCard.tsx), in the game look: deep green panels, gold for
 // what's chosen and the one key to press, chunky keys that sink when pressed.
 $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f; $ink-dark: #1b1405;
@@ -78,3 +79,14 @@ $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f; $ink-dark: #1b1405;
 }
 @keyframes pop { from { opacity: 0; transform: scale(.94); } }
 @media (prefers-reduced-motion: reduce) { .veil, .sheet { animation: none; } }
+
+// ---- the neon look (the start screen): the card a neon panel, its thumbnail cut at the corners, "Your car" in gold
+// with a car icon, the name in bold italic, Change a lit gold key ----
+.card { @include neon-panel(18px); padding: 10px 12px 10px 10px;
+  &:focus-visible { outline: none; --glow-r: 14px; } }
+.thumb { border-radius: 0; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  background: radial-gradient(ellipse at 50% 85%, rgba(47, 224, 207, .22), rgba(4, 22, 26, .9) 70%); }
+.info { small { display: flex; align-items: center; gap: 7px; font: italic 800 12px/1 var(--font-sans), sans-serif; letter-spacing: .06em; color: #ffd34d;
+    &::before { @include icon($icon-car, 18px); } }
+  b { font: italic 800 20px/1.1 var(--font-sans), sans-serif; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); } }
+.edit { @include gold-key(10px, 10px); padding: 10px 12px; border-radius: 0; box-shadow: none; font-style: italic; }

@@ -1,3 +1,4 @@
+@use "../../styles/game" as *;
 // Multiplayer screens (Party.tsx) in a game's look: deep green panels with a gold rim, a gold ribbon for the title,
 // chunky glossy keys that sink when pressed, gold for the one thing to press, a crown for the host.
 $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f;
@@ -215,3 +216,13 @@ $ink-dark: #1b1405;
     .ribbon { padding: 8px 22px 9px; }
     .voice > p { display: none; } }
 }
+
+// ---- the neon look (the start screen's How to play): each choice a chamfered neon key, teal; the chosen one gold ----
+.modes button { @include bevel(14px, 14px); @include tone-teal; --lip-h: 0px; --gloss: .1; padding: 8px 12px 8px 10px; color: #fff;
+  &:active { transform: translateY(2px); --lip-h: 0px; }
+  .modeIcon { width: 34px; height: 34px; border-radius: 0; color: #5ff0e0; background: none; box-shadow: none;
+    svg { width: 28px; height: 28px; filter: drop-shadow(0 0 4px rgba(47, 224, 207, .7)); } }
+  b { font: italic 800 15px/1.05 var(--font-sans), sans-serif; letter-spacing: .02em; }
+  &[aria-checked="true"] { @include tone-gold; --glow-r: 12px; --face-top: #3a2f08; --face-bot: #0c1210; border-color: transparent; background: none; box-shadow: none;
+    .modeIcon { color: #ffd34d; background: none; box-shadow: none; svg { filter: drop-shadow(0 0 4px rgba(255, 190, 40, .8)); } }
+    b { color: #ffd34d; } } }
