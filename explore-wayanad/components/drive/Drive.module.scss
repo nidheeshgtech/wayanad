@@ -403,3 +403,26 @@
   .score { grid-column: 1 / -1; margin-top: 7px !important; padding-top: 7px; border-top: 1px solid rgba(238, 242, 238, .14); font: italic 900 17px/1 var(--font-sans), sans-serif;
     &::before { width: 24px; height: 24px; margin: 0 9px 0 3px; } }
 }
+
+// ---- compact game-style readouts and messages (everywhere): the hairpin banner, the floating messages ("Off the
+// bike…", badges), the race line and the multiplier as small chamfered glass chips with a neon edge ----
+.checkpoint { @include bevel(12px, 12px); @include tone-glass; --lip-h: 0px; --gloss: .08; --glow-r: 10px; --face-top: rgba(20, 44, 34, .92); --face-bot: rgba(6, 14, 11, .94);
+  top: calc(64px + env(safe-area-inset-top, 0px)); gap: 2px; padding: 6px 22px 7px; border: 0; background: none;
+  b { font: italic 900 17px/1.1 var(--font-sans), sans-serif; letter-spacing: .02em; color: #fff; text-transform: uppercase; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  span { font: italic 700 11px/1.1 var(--font-sans), sans-serif; letter-spacing: .06em; color: #ffd34d; } }
+.pops span[data-kind="badge"] { @include bevel(10px, 10px); @include tone-teal; --lip-h: 0px; --gloss: .08; --glow-r: 8px;
+  --edge-bg: linear-gradient(90deg, #ffd34d 0, #ffcc33 10%, #2fe0cf 24%, #2fe0cf 76%, #ffcc33 90%, #ffd34d 100%);
+  padding: 6px 16px 7px; border: 0; background: none; font: italic 800 13px/1 var(--font-sans), sans-serif; letter-spacing: .02em; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.pops span[data-kind="mult"] { @include gold-key(8px, 8px); padding: 5px 10px; border-radius: 0; font: italic 900 14px/1 var(--font-sans), sans-serif; }
+@media (pointer: coarse) {
+  .speed { padding: 7px 14px 7px 10px; min-width: 128px; row-gap: 0;
+    b { font-size: 24px; gap: 8px; &::before { width: 22px; height: 22px; } }
+    small { font-size: 11px; padding-bottom: 2px; } }
+  .km { margin-top: 5px; padding-top: 5px; font-size: 11px; > span:first-of-type { width: 24px; margin-right: 6px; &::before { width: 18px; height: 18px; } } em { font-size: 14px; } }
+  .score { margin-top: 5px !important; padding-top: 5px; font-size: 14px; &::before { width: 18px; height: 18px; margin: 0 9px 0 2px; }
+    b { @include gold-key(6px, 6px); padding: 3px 6px; border-radius: 0; font: italic 900 11px/1 var(--font-sans), sans-serif; } }
+  .raceLine { @include bevel(9px, 9px); @include tone-glass; --lip-h: 0px; --gloss: .08; --glow-r: 6px; --face-top: rgba(20, 44, 34, .92); --face-bot: rgba(6, 14, 11, .94);
+    margin-top: 6px; padding: 3px 10px 3px 3px; border: 0; border-radius: 0; background: none; font: italic 700 11px/1.2 var(--font-sans), sans-serif;
+    b { @include gold-key(7px, 7px); padding: 3px 8px; border-radius: 0; font: italic 900 12px/1.2 var(--font-sans), sans-serif; } }
+  .checkpoint { top: calc(54px + env(safe-area-inset-top, 0px)); b { font-size: 15px; } span { font-size: 10px; } }
+}

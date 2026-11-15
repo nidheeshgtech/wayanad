@@ -218,7 +218,9 @@ $ink-dark: #1b1405;
 }
 
 // ---- the neon look (the start screen's How to play): each choice a chamfered neon key, teal; the chosen one gold ----
-.modes button { @include bevel(14px, 14px); @include tone-teal; --lip-h: 0px; --gloss: .1; padding: 8px 12px 8px 10px; color: #fff;
+.modes button { @include bevel(14px, 14px); @include tone-teal; --lip-h: 0px; --gloss: .1; --shade: transparent; padding: 8px 12px 8px 10px; color: #fff; min-width: 0;
+  .modeText { min-width: 0; }
+  b { overflow-wrap: normal; word-break: keep-all; } // (OPEN ROAD on two lines where it must; FRIENDS kept whole, inside)
   &:active { transform: translateY(2px); --lip-h: 0px; }
   .modeIcon { width: 34px; height: 34px; border-radius: 0; color: #5ff0e0; background: none; box-shadow: none;
     svg { width: 28px; height: 28px; filter: drop-shadow(0 0 4px rgba(47, 224, 207, .7)); } }
@@ -229,7 +231,12 @@ $ink-dark: #1b1405;
 
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
   .modes { gap: 8px; button { min-height: 50px; gap: 6px; padding: 6px 8px; } }
-  .modes .modeIcon { width: 26px; height: 26px; svg { width: 22px; height: 22px; } }
-  .modes b { font-size: 12.5px; }
+  .modes button .modeIcon { width: 26px; height: 26px; svg { width: 22px; height: 22px; } }
+  .modes button b { font-size: clamp(10.5px, 1.45vw, 12.5px); }
   .modeText small { display: none; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) and (max-width: 760px) {
+  .modes { gap: 6px; button { gap: 4px; padding: 6px 7px 6px 6px; } }
+  .modes button .modeIcon { width: 22px; height: 22px; svg { width: 19px; height: 19px; } }
+  .modes button b { font-size: 10.5px; letter-spacing: 0; }
 }

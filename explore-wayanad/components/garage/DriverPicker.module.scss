@@ -1,3 +1,4 @@
+@use "../../styles/game" as *;
 // The driver portraits (DriverPicker.tsx), in the game look: chunky tiles, gold for the one chosen. One row that
 // scrolls sideways on a phone, so all seven stay one swipe away without making the sheet taller.
 $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f;
@@ -17,3 +18,10 @@ $gold-top: #ffd983; $gold: #D9A441; $gold-lip: #85590f;
       b { color: $gold-top; } small { color: $gold; } } } }
 
 .face { flex: none; border-radius: 50%; object-fit: cover; object-position: 50% 14%; background: #dfe3df; box-shadow: 0 0 0 2px rgba(217, 164, 65, .6); }
+
+// ---- the neon look: chamfered teal tiles, the chosen one gold ----
+.row button { @include bevel(10px, 10px); @include tone-teal; --lip-h: 0px; --shade: transparent; --gloss: .08; --glow-r: 5px; border: 0; border-radius: 0; margin: 4px 0;
+  img { border-radius: 4px; }
+  b { color: #fff; }
+  small { color: #cfdcd6; }
+  &[aria-checked="true"] { @include tone-gold; --glow-r: 10px; --face-top: #3a2f08; --face-bot: #0c1210; border: 0; background: none; b { color: #fff; } small { color: #ffd34d; } } }

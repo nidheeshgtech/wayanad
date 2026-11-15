@@ -31,7 +31,7 @@ export default function CarCard() {
         <small>Your car</small>
         <b>{car.name}</b>
         <span className={styles.meta}><DriverFace id={choice.driver} size={18} />{driverOf(choice.driver).name}<em>·</em>{driverOf(choice.driver).role}</span>
-        <span className={styles.meta}><i style={{ background: paint.hex }} />{paint.name}<em>·</em>{voice.icon} horn</span>
+        <span className={styles.meta}><i style={{ background: paint.hex }} />{paint.name}<em>·</em>{voice.icon}&nbsp;Horn</span>
       </span>
       <span className={styles.edit} aria-hidden>
         <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>

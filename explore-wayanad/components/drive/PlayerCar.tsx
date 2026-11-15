@@ -317,7 +317,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   });
 
   const footWas = useRef(false);
-  const cam = useRef({ yaw: 0, y: 0, lift: 0, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
+  const cam = useRef({ yaw: 0, y: 0, lift: 0, boom: 1, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
 
@@ -501,16 +501,25 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (view === "back") dir.negate();
       want.set(root.position.x, C.y, root.position.z).addScaledVector(dir, -v.back * (1 + fx * SPEED_FX.back)).addScaledVector(up, v.up * (1 - fx * 0.12));
       look.set(root.position.x, C.y, root.position.z).addScaledVector(dir, v.ahead).addScaledVector(up, v.aimUp);
-      // keep the hillside out of the shot: lift the camera over any ground between it and the car
-      // (eased: rises quickly, settles slowly, so the shot never pops)
-      let lift = 0;
-      for (let i = 1; i <= 5; i++) {
-        const f = i / 5, x = root.position.x + (want.x - root.position.x) * f, z = root.position.z + (want.z - root.position.z) * f;
-        const need = height(x, z) + 0.06 - (C.y + (want.y + lift - C.y) * f);
-        if (need > 0) lift += need / f;
-      }
-      if (!game.paused) C.lift += (lift - C.lift) * (1 - Math.exp(-dt / (lift > C.lift ? 0.08 : 0.5)));
-      want.y += Math.max(C.lift, lift * 0.5);
+      // keep the hillside out of the shot. On a hairpin the camera swings out over the cut face: it comes in closer to
+      // the car (as racing games do) and rises over whatever ground is still between — at once, never through it (it
+      // used to rise only halfway at first, and the view went inside the mountain); it eases back out and down slowly.
+      const ground = (wx: number, wy: number, wz: number) => {
+        let lift = 0;
+        for (let i = 1; i <= 6; i++) {
+          const f = i / 6, x = root.position.x + (wx - root.position.x) * f, z = root.position.z + (wz - root.position.z) * f;
+          const need = height(x, z) + 0.09 - (C.y + (wy + lift - C.y) * f);
+          if (need > 0) lift += need / f;
+        }
+        return lift;
+      };
+      const full = ground(want.x, want.y, want.z);
+      const boom = full > 0.02 ? Math.max(0.5, 1 - full * 1.4) : 1;
+      if (!game.paused) C.boom += (boom - C.boom) * (1 - Math.exp(-dt / (boom < C.boom ? 0.06 : 0.6)));
+      want.set(root.position.x + (want.x - root.position.x) * C.boom, C.y + (want.y - C.y) * C.boom, root.position.z + (want.z - root.position.z) * C.boom);
+      const lift = ground(want.x, want.y, want.z);
+      if (!game.paused) C.lift = lift > C.lift ? lift : C.lift + (lift - C.lift) * (1 - Math.exp(-dt / 0.5));
+      want.y += Math.max(C.lift, lift);
     }
     // an impact shakes the view: smooth noise (a few sines, not random jitter), mostly up-down and side to side,
     // fading with lib/impact; ~6 cm and a fraction of a degree at full strength

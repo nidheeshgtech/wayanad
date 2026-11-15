@@ -482,7 +482,7 @@ export default function DriveHud() {
 
       {screen === "start" && (
         <StartScreen compact
-          title={<>Drive to <br />Wayanad.</>}
+          title={<>Drive to <br /><em>Wayanad.</em></>}
           startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
           onStart={start} presentedBy={PRESENTED_BY} footer={<SafetyLinks />}
           beforeStart={<>
@@ -499,11 +499,11 @@ export default function DriveHud() {
             )}
             {phone ? <CarCard /> : (<>
               <div className={panelStyles.nameField}>
-                <label>Your car</label>
+                <label className={panelStyles.carLabel}>Your car</label>
                 <CarPicker value={choice} onChange={setChoice} />
               </div>
               <div className={panelStyles.nameField}>
-                <label>Your horn</label>
+                <label className={panelStyles.hornLabel}>Your horn</label>
                 <HornPicker />
               </div>
             </>)}
@@ -528,6 +528,15 @@ export default function DriveHud() {
                 <Tip icon="back" label="Look back" keys="B" />
                 <Tip icon="pause" label="Pause" keys="Space" />
               </div>
+            </div>
+            {/* playing in a browser on a computer: the phone apps are on their way */}
+            <div className={`${panelStyles.keyOnly} ${panelStyles.appsSoon}`}>
+              <b>Phone apps <i>Coming soon</i></b>
+              <div>
+                <span><svg viewBox="0 0 24 24" aria-hidden><path d="M7.2 9.5h9.6v7.6a1.4 1.4 0 0 1-1.4 1.4h-.9v2.6a1.2 1.2 0 0 1-2.4 0v-2.6h-.2v2.6a1.2 1.2 0 0 1-2.4 0v-2.6h-.9a1.4 1.4 0 0 1-1.4-1.4zM4.9 9.5a1.2 1.2 0 0 1 1.2 1.2v4.8a1.2 1.2 0 0 1-2.4 0v-4.8a1.2 1.2 0 0 1 1.2-1.2zm14.2 0a1.2 1.2 0 0 1 1.2 1.2v4.8a1.2 1.2 0 0 1-2.4 0v-4.8a1.2 1.2 0 0 1 1.2-1.2zM8.5 4l-1-1.6.5-.3 1 1.7A6 6 0 0 1 12 3.2c1.1 0 2.1.2 3 .6l1-1.7.5.3-1 1.6a5 5 0 0 1 2.3 4.3H6.2A5 5 0 0 1 8.5 4zm1.3 2.3a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2zm4.4 0a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2z" /></svg><small>Android<strong>Google Play</strong></small></span>
+                <span><svg viewBox="0 0 24 24" aria-hidden><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6a4.5 4.5 0 0 0-3.5-1.9c-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.8-3.2-.8A4.7 4.7 0 0 0 4.2 9.6c-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.1-1.2 2.9-2.4.9-1.3 1.3-2.6 1.3-2.7a4.2 4.2 0 0 1-2.5-4.1zM14 5.5a4.2 4.2 0 0 0 1-3.1 4.3 4.3 0 0 0-2.8 1.5 4 4 0 0 0-1 3 3.6 3.6 0 0 0 2.8-1.4z" /></svg><small>iPhone<strong>App Store</strong></small></span>
+              </div>
+              <p>Play here in your browser now — the apps are on their way.</p>
             </div>
             <div className={panelStyles.touchOnly}>
               <div className={panelStyles.tips}>

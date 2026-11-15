@@ -7,11 +7,13 @@
 // inside changes — the speed readout, the turning car in its card — which made phones crawl.) Each key picks a tone.
 @mixin bevel($c1: 16px, $c2: 7px) {
   --c1: #{$c1}; --c2: #{$c2}; --lip-h: 4px; --glow-r: 7px;
-  --edge-bg: initial; --fill: initial; --gloss: initial; // (not a parent key's: these inherit)
+  --edge-bg: initial; --fill: initial; --gloss: initial; --shade: initial; // (not a parent key's: these inherit)
   isolation: isolate; background: none; border: 0; filter: none;
   contain: layout; // (its edge and face layers are sized to it, whatever its position: static keys too)
   border-radius: calc(var(--c1) * .55) calc(var(--c2) * .55) calc(var(--c1) * .55) calc(var(--c2) * .55);
-  box-shadow: 0 var(--lip-h) 0 var(--lip), 0 0 var(--glow-r) var(--glow-s, 0px) var(--glow), 0 8px 12px -2px rgba(0, 0, 0, .45);
+  // (the glow pulled in a little, so the cut corners don't show a square of it; --shade, a dark drop shadow, only on
+  // the HUD's keys over the bright road — panels on the start screen have none, it read as a grey box behind them)
+  box-shadow: 0 var(--lip-h) 0 var(--lip), 0 0 var(--glow-r) calc(var(--glow-s, 0px) - 2px) var(--glow), 0 8px 12px -2px var(--shade, rgba(0, 0, 0, .45));
   transition: transform .06s ease-out;
   &::before, &::after { content: ""; position: absolute; pointer-events: none; border-radius: 0; box-shadow: none; }
   &::before { inset: 0; height: auto; z-index: -2;
@@ -31,18 +33,18 @@
 // a panel or field in the menu's neon look: teal neon edge with gold at both ends, dark teal glass, no lip
 @mixin neon-panel($c: 14px) {
   @include bevel($c, $c); @include tone-teal;
-  --lip-h: 0px; --glow-r: 8px; --gloss: .1;
+  --lip-h: 0px; --glow-r: 8px; --gloss: .1; --shade: transparent;
   --edge-bg: linear-gradient(90deg, #ffd34d 0, #ffcc33 9%, #2fe0cf 22%, #2fe0cf 78%, #ffcc33 91%, #ffd34d 100%);
   &:active, &[data-on] { transform: none; --lip-h: 0px; --glow-r: 8px; }
 }
 // a gold neon frame (what's chosen): gold edge all round, dark glass, a stronger glow
 @mixin neon-gold($c: 14px) {
-  @include bevel($c, $c); @include tone-gold; --lip-h: 0px; --glow-r: 11px; --gloss: .1; --face-top: #2e2a10; --face-bot: #0a1210;
+  @include bevel($c, $c); @include tone-gold; --lip-h: 0px; --glow-r: 11px; --gloss: .1; --shade: transparent; --face-top: #2e2a10; --face-bot: #0a1210;
   &:active, &[data-on] { --lip-h: 0px; }
 }
 // the bright gold key (Start, Change): a lit gold face, dark ink
 @mixin gold-key($c1: 16px, $c2: 16px) {
-  @include bevel($c1, $c2); @include tone-gold; --glow-r: 12px; --lip: #7a4f00; --face-top: #ffe46b; --face-bot: #f0a500; --gloss: .35;
+  @include bevel($c1, $c2); @include tone-gold; --glow-r: 12px; --lip: #7a4f00; --face-top: #ffe46b; --face-bot: #f0a500; --gloss: .35; --shade: transparent;
   color: #1b1405;
 }
 // a small icon drawn as a mask in the current colour (data-URI SVG)
@@ -68,3 +70,7 @@ $icon-mail: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='n
 @keyframes neonSweep { from { background-position: 150% 0, 0 0; } to { background-position: -150% 0, 0 0; } }
 @keyframes neonBreathe { from { --glow-s: -1px; } to { --glow-s: 3px; } }
 @property --glow-s { syntax: "<length>"; inherits: false; initial-value: 0px; }
+$icon-horn: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 10h3l11-5v14L6 14H3z'/><path d='M7 14.5 8.4 19h2.4l-1.1-4.2z'/></svg>";
+$icon-pad: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 7h10a5 5 0 0 1 4.9 6l-.8 4a2.5 2.5 0 0 1-4.3 1.2L14.5 16h-5l-2.3 2.2A2.5 2.5 0 0 1 2.9 17l-.8-4A5 5 0 0 1 7 7zm-.5 3v1.5H5V13h1.5v1.5H8V13h1.5v-1.5H8V10zm9.5 0a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zm2.4 2.3a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2z'/></svg>";
+$icon-gear: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M10.3 2h3.4l.5 2.6 1.6.7 2.2-1.5 2.4 2.4-1.5 2.2.7 1.6 2.4.4v3.4l-2.4.5-.7 1.6 1.5 2.2-2.4 2.4-2.2-1.5-1.6.7-.5 2.4h-3.4l-.4-2.4-1.6-.7-2.2 1.5-2.4-2.4 1.5-2.2-.7-1.6L2 13.7v-3.4l2.6-.5.7-1.6-1.5-2.2 2.4-2.4 2.2 1.5 1.6-.7zM12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z'/></svg>";
+$icon-peaks: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 24'><path d='M0 24 20 3l7 8 6-6 12 13 4-4 15 10H52l-7-6-4 4-8-9-6 6-7-7L8 24z'/><path d='M17 24l3-5 3 5zM22 24l3-6 3 6zM27 24l2-4 2 4z'/></svg>";

@@ -229,3 +229,45 @@
     .chev { font-size: 24px; }
   }
 }
+
+// ---- desktop title screen in the neon look (as the phones'): the title a logo (white and gold, bold italic, peaks
+// above, a gold swash under), labels in gold with an icon each, the controls a gold-edged neon panel of keys ----
+@media (pointer: fine) {
+  .screen[data-compact] {
+    .start kbd { display: none; }
+    .title { position: relative; padding-top: 46px; font: italic 900 clamp(40px, 4.6vw, 66px)/1 var(--font-sans), sans-serif; letter-spacing: -.01em; color: #fff;
+      text-shadow: 0 3px 14px rgba(0, 0, 0, .55);
+      br { display: none; }
+      em { font-style: italic; color: #ffcc33; }
+      &::before { content: ""; position: absolute; left: 2px; top: 0; width: 110px; height: 40px; background: #fff;
+        -webkit-mask: url("data:image/svg+xml;utf8,#{$icon-peaks}") left bottom / contain no-repeat; mask: url("data:image/svg+xml;utf8,#{$icon-peaks}") left bottom / contain no-repeat; }
+      &::after { content: ""; display: block; width: 62%; height: 5px; margin: 8px 0 0 28%; border-radius: 50%; background: linear-gradient(90deg, transparent, #ffcc33 30%, #ffcc33 70%, transparent);
+        box-shadow: 0 0 10px rgba(255, 190, 40, .7); } }
+    .nameField label { color: #ffd34d; font-style: normal; font-size: 14px; letter-spacing: .04em; }
+    .carLabel::before { @include icon($icon-car, 20px); color: #ffd34d; }
+    .hornLabel::before { @include icon($icon-horn, 20px); color: #ffd34d; }
+    .modesLabel { justify-content: flex-start; &::after { content: none; } &::before { @include icon($icon-pad, 22px); color: #ffd34d; width: 22px; height: 22px; border-radius: 0; box-shadow: none; } }
+    .panel { @include neon-gold(18px); padding: 18px 20px 20px; border: 0; backdrop-filter: none;
+      h2 { display: flex; align-items: center; gap: 10px; font: 800 15px/1 var(--font-sans), sans-serif; letter-spacing: .08em; color: #ffd34d;
+        &::before { @include icon($icon-gear, 22px); color: #ffd34d; } } }
+    .drive { padding: 12px; margin-bottom: 14px; border: 0; border-bottom: 2px solid rgba(255, 204, 51, .5);
+      b { font-weight: 700; color: #fff; } small { color: #dce6e0; } }
+    .arrows kbd { @include bevel(5px, 5px); @include tone-teal; --lip-h: 0px; --shade: transparent; --gloss: .1; border: 0; color: #fff; font-weight: 800; }
+    .tip { @include bevel(12px, 12px); @include tone-teal; --lip-h: 0px; --shade: transparent; --gloss: .1; --glow-r: 6px; border: 0; background: none; padding: 12px 6px 10px;
+      > span:not(.tipIcon) { color: #fff; font-weight: 700; font-size: 13px; }
+      kbd { border-color: rgba(238, 242, 238, .8); color: #fff; background: rgba(0, 0, 0, .25); font-weight: 800; } }
+    .tipIcon { color: #fff; svg { width: 26px; height: 26px; stroke-width: 2; } }
+  }
+}
+
+// desktop: the apps are coming — a small strip under the controls, the Android and Apple marks in gold
+.appsSoon { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 2px solid rgba(255, 204, 51, .5);
+  > b { display: flex; align-items: center; gap: 8px; font: 800 13px/1 var(--font-sans), sans-serif; letter-spacing: .08em; color: #ffd34d; text-transform: uppercase;
+    i { font-style: normal; padding: 3px 7px; font-size: 10px; letter-spacing: .1em; color: #1b1405; background: #ffcc33; } }
+  > div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  span { @include bevel(10px, 10px); @include tone-teal; --lip-h: 0px; --shade: transparent; --gloss: .1; --glow-r: 5px;
+    display: flex; align-items: center; gap: 9px; padding: 9px 12px; color: #fff;
+    svg { flex: none; width: 24px; height: 24px; fill: #ffd34d; }
+    small { display: grid; gap: 2px; font: 600 10px/1.1 var(--font-sans), sans-serif; color: #cfdcd6; letter-spacing: .04em;
+      strong { font: 800 14px/1.1 var(--font-sans), sans-serif; color: #fff; letter-spacing: 0; } } }
+  > p { margin: 0; padding: 0; font-size: 12px; color: #cfdcd6; } }

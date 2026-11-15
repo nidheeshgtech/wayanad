@@ -1,3 +1,4 @@
+@use "../../styles/game" as *;
 // The car picker: a preview on the left, the cars and paints on the right (stacked on phones), in the title screen's
 // language — thin lines, one amber accent for what's chosen.
 .picker { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 16px; align-items: stretch; }
@@ -34,3 +35,16 @@
   .cars { grid-template-columns: repeat(2, minmax(0, 1fr)); button { padding: 7px 8px; b { font-size: 12.5px; white-space: nowrap; } } }
   .colours { display: grid; grid-template-columns: repeat(4, 28px); gap: 8px; }
 }
+
+// ---- the neon look (desktop title screen, the garage): the preview a gold-edged neon panel, cars as chamfered teal
+// keys (the chosen one gold), paints as glossy discs with a gold ring on the chosen ----
+.preview { @include neon-gold(16px); border: 0; border-radius: 0; overflow: visible; > canvas, > div:not(.caption) { clip-path: inset(3px round 0); } }
+.caption { left: 0; right: 0; bottom: 12px; text-align: center; justify-items: center;
+  b { font: italic 900 24px/1 var(--font-sans), sans-serif; color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, .6); }
+  span { color: #dce6e0; font-weight: 600; } }
+.cars button { @include bevel(9px, 9px); @include tone-teal; --lip-h: 0px; --shade: transparent; --gloss: .1; --glow-r: 5px; border: 0; border-radius: 0;
+  text-align: center; justify-items: center; padding: 8px 10px;
+  b { font-weight: 700; font-size: 14px; color: #fff; }
+  &[aria-checked="true"] { @include tone-gold; --glow-r: 10px; --face-top: #3a2f08; --face-bot: #0c1210; background: none; border: 0; b { color: #ffd34d; } } }
+.colours button { box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .35), inset 0 3px 4px rgba(255, 255, 255, .45), 0 2px 4px rgba(0, 0, 0, .4); border-color: rgba(255, 255, 255, .35);
+  &[aria-checked="true"] { border-color: #ffcc33; box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .35), inset 0 3px 4px rgba(255, 255, 255, .45), 0 0 0 2px rgba(255, 204, 51, .5), 0 0 12px rgba(255, 190, 40, .8); } }
