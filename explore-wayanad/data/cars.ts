@@ -13,7 +13,9 @@ export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" |
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
  * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
  * with no rear plate gives `at`: its height off the road and size, metres; it goes on the back of the car there. */
-export type Plate = { part?: string; material?: string; at?: { y: number; w: number; h: number } };
+export type Plate = { part?: string; material?: string; at?: { y: number; w: number; h: number };
+  /** a front plate too (as `at`: its height off the road and size, m; on the nose there): the supercars' blank ones */
+  front?: { y: number; w: number; h: number } };
 /** `bike`: a two-wheeler — ridden (a rider is built on it), narrow, leans into bends (components/drive/PlayerCar). */
 /** `seat`: where the driver's steering wheel is, as fractions of the length (x + left, y up, z + forward), for models
  * whose wheel isn't a part of its own (PlayerCar finds it otherwise). */
@@ -32,7 +34,12 @@ export type Car = { id: CarId; name: string; file: string; length: number; paint
   siren?: boolean;
   /** a vehicle taken from the traffic drives like itself, not like a sports SUV: its top speed (units/s; 1 = 36 km/h)
    * and how quickly it picks up (lib/game setVehicle) */
-  handling?: { max: number; accel: number } };
+  handling?: { max: number; accel: number };
+  /** wheels the file doesn't name as the game's own cars do (wheel_lf_dummy…), found so they roll (lib/modelWheels) */
+  wheels?: Wheels };
+/** By name (each node a wheel, or with `split` an axle of two), or cut from a part they're baked into: the axles' z and
+ * height, the wheels' radius and how far out from the middle they start, in the file's own units. */
+export type Wheels = { nodes: RegExp; split?: boolean } | { cut: { from: RegExp; at: [number, number][]; r: number; inner: number } };
 
 export const CARS: Car[] = [
   { id: "lakkidi", name: "Compact SUV", file: "/models/traffic/player-suv.glb", length: 4.0, paint: /^primary$/, plate: { material: "plate_bg.0" } },
@@ -42,11 +49,11 @@ export const CARS: Car[] = [
   { id: "chembra", name: "Classic bike", file: "/models/traffic/enfield-real.glb", length: 2.15, paint: /^PAINT_ENFIELD$/, plate: { at: { y: 0.62, w: 0.18, h: 0.1 } }, bike: true },
   { id: "kuruva", name: "Street bike", file: "/models/traffic/pulsar-real.glb", length: 2.0, paint: /^PAINT_PULSAR$/, plate: { at: { y: 0.66, w: 0.17, h: 0.09 } }, bike: true },
   // the supercar: low, wide, mid-engined; quicker than anything else on the churam (140 km/h, sharp pickup)
-  { id: "kalpetta", name: "Supercar", file: "/models/traffic/player-super.glb", length: 4.43, paint: /^Body1$/, paintMask: true, livery: true, sound: "super", plate: { at: { y: 0.42, w: 0.48, h: 0.11 } }, handling: { max: 3.9, accel: 0.78 } },
+  { id: "kalpetta", name: "Supercar", file: "/models/traffic/player-super.glb", length: 4.43, paint: /^Body1$/, paintMask: true, livery: true, sound: "super", plate: { at: { y: 0.62, w: 0.48, h: 0.11 }, front: { y: 0.42, w: 0.46, h: 0.1 } }, handling: { max: 3.9, accel: 0.78 }, wheels: { cut: { from: /TrimAndWheels/, at: [[5.15, 1.34], [-5.8, 1.34]], r: 1.36, inner: 2.4 } } },
   // (the next three: CC BY models, badges off, in the game's livery; scripts/retouch/player-super.notes.txt)
-  { id: "edakkal", name: "Fastback", file: "/models/traffic/player-fastback.glb", length: 5.0, paint: /^material$/, livery: true, sound: "super", plate: { at: { y: 0.45, w: 0.48, h: 0.11 } }, handling: { max: 3.4, accel: 0.66 } },
-  { id: "muthanga", name: "Hypercar", file: "/models/traffic/player-hyper.glb", length: 4.5, paint: /^material_17$/, livery: true, sound: "super", plate: { at: { y: 0.4, w: 0.45, h: 0.1 } }, handling: { max: 4.1, accel: 0.86 } },
-  { id: "bathery", name: "Super GT", file: "/models/traffic/player-bullet.glb", length: 4.46, paint: /^M_Metalic_Orange$/, livery: true, sound: "super", plate: { at: { y: 0.45, w: 0.45, h: 0.1 } }, handling: { max: 4.0, accel: 0.8 } },
+  { id: "edakkal", name: "Fastback", file: "/models/traffic/player-fastback.glb", length: 5.0, paint: /^material$/, livery: true, sound: "super", plate: { at: { y: 0.45, w: 0.48, h: 0.11 } }, handling: { max: 3.4, accel: 0.66 }, wheels: { nodes: /^Object_4(001)?$/, split: true } },
+  { id: "muthanga", name: "Hypercar", file: "/models/traffic/player-hyper.glb", length: 4.5, paint: /^material_17$/, livery: true, sound: "super", plate: { at: { y: 0.4, w: 0.45, h: 0.1 } }, handling: { max: 4.1, accel: 0.86 }, wheels: { nodes: /^wheel\d{3}$/ } },
+  { id: "bathery", name: "Super GT", file: "/models/traffic/player-bullet.glb", length: 4.46, paint: /^M_Metalic_Orange$/, livery: true, sound: "super", plate: { at: { y: 0.45, w: 0.45, h: 0.1 } }, handling: { max: 4.0, accel: 0.8 }, wheels: { nodes: /^SM_Wheel_/ } },
   { id: "pookode", name: "Family MPV", file: "/models/traffic/player-mpv.glb", length: 4.4, paint: /^primary$/, plate: { at: { y: 0.8, w: 0.5, h: 0.12 } } }, // (its file has only a front plate)
 ];
 

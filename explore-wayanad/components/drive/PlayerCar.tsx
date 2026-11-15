@@ -20,6 +20,7 @@ import { tickBadges } from "@/lib/badges";
 import { prepareVehicle } from "@/lib/carModel";
 import { cutBikeWheels } from "@/lib/bikeWheels";
 import { instanceWheels } from "@/lib/wheelInstances";
+import { modelWheels } from "@/lib/modelWheels";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { driverOf, personHeight } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
@@ -108,6 +109,13 @@ function rearPlate(model: Object3D, spec: Plate) {
   const size = box.getSize(v);
   return box.isEmpty() || size.x < 0.02 || size.x > 0.1 ? null : box; // a plate is 30–70 cm wide; anything else is a wrong guess
 }
+/** A front plate where the file has none of its own: on the nose at that height (the first surface met from ahead). */
+function frontPlate(model: Object3D, at: { y: number; w: number; h: number }) {
+  const y = at.y / 10, hits = new Raycaster(new Vector3(0, y, 5), new Vector3(0, 0, -1)).intersectObject(model, true);
+  if (!hits.length) return null;
+  const z = hits[0].point.z, w = at.w / 20, h = at.h / 20;
+  return new Box3(new Vector3(-w, y - h, z - 0.001), new Vector3(w, y + h, z));
+}
 /** Your name on a white plate, in dark letters sized to fit. */
 function drawPlate(canvas: HTMLCanvasElement, name: string) {
   const g = canvas.getContext("2d")!, W = canvas.width, H = canvas.height;
@@ -149,7 +157,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     model.scale.setScalar(k); model.updateMatrixWorld(true);
     const b2 = new Box3().setFromObject(model), c2 = b2.getCenter(new Vector3());
     model.position.set(-c2.x, -b2.min.y, -c2.z); model.updateMatrixWorld(true);
-    const plateBox = rearPlate(model, car.plate);
+    const plateBox = rearPlate(model, car.plate), frontBox = car.plate.front ? frontPlate(model, car.plate.front) : null;
 
     const root = new Group(); root.name = "player-car";
     const body = new Group(); root.add(body); // pitches and rolls on its springs; the wheels stay on the road
@@ -167,6 +175,14 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     for (const d of dummies) {
       const kids = d.children.filter((c) => { let any = false; c.traverse((o) => { any ||= (o as Mesh).isMesh; }); return any; });
       units.push(...(kids.length > 1 ? kids : [d]));
+    }
+    // a model whose wheels go by other names, or are baked into another part: found or cut out (lib/modelWheels)
+    if (!units.length && car.wheels) {
+      const held = new Group(); wrap.add(held);
+      const found = modelWheels(model, car.wheels, held);
+      const inUnit = (m: Mesh) => found.units.some((u) => under(m, (n) => n === u));
+      stat = [...stat.filter((m) => !found.replaced.has(m) && !inUnit(m)), ...[...found.replaced.values()].filter((m): m is Mesh => !!m)];
+      units.push(...found.units);
     }
     for (const d of units) {
       const c = new Box3().setFromObject(d).getCenter(new Vector3());
@@ -225,7 +241,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const brakeGlow = glow(0xff2a14, 0.07, [tail.min.x + w * 0.1, tail.max.x - w * 0.1]);
     const reverseGlow = glow(0xfff4e8, 0.045, [tail.min.x + w * 0.3, tail.max.x - w * 0.3]);
     // your name over the rear plate (shown once you've started with a name; else the plate's own WAYANAD)
-    let plate: { mesh: Mesh; canvas: HTMLCanvasElement; tex: CanvasTexture; text: string } | null = null;
+    let plate: { mesh: Mesh; front: Mesh | null; canvas: HTMLCanvasElement; tex: CanvasTexture; text: string } | null = null;
     if (plateBox) {
       const size = plateBox.getSize(new Vector3()), mid = plateBox.getCenter(new Vector3());
       const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = Math.round(512 * Math.min(0.5, Math.max(0.18, size.y / size.x)));
@@ -233,13 +249,20 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const mesh = new Mesh(new PlaneGeometry(1, 1), new MeshStandardMaterial({ map: tex, roughness: 0.55, emissive: new Color(0xffffff), emissiveMap: tex, emissiveIntensity: 0.12, polygonOffset: true, polygonOffsetFactor: -2 }));
       mesh.scale.set(size.x, size.y, 1); mesh.position.set(mid.x, mid.y, plateBox.min.z - 0.0006); mesh.rotation.y = Math.PI; mesh.visible = false;
       body.add(mesh);
-      plate = { mesh, canvas, tex, text: "" };
+      // (and the same on the nose, where the model has a blank front plate)
+      let front: Mesh | null = null;
+      if (frontBox) {
+        const fs = frontBox.getSize(new Vector3()), fm = frontBox.getCenter(new Vector3());
+        front = new Mesh(mesh.geometry, mesh.material); front.scale.set(fs.x, fs.y, 1); front.position.set(fm.x, fm.y, frontBox.max.z + 0.0006); front.visible = false;
+        body.add(front);
+      }
+      plate = { mesh, front, canvas, tex, text: "" };
     }
     // the body's panels, for dents: their own copy of the shape to push in, and the original to repair from (cars only)
     const panels: { mesh: Mesh; orig: Float32Array }[] = [];
     if (!car.bike) body.traverse((o) => {
       const m = o as Mesh;
-      if (!m.isMesh || m === plate?.mesh || !(m.geometry.getAttribute("position") instanceof BufferAttribute)) return;
+      if (!m.isMesh || m === plate?.mesh || m === plate?.front || !(m.geometry.getAttribute("position") instanceof BufferAttribute)) return;
       m.geometry = m.geometry.clone();
       panels.push({ mesh: m, orig: (m.geometry.getAttribute("position").array as Float32Array).slice() });
     });
@@ -248,7 +271,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     let flash: ((t: number, on?: boolean) => void) | null = null;
     if (car.siren) { const lb = lightBar(0.11, 0.24); lb.bar.position.set(0, new Box3().setFromObject(body).max.y + 0.002, 0); body.add(lb.bar); flash = lb.flash; }
     return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash };
-  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren]);
+  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren, car.wheels]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
   useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; game.supercar = car.sound === "super"; }, [car.bike, car.heavy, car.siren, car.handling, car.sound, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { own.siren = false; }, []);
@@ -438,7 +461,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     }
     // the plate follows the name you start with
     const plate = rig.plate, name = game.started ? (game.driver ?? "").toUpperCase() : "";
-    if (plate && plate.text !== name) { plate.text = name; plate.mesh.visible = !!name; if (name) { drawPlate(plate.canvas, name); plate.tex.needsUpdate = true; } }
+    if (plate && plate.text !== name) { plate.text = name; plate.mesh.visible = !!name; if (plate.front) plate.front.visible = !!name; if (name) { drawPlate(plate.canvas, name); plate.tex.needsUpdate = true; } }
     for (const w of wheels) { w.spinner.rotation.x = game.wheel; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0; }
     rig.wheelSet?.update();
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
