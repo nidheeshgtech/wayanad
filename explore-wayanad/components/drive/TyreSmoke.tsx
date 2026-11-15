@@ -71,7 +71,8 @@ export default function TyreSmoke() {
 
   useFrame(({ scene, camera }, dt) => {
     dt = Math.min(dt, 0.1);
-    car.current ??= scene.getObjectByName("player-car") ?? null;
+    // (found again when the car changes: the old one is taken out of the scene, and smoke from it came from nowhere)
+    if (!car.current?.parent) car.current = scene.getObjectByName("player-car") ?? null;
     const root = car.current, S = state.current, live = game.started && game.phase === "drive" && !game.paused;
     // how hard the tyres are working: sliding in a bend, or braking hard at speed
     const slip = Math.max(0, (Math.abs(game.sideways) / CAR.grip - DRIFT.from) / (1 - DRIFT.from + 0.25));
@@ -84,6 +85,9 @@ export default function TyreSmoke() {
       if (S.clean && S.slide >= DRIFT.min && game.leg === 0) bonus(Math.min(DRIFT.max, Math.round(S.slide * DRIFT.perSec / 5) * 5), "🔥 Drift!");
       S.slide = 0; S.clean = true;
     }
+    // a supercar's tyre smoke is gold (the game's colour), and its exhaust has two pipes, either side (game.supercar)
+    const sc = game.supercar;
+    (tyre.mesh.material as ShaderMaterial).uniforms.tint.value.setRGB(...(sc ? [1.0, 0.8, 0.32] : [0.86, 0.87, 0.86]) as [number, number, number]);
     // new puffs from both rear tyres
     const puffs = tyre.puffs;
     if (root && smoke > 0.05) {
@@ -105,14 +109,14 @@ export default function TyreSmoke() {
     const puffing = Math.min(1.6, pull + (game.boosting ? 1 : 0));
     if (root) root.updateMatrixWorld();
     if (root && puffing > 0.05) {
-      const E = ex.current; E.owed += EXH.rate * puffing * dt;
+      const E = ex.current; E.owed += EXH.rate * puffing * dt * (sc ? 1.6 : 1); // (two pipes)
       while (E.owed >= 1) {
         E.owed -= 1;
         const pf = exh.puffs[E.next]; E.next = (E.next + 1) % EXH.pool;
-        pf.p.set(0.045 + (Math.random() - 0.5) * 0.01, 0.028, -half * 0.97).applyMatrix4(root.matrixWorld);
+        pf.p.set((sc ? (Math.random() < 0.5 ? -0.05 : 0.05) : 0.045) + (Math.random() - 0.5) * 0.01, 0.028, -half * 0.97).applyMatrix4(root.matrixWorld);
         pf.v.set((Math.random() - 0.5) * 0.05, 0.03 + Math.random() * 0.04, (Math.random() - 0.5) * 0.05);
         pf.age = 0; pf.life = EXH.life[0] + Math.random() * (EXH.life[1] - EXH.life[0]);
-        pf.size = EXH.size[0]; pf.end = EXH.size[1] * (0.8 + 0.5 * Math.min(1, puffing)); pf.alpha = 0.32 + 0.18 * Math.min(1, puffing);
+        pf.size = EXH.size[0]; pf.end = EXH.size[1] * (0.8 + 0.5 * Math.min(1, puffing)) * (sc ? 1.35 : 1); pf.alpha = 0.32 + 0.18 * Math.min(1, puffing) + (sc ? 0.12 : 0);
       }
     } else ex.current.owed = 0;
     // a battered car (PlayerCar's dents) smokes from under the bonnet, more the worse it is
@@ -131,10 +135,12 @@ export default function TyreSmoke() {
       f.visible = !!root && live && (game.boosting || popping);
       if (!f.visible || !root) return;
       const flick = 0.75 + Math.random() * 0.5;
-      f.position.set(0.045, 0.028, -half * 0.97 - (game.boosting ? 0.03 + i * 0.035 : 0.015)).applyMatrix4(root.matrixWorld);
-      const sz = (game.boosting ? (i ? 0.09 : 0.06) : 0.05) * flick;
+      // (a supercar: one flame from each of its two pipes, bigger, and blue at the core on a pop as well)
+      if (sc) f.position.set(i ? -0.05 : 0.05, 0.028, -half * 0.97 - (game.boosting ? 0.045 : 0.025)).applyMatrix4(root.matrixWorld);
+      else f.position.set(0.045, 0.028, -half * 0.97 - (game.boosting ? 0.03 + i * 0.035 : 0.015)).applyMatrix4(root.matrixWorld);
+      const sz = (sc ? (game.boosting ? 0.1 : 0.07) : game.boosting ? (i ? 0.09 : 0.06) : 0.05) * flick;
       f.scale.set(sz, sz, 1);
-      f.material.color.set(game.boosting ? (i ? 0x6fa8ff : 0xcfe4ff) : 0xffa040);
+      f.material.color.set(game.boosting ? (i ? 0x6fa8ff : 0xcfe4ff) : sc ? (Math.random() < 0.35 ? 0x8fc0ff : 0xff8a2a) : 0xffa040);
       f.material.opacity = game.boosting ? (i ? 0.75 : 1) : 0.9;
     });
     // age, drift, swell and fade; billboards facing the camera

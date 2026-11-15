@@ -40,6 +40,7 @@ const fresh = () => ({
   stall: 0, tea: 0, teaRun: -1, teaWait: 0,  // the tea stall below Lakkidi (components/drive/TeaStall): where, when served, which climb, seconds stopped by it
   driver: "",                                 // the name you drive under: on your car's rear plate
   bike: false,                                // riding a two-wheeler (setVehicle): leans, no dents
+  supercar: false,                            // a supercar (data/cars sound "super"): its own engine note and smoke
   damage: 0,                                  // how battered the car is this climb, 0–1 (PlayerCar's dents): smoke from the bonnet past half
   jumped: false,                              // started part-way up (?at=, for testing): the climb time isn't kept as a best
   reset: 0,                                   // bumped to put the car back in lane

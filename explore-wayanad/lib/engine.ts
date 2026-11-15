@@ -3,11 +3,18 @@
  *   exhaust  a throaty rumble: low noise pulsed at the engine's firing rate, louder with throttle and revs
  *   crackle  lift off the throttle at speed and the exhaust pops and crackles for a moment (exhaust.popAt: the flames)
  *   nitro    a rushing whoosh while the nitro fires, a hiss as it cuts in
+ *   super    a supercar (game.supercar) has its own voice instead of the engine and exhaust: a high-revving race engine
+ *            that climbs through six gears — revs rising in each, dropping at the change with a pop from the pipes —
+ *            a hard, bright note through a resonant filter, and more crackle when you lift off
  */
 let ctx: AudioContext | null = null, osc: OscillatorNode[] = [], gain: GainNode | null = null, filter: BiquadFilterNode | null = null;
 let rumble: GainNode | null = null, pulse: OscillatorNode | null = null, rumbleBand: BiquadFilterNode | null = null;
 let whoosh: GainNode | null = null, whooshBand: BiquadFilterNode | null = null, noiseBuf: AudioBuffer | null = null;
 let lastThrottle = 0, wasBoosting = false;
+// the supercar's voice: three oscillators (fundamental, a fifth above, the octave) into a resonant band, and its gears
+let sOsc: OscillatorNode[] = [], sGain: GainNode | null = null, sBand: BiquadFilterNode | null = null, sLow: BiquadFilterNode | null = null;
+let gear = 0, shiftAt = 0;
+const GEARS = 6, TOP = 4.2; // (top speed, units/s: the fastest supercar's)
 
 /** The game's own sound, dipped while a friend talks on voice (DriveHud sets `duck`, 0–1). */
 export const mix = ((globalThis as { __wayanadMix?: { duck: number } }).__wayanadMix ??= { duck: 1 });
@@ -35,9 +42,9 @@ function crackle(c: AudioContext) {
   }
 }
 
-export function engine(on: boolean, speed: number, throttle: number, boosting = false) {
+export function engine(on: boolean, speed: number, throttle: number, boosting = false, supercar = false) {
   if (!on) {
-    if (ctx) for (const g of [gain, rumble, whoosh]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.2);
+    if (ctx) for (const g of [gain, rumble, whoosh, sGain]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.2);
     lastThrottle = 0; wasBoosting = false;
     return;
   }
@@ -60,6 +67,40 @@ export function engine(on: boolean, speed: number, throttle: number, boosting = 
     const air = noise(c); air.playbackRate.value = 3.5; air.connect(whooshBand).connect(whoosh).connect(c.destination); air.start();
   }
   if (ctx.state === "suspended") void ctx.resume();
+  if (!sGain) {
+    const c = ctx;
+    sBand = c.createBiquadFilter(); sBand.type = "peaking"; sBand.frequency.value = 900; sBand.Q.value = 2.5; sBand.gain.value = 9;
+    sLow = c.createBiquadFilter(); sLow.type = "lowpass"; sLow.frequency.value = 2200;
+    sGain = c.createGain(); sGain.gain.value = 0;
+    sBand.connect(sLow).connect(sGain).connect(c.destination);
+    sOsc = [[1, "sawtooth", 0.5], [1.5, "square", 0.18], [2, "sawtooth", 0.22]].map(([k, type, level]) => {
+      const o = c.createOscillator(), g = c.createGain(); o.type = type as OscillatorType; o.detune.value = (k as number) * 4; g.gain.value = level as number;
+      o.connect(g).connect(sBand!); o.start(); (o as OscillatorNode & { k: number }).k = k as number; return o;
+    });
+  }
+  if (supercar) {
+    // the gears: revs climb through each band of speed and fall at the change (with a moment off the power and a pop)
+    const v = Math.abs(speed), t = ctx.currentTime, band = TOP / GEARS;
+    const g = Math.min(GEARS - 1, Math.floor(v / band));
+    if (g > gear && throttle > 0.3) { shiftAt = t; exhaust.popAt = performance.now(); if (Math.random() < 0.7) crackle(ctx); }
+    gear = g;
+    const inGear = Math.min(1, (v - g * band) / band), lifting = t - shiftAt < 0.12;
+    const rpm = 0.32 + 0.68 * Math.pow(inGear, 0.85) * (g === 0 ? 1 : 0.85) + (g === 0 ? 0 : 0.15) + throttle * 0.06 + (boosting ? 0.08 : 0);
+    const f = 70 + rpm * 230;
+    for (const o of sOsc) o.frequency.setTargetAtTime(f * (o as OscillatorNode & { k: number }).k, t, lifting ? 0.03 : 0.06);
+    sBand!.frequency.setTargetAtTime(600 + rpm * 1400, t, 0.08);
+    sLow!.frequency.setTargetAtTime(1400 + throttle * 1800 + (boosting ? 800 : 0), t, 0.1);
+    sGain!.gain.setTargetAtTime((lifting ? 0.012 : 0.03 + throttle * 0.065 + v * 0.006 + (boosting ? 0.02 : 0)) * mix.duck, t, lifting ? 0.02 : 0.08);
+    // the ordinary engine silent, its exhaust only a low bed under the scream
+    gain!.gain.setTargetAtTime(0, t, 0.15);
+    rumble!.gain.setTargetAtTime((0.03 + throttle * 0.06) * mix.duck, t, 0.12);
+    whoosh!.gain.setTargetAtTime(boosting ? 0.07 : 0, t, boosting ? 0.06 : 0.35);
+    if (boosting && !wasBoosting) { exhaust.popAt = performance.now(); crackle(ctx); }
+    if (lastThrottle > 0.5 && throttle === 0 && v > 1.0) { crackle(ctx); setTimeout(() => ctx && crackle(ctx), 260); exhaust.popAt = performance.now(); }
+    lastThrottle = throttle; wasBoosting = boosting;
+    return;
+  }
+  sGain.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
   const v = Math.abs(speed), f = 34 + v * 34 + throttle * 8 + (boosting ? 14 : 0), t = ctx.currentTime;
   for (const o of osc) o.frequency.setTargetAtTime(f, t, 0.15);
   filter!.frequency.setTargetAtTime(300 + throttle * 500 + (boosting ? 400 : 0), t, 0.2);

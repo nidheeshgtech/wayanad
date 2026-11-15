@@ -250,7 +250,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash };
   }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
-  useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; }, [car.bike, car.heavy, car.siren, car.handling, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
+  useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; game.supercar = car.sound === "super"; }, [car.bike, car.heavy, car.siren, car.handling, car.sound, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { own.siren = false; }, []);
   const dentRun = useRef(-1);
   /** A dent where the car was hit: `where` in the car's own frame (x right, y up, z forward), `k` 0–1. */

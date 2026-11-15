@@ -298,7 +298,7 @@ export default function DriveHud() {
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);
       mix.duck = anyoneTalking() ? 0.3 : 1; // the game's sound dips while a friend talks
-      engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle, game.boosting);
+      engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle, game.boosting, game.supercar);
       ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
       const roomScreen = !!P && (P.phase === "lobby" || (P.phase !== "free" && !racer));
       const want = roomScreen ? "room" : !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
