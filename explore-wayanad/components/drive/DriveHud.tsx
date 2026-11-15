@@ -34,7 +34,6 @@ import { getChoice, setChoice, useChoice } from "@/lib/choice";
 import Drivers, { SafetyLinks } from "./Drivers";
 import { chase } from "@/lib/chase";
 import { PedalArt, SteerArt } from "./TouchKeys";
-import RotateTip from "./RotateTip";
 import styles from "./Drive.module.scss";
 
 /**
@@ -425,7 +424,6 @@ export default function DriveHud() {
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />
       <div ref={checkpoint} className={styles.checkpoint} role="status" aria-live="polite" />
-      <RotateTip />
       <div ref={countdown} className={styles.countdown} aria-live="assertive" />
       <div ref={tea} className={styles.tea} role="status" aria-live="polite">
         <TeaGlass />
