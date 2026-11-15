@@ -6,6 +6,7 @@ import { SITE } from "@/data/site";
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: `${SITE}/`, changeFrequency: "weekly", priority: 1 },
+    { url: `${SITE}/cars`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE}/privacy`, changeFrequency: "yearly", priority: 0.2 },
   ];
 }
