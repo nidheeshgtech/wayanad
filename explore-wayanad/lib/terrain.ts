@@ -107,7 +107,11 @@ export const SECTION = {
   reach: 9, // the profile has blended back into the natural ground by here
 };
 
-type RoadIndex = { cell: number; buckets: Map<number, number[]>; xs: Float32Array; zs: Float32Array; bed: Float32Array; widen: Float32Array; wall: Float32Array };
+/** The road's polyline for fast nearest-segment lookups: a flat grid of small cells (CSR: `start` offsets into `items`,
+ * segment indices by the cell of their first point), the cell offsets to visit in order of how near they could be
+ * (`order` dx,dz pairs, `bound` their lower bound on distance), and per segment 1 / length². */
+type RoadIndex = { cell: number; x0: number; z0: number; nx: number; nz: number; start: Int32Array; items: Int32Array; order: Int32Array; bound: Float32Array; ring: Uint16Array;
+  maxSeg: number; inv: Float32Array; xs: Float32Array; zs: Float32Array; bed: Float32Array; widen: Float32Array; wall: Float32Array };
 
 /* Hairpins, as in drone footage of the churam: the road widens round each one (to ~13 m at the apex), and on the valley
  * side it stands on a tall stone retaining wall rather than a soft embankment. `widen` adds to the half-width; `wall` is
@@ -136,11 +140,7 @@ function buildRealRoad(data: RoadData): RealRoad {
   for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + pts[i].distanceTo(pts[i - 1]);
   const tAt = (along: number) => cum[Math.min(n - 1, Math.round(along / data.step))] / cum[n - 1];
 
-  const cell = SECTION.reach, buckets = new Map<number, number[]>();
-  for (let i = 0; i < n; i++) {
-    const key = bucketKey(Math.floor(xs[i] / cell), Math.floor(zs[i] / cell));
-    (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(i);
-  }
+  const grid = roadGrid(xs, zs);
   const widen = new Float32Array(n), wall = new Float32Array(n);
   for (let i = 0; i < n; i++) for (const b of data.bends ?? []) {
     const m = Math.abs(i * data.step - b.along);
@@ -152,32 +152,86 @@ function buildRealRoad(data: RoadData): RealRoad {
     curve, bends: (data.bends ?? []).map((b) => tAt(b.along)), arch: data.arch ? tAt(data.arch.along) : 0,
     churamEnd: tAt(data.churamEnd ?? data.muthanga ?? data.length),
     places: (data.places ?? []).map((p) => ({ name: p.name, t: tAt(p.along), off: p.off })),
-    index: { cell, buckets, xs, zs, bed, widen, wall }, cumT,
+    index: { ...grid, xs, zs, bed, widen, wall }, cumT,
   };
 }
 
-const bucketKey = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
+/** Build the road's lookup grid (RoadIndex). Cells of ROAD_CELL units, small next to SECTION.reach, so a lookup tests a
+ * few dozen segments, not hundreds: they were nine reach-sized buckets of ~90 points each, and nearestRoad ran for
+ * every height sample (terrain, plants, the road band, streams…) — 60% of the loading time, ten times that on a phone. */
+const ROAD_CELL = 1.5;
+function roadGrid(xs: Float32Array, zs: Float32Array) {
+  const n = xs.length, cell = ROAD_CELL;
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity, maxSeg = 0;
+  const inv = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    x0 = Math.min(x0, xs[i]); x1 = Math.max(x1, xs[i]); z0 = Math.min(z0, zs[i]); z1 = Math.max(z1, zs[i]);
+    if (i + 1 < n) { const bx = xs[i + 1] - xs[i], bz = zs[i + 1] - zs[i], l2 = bx * bx + bz * bz; inv[i] = l2 > 0 ? 1 / l2 : 0; maxSeg = Math.max(maxSeg, Math.sqrt(l2)); }
+  }
+  const nx = Math.floor((x1 - x0) / cell) + 1, nz = Math.floor((z1 - z0) / cell) + 1;
+  // each segment filed under every cell its bounding box touches, so a cell's own bound is exact (no slack for a
+  // segment reaching in from a neighbour) and the search stops sooner
+  const cellsOf = (i: number, visit: (c: number) => void) => {
+    const ax = Math.floor((Math.min(xs[i], xs[i + 1]) - x0) / cell), bx = Math.floor((Math.max(xs[i], xs[i + 1]) - x0) / cell);
+    const az = Math.floor((Math.min(zs[i], zs[i + 1]) - z0) / cell), bz = Math.floor((Math.max(zs[i], zs[i + 1]) - z0) / cell);
+    for (let cz = az; cz <= bz; cz++) for (let cx = ax; cx <= bx; cx++) visit(cz * nx + cx);
+  };
+  const start = new Int32Array(nx * nz + 1);
+  for (let i = 0; i + 1 < n; i++) cellsOf(i, (c) => { start[c + 1]++; });
+  for (let c = 0; c < nx * nz; c++) start[c + 1] += start[c];
+  const items = new Int32Array(start[nx * nz]), fill = start.slice(0, nx * nz);
+  for (let i = 0; i + 1 < n; i++) cellsOf(i, (c) => { items[fill[c]++] = i; });
+  // the neighbouring cells within reach, nearest-possible first
+  const R = Math.ceil(SECTION.reach / cell) + 1, offs: [number, number, number][] = [];
+  for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) offs.push([dx, dz, cell * Math.hypot(Math.max(0, Math.abs(dx) - 1), Math.max(0, Math.abs(dz) - 1))]);
+  offs.sort((a, b) => a[2] - b[2]);
+  const order = new Int32Array(offs.length * 2), bound = new Float32Array(offs.length);
+  offs.forEach(([dx, dz, b], k) => { order[k * 2] = dx; order[k * 2 + 1] = dz; bound[k] = b; });
+  // how many cells away the nearest road cell is (Chebyshev, capped): a point whose cell is well beyond reach answers
+  // "no road" at once — most of the plants, bushes and spray samples asked are far from it
+  const ring = new Uint16Array(nx * nz).fill(65535), queue = new Int32Array(nx * nz);
+  let head = 0, tail = 0;
+  for (let c = 0; c < nx * nz; c++) if (start[c + 1] > start[c]) { ring[c] = 0; queue[tail++] = c; }
+  while (head < tail) {
+    const c = queue[head++], r = ring[c], ix = c % nx, iz = (c - ix) / nx;
+    if (r >= R) continue;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const jx = ix + dx, jz = iz + dz; if (jx < 0 || jz < 0 || jx >= nx || jz >= nz) continue;
+      const j = jz * nx + jx; if (ring[j] > r + 1) { ring[j] = r + 1; queue[tail++] = j; }
+    }
+  }
+  return { cell, x0, z0, nx, nz, start, items, order, bound, ring, maxSeg, inv };
+}
 
 /** Distance from (x, z) to the road's centre line (nearest polyline segment) within SECTION.reach, and the bed height there. */
 function nearestRoad(idx: RoadIndex, x: number, z: number) {
-  const cx = Math.floor(x / idx.cell), cz = Math.floor(z / idx.cell), n = idx.xs.length;
-  let best = Infinity, bed = 0, widen = 0, wall = 0;
-  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
-    const list = idx.buckets.get(bucketKey(cx + dx, cz + dz));
-    if (!list) continue;
-    for (const i of list) {
-      if (i + 1 >= n) continue;
-      const ax = idx.xs[i], az = idx.zs[i], bx = idx.xs[i + 1] - ax, bz = idx.zs[i + 1] - az;
-      const u = Math.min(1, Math.max(0, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz)));
-      const d = (x - ax - bx * u) ** 2 + (z - az - bz * u) ** 2;
-      if (d < best) {
-        best = d; bed = idx.bed[i] + (idx.bed[i + 1] - idx.bed[i]) * u;
-        widen = idx.widen[i] + (idx.widen[i + 1] - idx.widen[i]) * u; wall = idx.wall[i] + (idx.wall[i + 1] - idx.wall[i]) * u;
-      }
+  const { cell, nx, nz, start, items, order, bound, inv, xs, zs } = idx, reach2 = SECTION.reach * SECTION.reach;
+  const cx = Math.floor((x - idx.x0) / cell), cz = Math.floor((z - idx.z0) / cell);
+  // far from the road: its grid's edge, or a cell whose nearest road cell is out of reach (ring r: at least (r − 1)
+  // cells between, less a segment's length)
+  const ox = cx < 0 ? -cx : cx >= nx ? cx - nx + 1 : 0, oz = cz < 0 ? -cz : cz >= nz ? cz - nz + 1 : 0;
+  if (ox || oz) { if ((Math.max(ox, oz) - 1) * cell > SECTION.reach) return null; }
+  else { const r = idx.ring[cz * nx + cx]; if ((r - 1) * cell > SECTION.reach) return null; }
+  let best = Infinity, bi = -1, bu = 0;
+  for (let k = 0; k < bound.length; k++) {
+    // no cell from here on can hold anything nearer
+    const lb = bound[k];
+    if (lb > 0 && lb * lb > Math.min(best, reach2)) break;
+    const ix = cx + order[k * 2], iz = cz + order[k * 2 + 1];
+    if (ix < 0 || iz < 0 || ix >= nx || iz >= nz) continue;
+    const c = iz * nx + ix;
+    for (let j = start[c], e = start[c + 1]; j < e; j++) {
+      const i = items[j], ax = xs[i], az = zs[i], bx = xs[i + 1] - ax, bz = zs[i + 1] - az;
+      const u = Math.min(1, Math.max(0, ((x - ax) * bx + (z - az) * bz) * inv[i]));
+      const dx = x - ax - bx * u, dz = z - az - bz * u, d = dx * dx + dz * dz;
+      if (d < best) { best = d; bi = i; bu = u; }
     }
   }
+  if (bi < 0 || best > reach2) return null;
+  const bed = idx.bed[bi] + (idx.bed[bi + 1] - idx.bed[bi]) * bu, widen = idx.widen[bi] + (idx.widen[bi + 1] - idx.widen[bi]) * bu;
+  const wall = idx.wall[bi] + (idx.wall[bi + 1] - idx.wall[bi]) * bu;
   // d is measured from a standard-width road: past a hairpin's widened edge counts as past the normal edge
-  return best <= SECTION.reach * SECTION.reach ? { bed, d: Math.max(0, Math.sqrt(best) - widen), wall } : null;
+  return { bed, d: Math.max(0, Math.sqrt(best) - widen), wall };
 }
 
 /** Road shape at t along the curve: extra half-width and retaining-wall weight (both 0 away from hairpins). */

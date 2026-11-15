@@ -28,7 +28,7 @@ export const LITE_LEVELS = [
 ];
 export const FIXED: Record<Exclude<QualityMode, "auto">, number> = { high: 0, medium: 2, low: 4 };
 
-type QualityState = { mode: QualityMode; level: number; people: number };
+type QualityState = { mode: QualityMode; level: number; people: number; forest: number };
 const read = (): QualityMode => {
   try {
     const q = new URLSearchParams(location.search).get("q"); // ?q=high|medium|low|auto (testing)
@@ -37,7 +37,7 @@ const read = (): QualityMode => {
   } catch { return "auto"; }
 };
 /** One object for the page (the settings live in the DOM, the scene reads them). */
-export const quality: QualityState = ((globalThis as { __wayanadQuality?: QualityState }).__wayanadQuality ??= { mode: typeof window === "undefined" ? "auto" : read(), level: 0, people: 1 });
+export const quality: QualityState = ((globalThis as { __wayanadQuality?: QualityState }).__wayanadQuality ??= { mode: typeof window === "undefined" ? "auto" : read(), level: 0, people: 1, forest: 1 });
 
 export function setQualityMode(mode: QualityMode) {
   quality.mode = mode;

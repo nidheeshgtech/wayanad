@@ -71,19 +71,18 @@ export default function ImpactFx() {
     // once everything has loaded, as components/scene/Warmup does for the screen, or the first hit would stall
     if (!fx.warmed && loading.ready) {
       fx.warmed = true;
-      const hidden: Object3D[] = [];
-      const culled: Object3D[] = [], empty: InstancedMesh[] = [];
+      // compiled for the target, not drawn: drawing the whole world unculled into it was one frame of seconds on a
+      // phone, just as the start screen came up
+      const hidden: Object3D[] = [], empty: InstancedMesh[] = [];
       scene.traverse((o) => {
         if (!o.visible) { hidden.push(o); o.visible = true; }
-        if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; }
         if ((o as InstancedMesh).isInstancedMesh && (o as InstancedMesh).count === 0) { empty.push(o as InstancedMesh); (o as InstancedMesh).count = 1; } // drawing none, it'd be skipped
       });
       gl.getDrawingBufferSize(fx.size); fx.target.setSize(fx.size.x, fx.size.y); // allocated now, at full size
       gl.setRenderTarget(fx.target);
-      try { gl.render(scene, camera); gl.setRenderTarget(null); gl.render(fx.quad, fx.ortho); } finally {
+      try { void gl.compileAsync(scene, camera).catch(() => {}); } finally {
         gl.setRenderTarget(null);
         for (const o of hidden) o.visible = false;
-        for (const o of culled) o.frustumCulled = true;
         for (const o of empty) o.count = 0;
       }
     }

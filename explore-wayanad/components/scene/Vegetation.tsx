@@ -1,9 +1,9 @@
 "use client";
 import { timed } from "@/lib/perf";
-import { useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
-  BufferAttribute, BufferGeometry, CatmullRomCurve3, Color, DoubleSide, InstancedMesh, Matrix4, MeshDepthMaterial,
+  BufferAttribute, BufferGeometry, CatmullRomCurve3, Color, DoubleSide, Group, InstancedMesh, Matrix4, MeshDepthMaterial,
   MeshStandardMaterial, Quaternion, RGBADepthPacking, SRGBColorSpace, TextureLoader, Vector3,
   type WebGLProgramParametersWithUniforms,
 } from "three";
@@ -13,6 +13,8 @@ import { inTown, townPlan } from "./Town";
 import { teaAt } from "@/lib/estates";
 import { CLOUD_SHADOW_GLSL, cloudShadowUniforms } from "@/lib/weather";
 import { ownGeometry } from "@/lib/instancing";
+import { later } from "@/lib/later";
+import { quality } from "@/lib/quality";
 
 /* Species, true scale (1 unit = 10 m). Plants are cut-out cards (public/vegetation, see its README).
  * `perUnit`: plants per unit of road; `zone`: distance band from the road's centre line where they grow;
@@ -113,11 +115,16 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
 };
 
 export default function Vegetation({ curve, density = 1, alphaToCoverage = true, kind = "ghat", tile = TILE }: { curve: CatmullRomCurve3; density?: number; alphaToCoverage?: boolean; kind?: "ghat" | "forest"; tile?: number }) {
-  const meshes = useMemo(() => timed("vegetation", () => {
+  // built after the start screen is up, a species at a time (lib/later): on a phone the forest was ten seconds of
+  // building before anything showed. Each species' shaders are compiled before it joins the scene, so nothing stalls.
+  const [meshes, setMeshes] = useState<InstancedMesh[]>([]);
+  const { gl, camera, scene } = useThree();
+  useEffect(() => {
+    let alive = true; setMeshes([]);
     const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve), plateauFrom = churamEndT();
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
     const ghat = kind === "ghat"; // the churam + plateau road: towns, tea and the plateau's thinning apply
-    return (ghat ? SPECIES : FOREST_SPECIES).map((s) => {
+    const buildSpecies = (s: Species) => {
       const map = loader.load(`/vegetation/${s.name}.webp`);
       map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
       const material = new MeshStandardMaterial({ map, alphaTest: 0.45, side: DoubleSide, roughness: 1, alphaToCoverage });
@@ -175,8 +182,18 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         mesh.matrixAutoUpdate = false; mesh.matrixWorldAutoUpdate = false; // (at the origin: the instances carry their places; no per-frame matrix work)
         return mesh;
       });
-    }).flat();
-  }), [curve, density, alphaToCoverage, kind, tile]);
+    };
+    for (const s of ghat ? SPECIES : FOREST_SPECIES) later(async () => {
+      if (!alive) return;
+      const built = timed(`vegetation ${s.name}`, () => buildSpecies(s));
+      for (const mesh of built) { mesh.userData.full = mesh.count; mesh.count = Math.floor(mesh.count * quality.forest); } // (Quality thins by this)
+      const holder = new Group(); holder.add(...built);
+      try { await gl.compileAsync(holder, camera, scene); } catch { /* compiled on first draw instead */ }
+      holder.remove(...built);
+      if (alive) setMeshes((prev) => [...prev, ...built]);
+    });
+    return () => { alive = false; };
+  }, [curve, density, alphaToCoverage, kind, tile, gl, camera, scene]);
 
   useFrame((_, dt) => { wind.value += dt; });
   return <>{meshes.map((mesh) => <primitive key={mesh.uuid} object={mesh} />)}</>;

@@ -22,6 +22,7 @@ import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
 import Waterfalls from "./Waterfalls";
 import RoadStreams from "./RoadStreams";
+import Later from "./Later";
 import Monkeys from "./Monkeys";
 import Pedestrians from "./Pedestrians";
 import Rain from "./Rain";
@@ -94,7 +95,7 @@ export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "st
       camera={{ fov: 60, near: 0.02, far: 400 }}
       gl={{ antialias: true, powerPreference: "high-performance" }} // MSAA is cheap on phone (tile) GPUs and removes the jagged edges
       shadows={small ? false : "soft"}
-      onCreated={({ gl }) => { gl.toneMappingExposure = 1.0; }}
+      onCreated={({ gl }) => { gl.toneMappingExposure = 1.0; gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production"; }} // (checking each shader waits for it to compile: seconds at load on phones)
       // desktop: a light grade — richer greens, a touch more contrast (a CSS filter: no extra render pass; phones skip it)
       style={{ position: "fixed", inset: 0, zIndex: 0, filter: small ? undefined : "saturate(1.12) contrast(1.05)" }}
     >
@@ -158,8 +159,8 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       {stage.scene === "rockfall" && <Suspense fallback={null}><Rockfall curve={curve} /></Suspense>}
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? 0.5 : 1} />
-      <Waterfalls curve={curve} />
-      <RoadStreams curve={curve} small={small} />
+      <Later><Waterfalls curve={curve} /></Later>{/* (seconds of building on a phone: after the start screen is up) */}
+      <Later><RoadStreams curve={curve} small={small} /></Later>
       <Suspense fallback={null}><Monkeys curve={curve} /></Suspense>
       <Pedestrians curve={curve} small={small} />
       <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} tile={small ? 320 : undefined} />
