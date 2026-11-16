@@ -1,4 +1,5 @@
 "use client";
+import { clearAt } from "@/lib/stops";
 import { timed } from "@/lib/perf";
 import { useEffect, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -149,6 +150,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         if (s.trunk && Math.hypot(height(x + 0.2, z) - height(x - 0.2, z), height(x, z + 0.2) - height(x, z - 0.2)) / 0.4 > CUT_FACE) continue;
         if (s.lowland && random() < clamp01((y - 5) / 40)) continue; // palms thin out above ~50 m of climb, gone by ~450 m
         const tall = s.tall[0] + (s.tall[1] - s.tall[0]) * random();
+        if (ghat && t <= plateauFrom && s.name !== "grass" && clearAt(curve, x, z, s.trunk ? tall : 0)) continue; // the roadside stops and the viewpoint's view (lib/stops)
         if (s.trunk && random() > 0.25 + 0.9 * grove(x, z)) continue; // groves and clearings
         // mirrored half the time and a little wider or narrower, so repeated cards don't read as copies
         const wide = tall * aspect * (0.85 + random() * 0.35), flip = random() < 0.5 ? -1 : 1;

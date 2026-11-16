@@ -95,3 +95,31 @@ export async function shareCard(c: Climb): Promise<"shared" | "downloaded" | "ca
   try { await navigator.clipboard.writeText(`${text} ${url}`); } catch {}
   return "downloaded";
 }
+
+/** The view from the Lakkidi View Point (lib/vista) as a phone story: the picture, the place, your name, the address. */
+export async function shareView(photo: Blob, name: string): Promise<"shared" | "downloaded" | "cancelled"> {
+  const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+  const g = canvas.getContext("2d")!, { serif, sans } = fonts();
+  await document.fonts?.ready;
+  g.fillStyle = BG; g.fillRect(0, 0, W, H);
+  try { const img = await createImageBitmap(photo), k = Math.max(W / img.width, H / img.height); g.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k); } catch {}
+  let grad = g.createLinearGradient(0, 0, 0, 520); grad.addColorStop(0, "rgba(8,20,16,.8)"); grad.addColorStop(1, "rgba(8,20,16,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, W, 520);
+  grad = g.createLinearGradient(0, H * 0.62, 0, H); grad.addColorStop(0, "rgba(8,20,16,0)"); grad.addColorStop(1, "rgba(8,20,16,.92)");
+  g.fillStyle = grad; g.fillRect(0, H * 0.62, W, H * 0.38);
+  g.textAlign = "left"; g.fillStyle = AMBER; g.font = `500 34px ${sans}`; g.fillText("WAYANAD CHURAM", 80, 150);
+  g.fillStyle = INK; g.font = `300 104px ${serif}`; g.fillText("Lakkidi", 76, 268); g.fillText("View Point", 76, 380);
+  g.fillStyle = MUTE; g.font = `400 40px ${sans}`; g.fillText(`${name || "A driver"} stopped for a chaya here.`, 80, H - 250);
+  g.fillStyle = INK; g.font = `500 44px ${sans}`; g.fillText("Drive it: drivewayanad.com", 80, H - 170);
+  const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), "image/jpeg", 0.9));
+  const text = "The view from the Lakkidi View Point, in Drive Wayanad.", url = "https://drivewayanad.com", file = new File([blob], "lakkidi-view-point.jpg", { type: "image/jpeg" });
+  if (await nativeShare(text, url, blob)) return "shared";
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (nav.canShare?.({ files: [file] })) {
+    try { await nav.share({ files: [file], text: `${text} ${url}` }); return "shared"; }
+    catch (e) { if ((e as DOMException).name === "AbortError") return "cancelled"; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "lakkidi-view-point.jpg"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return "downloaded";
+}

@@ -448,3 +448,14 @@
   .room { flex-basis: 100%; }
   .raceLine { order: 10; flex-basis: 100%; max-width: none; margin: 0 !important; }
 }
+
+// the Lakkidi View Point (lib/vista): while the camera takes in the valley the HUD steps aside (the keys stay); after
+// it, "Share the view" in the game's gold key for a few seconds
+.hud { transition: opacity .4s; }
+:global(html[data-vista]) .hud { opacity: 0; pointer-events: none; }
+.viewShare { @include gold-key(10px, 10px); position: fixed; z-index: 7; left: 50%; top: calc(18% + env(safe-area-inset-top, 0px)); translate: -50% 0;
+  padding: 11px 20px; border: 0; border-radius: 0; cursor: pointer; display: flex; gap: 8px; align-items: center;
+  font: italic 900 15px/1 var(--font-sans), sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #1d1405;
+  animation: viewShareIn .35s cubic-bezier(.2, 1.4, .4, 1) both;
+  &[hidden] { display: none; } }
+@keyframes viewShareIn { from { opacity: 0; scale: .8; } to { opacity: 1; scale: 1; } }

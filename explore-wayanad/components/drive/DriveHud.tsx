@@ -36,6 +36,8 @@ import Drivers, { SafetyLinks } from "./Drivers";
 import { chase } from "@/lib/chase";
 import { PedalArt, SteerArt } from "./TouchKeys";
 import styles from "./Drive.module.scss";
+import { vista, vistaTime } from "@/lib/vista";
+import { shareView } from "@/lib/shareCard";
 
 /**
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
@@ -148,7 +150,7 @@ export default function DriveHud() {
     if (v) { game.view = v; setView(v); }
   }, []);
   // a double tap on the road changes the camera (SwipeLook), its name shown for a moment
-  const viewTag = useRef<HTMLDivElement>(null);
+  const viewTag = useRef<HTMLDivElement>(null), viewShare = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     let t = 0;
     const next = () => {
@@ -206,6 +208,10 @@ export default function DriveHud() {
       const now = performance.now(), dt = (now - last) / 1000; last = now;
       if (game.started && game.phase === "drive" && !game.paused && document.visibilityState === "visible") tickPlay(dt);
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(game.speed) * 36));
+      // the viewpoint's sweep (lib/vista): the HUD steps aside while it runs; then "Share the view" for a while
+      const vt = vistaTime(), V = viewShare.current;
+      document.documentElement.toggleAttribute("data-vista", vt >= 0);
+      if (V) V.hidden = !(vista.blob && vt < 0 && vista.ended > 0 && now - vista.ended < 12000);
       // wanted: the stars, redrawn when they change; blinking while you're getting away
       const W = wantedEl.current;
       if (W) {
@@ -410,7 +416,7 @@ export default function DriveHud() {
 
   return (
     <>
-      <div data-hud>
+      <div data-hud className={styles.hud}>
       <div className={styles.top}>
         <div className={styles.speed}>
           <b ref={speed}>0</b><small>km/h</small>
@@ -427,6 +433,9 @@ export default function DriveHud() {
       </div>
       <div ref={streaks} className={styles.streaks} aria-hidden />
       <div ref={viewTag} className={styles.viewTag} role="status" aria-live="polite"><span>Camera</span><b /></div>
+      <button ref={viewShare} type="button" className={styles.viewShare} hidden onClick={() => { if (vista.blob) void shareView(vista.blob, game.driver); vista.ended = 0; }}>
+        <span aria-hidden>📸</span> Share the view
+      </button>
       <div ref={wantedEl} className={styles.wanted} hidden role="status" aria-label="Wanted by the police" />
       <VoiceHud />
       {iosTip && (

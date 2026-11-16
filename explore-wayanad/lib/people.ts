@@ -3,7 +3,8 @@
  * preview, your driver on the bike or at the wheel (components/drive/PlayerCar), friends' drivers (RemoteCars) and the
  * people walking by the road (components/scene/Pedestrians).
  *  - public/models/drivers/<id>.glb  each person: mesh, skeleton and their own idle (Higgsfield image → 3D, rigged)
- *  - public/models/drivers/moves.glb the moves, one skeleton's worth of clips (walk_m, walk_f, sit_m, sit_f, idle):
+ *  - public/models/drivers/moves.glb the moves, one skeleton's worth of clips (walk_m, walk_f, sit_m, sit_f, idle, run_m,
+ *    run_f, and the stops' gestures: drink, sitdrink, chat, phone, gaze, talk):
  *    all the people share the same rig (bone names), so a clip made on one plays on any. Only rotations are kept, and the
  *    hips' height is carried across in proportion, so a short person doesn't float or sink in someone else's walk.
  */
@@ -15,7 +16,11 @@ import { isWomanPerson, personHeight, personModel, type PersonId } from "@/data/
 import { whenReady } from "@/lib/loading";
 import { warmModel } from "@/lib/warm";
 
-export type Move = "idle" | "walk" | "sit" | "run";
+export type Move = "idle" | "walk" | "sit" | "run" | Gesture;
+/** Standing about at a stop (all made on the men's rig, fitted to anyone): sipping a chaya, sitting with one, chatting,
+ * on the phone, taking in the view, talking with the hands. */
+export type Gesture = "drink" | "sitdrink" | "chat" | "phone" | "gaze" | "talk";
+export const GESTURES: Gesture[] = ["drink", "sitdrink", "chat", "phone", "gaze", "talk"];
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const people = new Map<string, Promise<{ scene: Object3D; clips: AnimationClip[] }>>();
 let moves: Promise<Map<string, AnimationClip>> | null = null;
@@ -169,6 +174,7 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   const walk = fitClip(woman ? "walk_f" : "walk_m", woman ? "f" : "m"), sit = fitClip(woman ? "sit_f" : "sit_m", woman ? "f" : "m");
   const run = fitClip(woman ? "run_f" : "run_m", woman ? "f" : "m");
   if (walk) fitted.set("walk", walk); if (sit) fitted.set("sit", sit); if (run) fitted.set("run", run);
+  for (const g of GESTURES) { const c = fitClip(g, "m"); if (c) fitted.set(g, c); }
   let current: AnimationAction | null = null;
   const play = (move: Move, fade = 0.25) => {
     const clip = fitted.get(move); if (!clip) return null;

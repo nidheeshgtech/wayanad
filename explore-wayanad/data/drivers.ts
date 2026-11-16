@@ -26,7 +26,26 @@ export const driverPortrait = (id: DriverId) => `/drivers/${id}.webp`;
  * rigged 3D). With the drivers they walk the shoulders (components/scene/Pedestrians) and ride in the traffic.
  */
 export type ExtraId = "saree" | "school" | "granny" | "picker" | "lungi" | "student" | "churidar" | "conductor";
-export type PersonId = DriverId | ExtraId;
+/**
+ * The visitors at the roadside stops (components/scene/StopCrowds): tourists, families, riders, a chai kada's owner —
+ * made the same way, from photographs of ordinary people (Higgsfield image → rigged 3D). Only at the stops.
+ */
+export type TouristId = "tourist" | "kurti" | "backpacker" | "biker" | "poncho" | "dad" | "mum" | "boy" | "collegeboy" | "collegegirl" | "uncle" | "chaiman";
+export const TOURISTS: { id: TouristId; role: string; height: number; woman: boolean }[] = [
+  { id: "tourist", role: "Tourist in a checked shirt", height: 1.75, woman: false },
+  { id: "kurti", role: "Tourist in a kurti", height: 1.6, woman: true },
+  { id: "backpacker", role: "Backpacker", height: 1.62, woman: true },
+  { id: "biker", role: "Touring rider", height: 1.78, woman: false },
+  { id: "poncho", role: "Tourist in a rain poncho", height: 1.72, woman: false },
+  { id: "dad", role: "Father on holiday", height: 1.74, woman: false },
+  { id: "mum", role: "Mother on holiday", height: 1.58, woman: true },
+  { id: "boy", role: "Boy on a family trip", height: 1.28, woman: false },
+  { id: "collegeboy", role: "College student on a trip", height: 1.76, woman: false },
+  { id: "collegegirl", role: "College student on a trip", height: 1.6, woman: true },
+  { id: "uncle", role: "Retired uncle in a mundu", height: 1.68, woman: false },
+  { id: "chaiman", role: "Chai kada owner", height: 1.7, woman: false },
+];
+export type PersonId = DriverId | ExtraId | TouristId;
 export const EXTRAS: { id: ExtraId; role: string; height: number; woman: boolean }[] = [
   { id: "saree", role: "Shopper in a saree", height: 1.58, woman: true },
   { id: "school", role: "Schoolgirl", height: 1.5, woman: true },
@@ -38,7 +57,8 @@ export const EXTRAS: { id: ExtraId; role: string; height: number; woman: boolean
   { id: "conductor", role: "Bus conductor", height: 1.72, woman: false },
 ];
 const DRIVER_WOMEN = new Set<PersonId>(["racer", "trekker"]);
-export const personHeight = (id: PersonId) => EXTRAS.find((e) => e.id === id)?.height ?? driverOf(id).height;
-export const isWomanPerson = (id: PersonId) => DRIVER_WOMEN.has(id) || !!EXTRAS.find((e) => e.id === id)?.woman;
+const OTHERS = [...EXTRAS, ...TOURISTS];
+export const personHeight = (id: PersonId) => OTHERS.find((e) => e.id === id)?.height ?? driverOf(id).height;
+export const isWomanPerson = (id: PersonId) => DRIVER_WOMEN.has(id) || !!OTHERS.find((e) => e.id === id)?.woman;
 export const personModel = (id: PersonId) => `/models/drivers/${id}.glb`;
 
