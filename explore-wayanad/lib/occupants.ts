@@ -15,6 +15,7 @@ export type OccupiedSeat = { x: number; y: number; z: number; driver: boolean; k
 
 const row = (z: number, xs: number[], y: number, p: number): Seat[] => xs.map((x) => ({ x, y, z, p }));
 const PLANS: Record<string, Plan> = {
+  "jimny-real": { length: 3.45, seats: [{ x: -0.34, y: 1.22, z: 0.05, p: 1 }, ...row(0.05, [0.34], 1.22, 0.6), ...row(-0.7, [-0.3, 0.3], 1.2, 0.3)] },
   "wagonr-real": { length: 3.6, seats: [{ x: -0.36, y: 1.18, z: 0.15, p: 1 }, ...row(0.15, [0.36], 1.18, 0.6), ...row(-0.62, [-0.36, 0.36], 1.15, 0.35)] },
   "innova-real": { length: 4.58, seats: [{ x: -0.4, y: 1.24, z: 0.42, p: 1 }, ...row(0.42, [0.4], 1.24, 0.7), ...row(-0.4, [-0.4, 0, 0.4], 1.22, 0.55), ...row(-1.2, [-0.35, 0.35], 1.2, 0.35)] },
   "omni-real": { length: 3.4, seats: [{ x: -0.32, y: 1.22, z: 0.75, p: 1 }, ...row(0.75, [0.32], 1.22, 0.5), ...row(-0.2, [-0.35, 0.35], 1.2, 0.5)] },

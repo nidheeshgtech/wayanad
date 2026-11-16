@@ -87,33 +87,9 @@ function load(name: string) {
   if (!cache.has(name)) cache.set(name, loadVehicle(`/models/traffic/${name}.glb`, { merged: true }).catch(e => { console.warn(`Traffic asset unavailable: ${name}`, e); return null; }));
   return cache.get(name)!;
 }
-/** The police patrol: the 4×4 painted white (by its own paint parts, which merging would lose), then merged. */
+/** The police patrol: the white Bolero (its own texture; the light bar and lettering are added per vehicle below). */
 let policeModel: Promise<Group | null> | null = null;
-// Its four wheels are kept apart from the merged body, each in a spinner ("wheel-spin", in a "wheel-pivot" at the
-// wheel's centre with its radius in userData) so they roll as it drives (Traffic's frame loop, as for the bikes).
-const loadPolice = () => policeModel ??= loadParts('/models/traffic/player-4x4.glb').then(g => {
-  const c = cloneSkinned(g) as Group;
-  c.traverse(o => { const m = o as Mesh; if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
-  paintCar(c, '#f2f3f1'); c.updateMatrixWorld(true);
-  const isWheel = (n: Object3D) => /wheel_(lf|rf|lr|rr)_dummy/i.test(n.name);
-  const dummies: Object3D[] = []; c.traverse(o => { if (isWheel(o)) dummies.push(o); });
-  const units: Object3D[] = [];
-  for (const d of dummies) { // (one node may hold all four wheels: then each child with meshes is a wheel)
-    const kids = d.children.filter(k => { let any = false; k.traverse(o => { any ||= (o as Mesh).isMesh; }); return any; });
-    units.push(...(kids.length > 1 ? kids : [d]));
-  }
-  const wheels = new Group();
-  for (const u of units) {
-    const box = new Box3().setFromObject(u), pivot = new Group(), spinner = new Group();
-    pivot.name = 'wheel-pivot'; spinner.name = 'wheel-spin'; pivot.position.copy(box.getCenter(new Vector3())); pivot.userData.r = box.getSize(new Vector3()).y / 2;
-    pivot.add(spinner); pivot.updateMatrixWorld(true);
-    const own: Mesh[] = []; u.traverse(o => { if ((o as Mesh).isMesh) own.push(o as Mesh); });
-    mergeInto(own, spinner); u.removeFromParent();
-    wheels.add(pivot);
-  }
-  const out = mergeByMaterial(c); out.add(...wheels.children);
-  return out;
-}).catch(e => { console.warn('Traffic asset unavailable: police', e); return null; });
+const loadPolice = () => policeModel ??= load('bolero-real');
 let assets: Promise<(Group | null)[]> | null = null;
 const loadAssets = () => assets ??= Promise.all(VEHICLES.map((_, k) => k === POLICE ? loadPolice() : load(fileOf(k))));
 const widen = (t: number) => roadShapeAt(t).widen;

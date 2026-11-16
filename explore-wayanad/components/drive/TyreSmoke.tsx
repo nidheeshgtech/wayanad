@@ -22,7 +22,7 @@ const POOL = 56, RATE = 46; // puffs, and puffs a second per tyre at full smoke
 const PUFF = { life: [0.7, 1.3] as const, size: [0.05, 0.16] as const, rise: 0.06 };
 const DRIFT = { from: 0.82, min: 0.7, perSec: 40, max: 120 }; // slide at this share of grip; at least this long (s); points
 
-type Puff = { p: Vector3; v: Vector3; age: number; life: number; size: number; end: number; alpha: number };
+type Puff = { p: Vector3; v: Vector3; age: number; life: number; size: number; end: number; alpha: number; ground: number };
 
 function flameTexture() {
   const c = document.createElement("canvas"); c.width = c.height = 64;
@@ -53,7 +53,7 @@ function smokePool(size: number, tint: [number, number, number], name: string) {
       transparent: true, depthWrite: false, side: DoubleSide,
     });
     const mesh = new InstancedMesh(geo, mat, size); mesh.frustumCulled = false; mesh.count = 0; mesh.name = name;
-    const puffs: Puff[] = Array.from({ length: size }, () => ({ p: new Vector3(), v: new Vector3(), age: 1, life: 1, size: 0.1, end: 0.16, alpha: 0.55 }));
+    const puffs: Puff[] = Array.from({ length: size }, () => ({ p: new Vector3(), v: new Vector3(), age: 1, life: 1, size: 0.1, end: 0.16, alpha: 0.55, ground: -1e9 }));
     return { mesh, fade, puffs };
 }
 
@@ -67,7 +67,7 @@ export default function TyreSmoke() {
   }, []);
   const ex = useRef({ owed: 0, next: 0 });
   const car = useRef<Object3D | null>(null), state = useRef({ owed: 0, next: 0, slide: 0, clean: true });
-  const tmp = useMemo(() => ({ m: new Matrix4(), q: new Quaternion(), s: new Vector3(), w: new Vector3(), up: new Vector3(0, 1, 0) }), []);
+  const tmp = useMemo(() => ({ m: new Matrix4(), q: new Quaternion(), s: new Vector3(), w: new Vector3(), up: new Vector3(0, 1, 0), g: new Vector3(), at: new Vector3() }), []);
 
   useFrame(({ scene, camera }, dt) => {
     dt = Math.min(dt, 0.1);
@@ -100,7 +100,7 @@ export default function TyreSmoke() {
         pf.p.set(side * CAR.halfW * 0.8, 0.012, -CAR.halfL * 0.65).applyMatrix4(root.matrixWorld);
         pf.v.set((Math.random() - 0.5) * 0.08, PUFF.rise * (0.6 + Math.random() * 0.8), (Math.random() - 0.5) * 0.08);
         pf.age = 0; pf.life = PUFF.life[0] + Math.random() * (PUFF.life[1] - PUFF.life[0]);
-        pf.size = PUFF.size[0] * (0.7 + 0.6 * smoke); pf.end = PUFF.size[1]; pf.alpha = 0.55;
+        pf.size = PUFF.size[0] * (0.7 + 0.6 * smoke); pf.end = PUFF.size[1]; pf.alpha = 0.55; pf.ground = tmp.g.setFromMatrixPosition(root.matrixWorld).y;
       }
     } else S.owed = 0;
     // the tailpipe (the car's back, a little right of centre and low): smoke as you pull, flames with nitro or a pop
@@ -116,7 +116,7 @@ export default function TyreSmoke() {
         pf.p.set((sc ? (Math.random() < 0.5 ? -0.05 : 0.05) : 0.045) + (Math.random() - 0.5) * 0.01, 0.028, -half * 0.97).applyMatrix4(root.matrixWorld);
         pf.v.set((Math.random() - 0.5) * 0.05, 0.03 + Math.random() * 0.04, (Math.random() - 0.5) * 0.05);
         pf.age = 0; pf.life = EXH.life[0] + Math.random() * (EXH.life[1] - EXH.life[0]);
-        pf.size = EXH.size[0]; pf.end = EXH.size[1] * (0.8 + 0.5 * Math.min(1, puffing)) * (sc ? 1.35 : 1); pf.alpha = 0.32 + 0.18 * Math.min(1, puffing) + (sc ? 0.12 : 0);
+        pf.size = EXH.size[0]; pf.end = EXH.size[1] * (0.8 + 0.5 * Math.min(1, puffing)) * (sc ? 1.35 : 1); pf.alpha = 0.32 + 0.18 * Math.min(1, puffing) + (sc ? 0.12 : 0); pf.ground = tmp.g.setFromMatrixPosition(root.matrixWorld).y;
       }
     } else ex.current.owed = 0;
     // a battered car (PlayerCar's dents) smokes from under the bonnet, more the worse it is
@@ -127,7 +127,7 @@ export default function TyreSmoke() {
         const pf = exh.puffs[E.next]; E.next = (E.next + 1) % EXH.pool;
         pf.p.set((Math.random() - 0.5) * 0.05, 0.12, half * 0.62).applyMatrix4(root.matrixWorld);
         pf.v.set((Math.random() - 0.5) * 0.04, 0.08 + Math.random() * 0.05, (Math.random() - 0.5) * 0.04);
-        pf.age = 0; pf.life = 1.1 + Math.random() * 0.6; pf.size = 0.03; pf.end = 0.14; pf.alpha = 0.3;
+        pf.age = 0; pf.life = 1.1 + Math.random() * 0.6; pf.size = 0.03; pf.end = 0.14; pf.alpha = 0.3; pf.ground = -1e9;
       }
     }
     const popping = performance.now() - exhaust.popAt < 140;
@@ -140,6 +140,7 @@ export default function TyreSmoke() {
       else f.position.set(0.045, 0.028, -half * 0.97 - (game.boosting ? 0.03 + i * 0.035 : 0.015)).applyMatrix4(root.matrixWorld);
       const sz = (sc ? (game.boosting ? 0.1 : 0.07) : game.boosting ? (i ? 0.09 : 0.06) : 0.05) * flick;
       f.scale.set(sz, sz, 1);
+      { const g = tmp.g.setFromMatrixPosition(root.matrixWorld).y; f.position.y = Math.max(f.position.y, g + sz * 0.42); } // (clear of the road: see the puffs)
       f.material.color.set(game.boosting ? (i ? 0x6fa8ff : 0xcfe4ff) : sc ? (Math.random() < 0.35 ? 0x8fc0ff : 0xff8a2a) : 0xffa040);
       f.material.opacity = game.boosting ? (i ? 0.75 : 1) : 0.9;
     });
@@ -152,7 +153,8 @@ export default function TyreSmoke() {
         const k = pf.age / pf.life;
         pf.p.addScaledVector(pf.v, dt);
         const size = pf.size + (pf.end - pf.size) * k;
-        pool.mesh.setMatrixAt(n, tmp.m.compose(pf.p, camera.quaternion, tmp.s.set(size, size, size)));
+        tmp.at.copy(pf.p); tmp.at.y = Math.max(tmp.at.y, pf.ground + size * 0.42); // (never half into the road: it cut the puff off straight)
+        pool.mesh.setMatrixAt(n, tmp.m.compose(tmp.at, camera.quaternion, tmp.s.set(size, size, size)));
         pool.fade.setX(n, pf.alpha * Math.sin(Math.PI * Math.min(1, k * 1.6 + 0.05)) * (1 - k));
         n++;
       }

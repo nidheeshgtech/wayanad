@@ -14,10 +14,13 @@ export const VEHICLES = [
   { name: 'omni-real', height: .171, length: .34, width: .174, speed: .65 },
   { name: 'privatebus-real', height: .262, length: .94, width: .225, speed: .66 },
   { name: 'tourbus-real', height: .288, length: .94, width: .225, speed: .64 },
-  // emergency services (lib/emergency): a Kerala Police patrol (the 4×4 in white, a light bar) and an ambulance (the
-  // Omni van in white with a red cross, as many Kerala ambulances are); a few of each, handed out by createFleet
-  { name: 'police', file: 'player-4x4', height: .19, length: .466, width: .19, speed: .7 },
+  // emergency services (lib/emergency): a Kerala Police patrol (the white Bolero, a light bar, KERALA POLICE on its
+  // doors) and an ambulance (the Omni van in white with a red cross, as many Kerala ambulances are); a few of each,
+  // handed out by createFleet
+  { name: 'police', file: 'bolero-real', height: .177, length: .42, width: .195, speed: .7 },
   { name: 'ambulance', file: 'omni-real', height: .171, length: .34, width: .174, speed: .95 },
+  // (added after the emergency services, so their kinds keep their numbers)
+  { name: 'jimny-real', height: .172, length: .345, width: .163, speed: .78 },
 ] as const;
 export const POLICE = 9, AMBULANCE = 10;
 /** The model file a kind is drawn from (most are named after theirs). */
@@ -64,7 +67,7 @@ export function vehiclePose(curve: CatmullRomCurve3, v: Vehicle, widen: (t: numb
 }
 /** The mix, in the order vehicles are handed out: cars and two-wheelers most, then buses (state, private, tourist),
  * lorries, autos and vans — about one bus in five. */
-const MIX = [0, 1, 2, 3, 1, 4, 5, 7, 1, 6, 3, 2, 8, 1, 2, 3];
+const MIX = [0, 1, 2, 3, 11, 4, 5, 7, 1, 6, 3, 2, 8, 11, 2, 3]; // (11: the Jimny)
 /** Up to 340 vehicles, half each way, spread by `density` (relative, along the road: more by the towns, fewer on the
  * hairpins) — placed at equal steps of the density's running total, so busy stretches get more of them. */
 export function createFleet(length: number, density: (d: number) => number = () => 1): Vehicle[] {

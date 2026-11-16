@@ -8,7 +8,7 @@ import { DEFAULT_DRIVER, driverOf, type DriverId, type PersonId } from "./driver
 
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | "kalpetta" | "edakkal" | "bathery" | "muthanga" | BorrowId;
 /** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
-export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb";
+export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb" | "t-jimny";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
  * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
@@ -72,7 +72,8 @@ export const BORROWABLE: Car[] = [
   { id: "t-pbus", name: "Private bus", file: "/models/traffic/privatebus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.75, accel: 0.26 } },
   { id: "t-tbus", name: "Tourist bus", file: "/models/traffic/tourbus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.14, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.7, accel: 0.25 } },
   { id: "t-lorry", name: "Lorry", file: "/models/traffic/lorry-real.glb", length: 7.8, paint: /^$/, plate: { at: { y: 0.45, w: 0.5, h: 0.12 } }, seat: { x: -0.075, y: 0.2, z: 0.37 }, heavy: { width: 2.71 }, handling: { max: 1.45, accel: 0.2 } },
-  { id: "t-police", name: "Police jeep", file: "/models/traffic/player-4x4.glb", length: 4.66, paint: /^primary$/, plate: { part: "boot_scorpio_n_ext_1.2_0" }, siren: true },
+  { id: "t-police", name: "Police jeep", file: "/models/traffic/bolero-real.glb", length: 4.2, paint: /^$/, plate: { at: { y: 0.42, w: 0.42, h: 0.11 } }, siren: true, handling: { max: 2.6, accel: 0.44 } },
+  { id: "t-jimny", name: "Small 4×4", file: "/models/traffic/jimny-real.glb", length: 3.45, paint: /^$/, plate: { at: { y: 0.45, w: 0.4, h: 0.11 } }, handling: { max: 2.4, accel: 0.44 } },
   { id: "t-amb", name: "Ambulance", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, siren: true, handling: { max: 2.2, accel: 0.4 } },
 ];
 /** Paint: a little less saturated than a swatch would suggest, as car paint reads under the scene's light. */

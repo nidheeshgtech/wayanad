@@ -88,3 +88,5 @@ License reference: https://creativecommons.org/publicdomain/zero/1.0/
 These are optimized low-polygon models, not photogrammetry or exact manufacturer replicas.
 
 All real (Sketchfab) models above, except player-suv and wagonr-real, were also mesh-simplified (meshoptimizer, 35–50 % of triangles kept) and meshopt-compressed on 2026-10-21 to fit the page budget.
+- `bolero-real.glb`: **Bolero** by Waseem Kadri (https://sketchfab.com/Waseem_Kadri), CC Attribution. https://sketchfab.com/3d-models/bolero-9f1e594c45e24012b50992bbfeeecda0 — the Kerala Police patrol (light bar and lettering added in the game).
+- `jimny-real.glb`: **2018 Suzuki Jimny (unrefined version)** by @ShreyanshChaurasia_12 (https://sketchfab.com/shreyanshchaurasia13), CC Attribution. https://sketchfab.com/3d-models/2018-suzuki-jimny-unrefined-version-ee7a2a2d6a104fffadd3110044af2389 — wireframe line overlays removed, simplified to ~38k triangles.

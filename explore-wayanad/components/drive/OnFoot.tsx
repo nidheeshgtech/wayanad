@@ -29,7 +29,7 @@ const CAMERA = { back: 0.36, up: 0.085, eye: 0.15, ahead: 0.6 };
  * half-size). Its driver gets out and gives you a piece of their mind (see `Thrown`). */
 const TAKE: Record<string, BorrowId | "kuruva"> = {
   "wagonr-real": "t-hatch", "innova-real": "t-mpv", "omni-real": "t-van", "auto-real": "t-auto", "pulsar-real": "kuruva",
-  "ksrtc-real": "t-bus", "privatebus-real": "t-pbus", "tourbus-real": "t-tbus", "lorry-real": "t-lorry", police: "t-police", ambulance: "t-amb",
+  "ksrtc-real": "t-bus", "privatebus-real": "t-pbus", "tourbus-real": "t-tbus", "lorry-real": "t-lorry", police: "t-police", ambulance: "t-amb", "jimny-real": "t-jimny",
 };
 const PAINTED = /wagonr|omni/;
 const WHITE = /^(police|ambulance)$/;
