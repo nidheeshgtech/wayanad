@@ -17,6 +17,7 @@ import { net } from '@/lib/net';
 import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from '@/lib/occupants';
 import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
+import { cutCarWheels } from '@/lib/carWheels';
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
 import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
@@ -90,6 +91,11 @@ function load(name: string) {
 /** The police patrol: the white Bolero (its own texture; the light bar and lettering are added per vehicle below). */
 let policeModel: Promise<Group | null> | null = null;
 const loadPolice = () => policeModel ??= load('bolero-real');
+/** The real tyres' radii (units), by model: the wheels are cut out at this size (lib/carWheels). */
+const TYRE: Record<string, number> = {
+  'ksrtc-real': .05, 'privatebus-real': .05, 'tourbus-real': .05, 'lorry-real': .05, 'wagonr-real': .028, 'innova-real': .031,
+  'omni-real': .027, 'ambulance': .027, 'auto-real': .021, 'police': .037, 'jimny-real': .035,
+};
 let assets: Promise<(Group | null)[]> | null = null;
 const loadAssets = () => assets ??= Promise.all(VEHICLES.map((_, k) => k === POLICE ? loadPolice() : load(fileOf(k))));
 const widen = (t: number) => roadShapeAt(t).widen;
@@ -234,8 +240,18 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         wheels = cut.wheels.map(w => { root.add(w.pivot); return { spinner: w.spinner, r: w.pivot.position.y }; });
       }
     }
-    // the police jeep's own wheels (kept apart from its body: see loadPolice) roll too
-    if (v.kind === POLICE) model.traverse(o => { if (o.name === 'wheel-spin') wheels.push({ spinner: o as Group, r: (o.parent!.userData.r as number) * model.scale.y }); });
+    // everything else's wheels are cut out of its body too (lib/carWheels), at the real tyre's size, and roll
+    const tyre = TYRE[spec.name];
+    if (!RIDERLESS.test(spec.name) && tyre) {
+      root.updateMatrixWorld(true);
+      const parts: Mesh[] = []; model.traverse(o => { if ((o as Mesh).isMesh) parts.push(o as Mesh); });
+      const cut = cutCarWheels(parts, root, `${fileOf(v.kind)}|${spec.length}|${spec.width}|${spec.height}`, spec, tyre, /auto/.test(spec.name));
+      if (cut) {
+        for (const m of parts) m.visible = false;
+        for (const m of cut.rest) { m.castShadow = !small; m.receiveShadow = true; }
+        wheels = cut.wheels.map(w => ({ spinner: w.spinner, r: w.r }));
+      }
+    }
     const seats = (people?.geometry.userData.seats as OccupiedSeat[] | undefined) ?? null;
     // its parts never move within it (only the whole vehicle does, and the wheels' spinners and anyone aboard, added
     // later): baked once, so ~6000 objects don't have their matrices rebuilt every frame

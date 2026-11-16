@@ -123,7 +123,9 @@ export const stopS = (st: Stop, u: number) => st.s + u * stopX(st).dot(st.along)
 export const ENTRANCE = { u: -0.55, half: 0.45 };
 /** The gaps in the barrier: the terrace's way in, and the front of each kada (its customers stand there). */
 export function barrierGaps(curve: CatmullRomCurve3) {
-  return stops(curve).map((st) => st.kind === "viewpoint" ? { s: stopS(st, ENTRANCE.u), half: ENTRANCE.half, side: st.side } : { s: st.s, half: KADA.w / 2 + 0.08, side: st.side });
+  // (the whole of the terrace's front: its own paving and parapet take the barrier's place; each gap at least 0.8 long,
+  // so the guard rail breaks there too instead of running on across it — Road breaks a rail at gaps over 0.75)
+  return stops(curve).map((st) => st.kind === "viewpoint" ? { s: st.s, half: PLAZA.w / 2 + 0.1, side: st.side } : { s: st.s, half: Math.max(0.4, KADA.w / 2 + 0.08), side: st.side });
 }
 
 /**

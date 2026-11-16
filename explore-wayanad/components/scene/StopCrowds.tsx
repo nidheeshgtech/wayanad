@@ -28,12 +28,12 @@ const VIEWPOINT: Spot[] = [
   { id: "collegegirl", x: CAFE.x + 0.2, z: 0.07, face: -1.6, move: "chat" },
   { id: "tourist", x: 0.12, z: D - 0.14, face: 0, move: "phone", rain: "no", small: true },
   { id: "kurti", x: 0.2, z: D - 0.14, face: 0.1, move: "gaze", rain: "no", small: true },
-  { id: "dad", x: -0.48, z: D - 0.17, face: 0, move: "gaze", rain: "no" },
+  { id: "dad", x: -0.48, z: D - 0.17, face: 0, move: "gaze", rain: "no", small: true },
   { id: "kurti", x: -0.58, z: D - 0.2, face: 0.5, move: "chat", rain: "no" },
-  { id: "boy", x: -0.37, z: D - 0.24, face: 0, move: "idle", rain: "no" },
+  { id: "boy", x: -0.37, z: D - 0.24, face: 0, move: "idle", rain: "no", small: true },
   { id: "backpacker", x: 0.62, z: D - 0.14, face: 0.25, move: "gaze", rain: "no", small: true },
   { id: "poncho", x: 0.4, z: D - 0.15, face: -0.1, move: "phone", rain: "only", small: true },
-  { id: "uncle", x: GZ.x, z: GZ.z - 0.12, face: 0, move: "sitdrink" },
+  { id: "uncle", x: GZ.x, z: GZ.z - 0.12, face: 0, move: "sitdrink", small: true },
   { id: "mum", x: GZ.x + 0.02, z: GZ.z + 0.12, face: Math.PI, move: "sitdrink" },
   { id: "granny", x: GZ.x + 0.2, z: GZ.z + 0.05, face: -Math.PI / 2, move: "idle" },
   { id: "saree", x: -W * 0.3, z: D - 0.42, face: 0, move: "sitdrink", rain: "no" },
@@ -49,7 +49,7 @@ function kadaSpots(i: number): Spot[] {
   return [
     { id: OWNERS[i % OWNERS.length], x: -0.02, z: 0.2, face: Math.PI, move: i % 2 ? "idle" : "talk", small: true },
     { id: c(0), x: -0.09, z: -0.14, face: 0.25, move: "drink", small: true },
-    { id: c(1), x: 0.08, z: -0.16, face: -0.6, move: "chat" },
+    { id: c(1), x: 0.08, z: -0.16, face: -0.6, move: "chat", small: true },
     { id: c(2), x: 0.03, z: -0.05, face: Math.PI, move: "sitdrink", rain: "no" },
   ];
 }
@@ -89,7 +89,9 @@ export default function StopCrowds({ curve, small = false }: { curve: CatmullRom
       // (full models up close at the viewpoint on a desktop; light copies everywhere else)
       const lo = small || p.stop.kind !== "viewpoint", key = `${p.spot.id}${lo ? ":lo" : ""}`;
       if (d < NEAR.load && !S.asked.has(key)) { S.asked.add(key); loadCast(p.spot.id, lo).then((v) => S.ready.set(key, v), () => {}); }
-      const wanted = d < NEAR.show && share > 0 && (p.spot.rain === "only" ? rainy : p.spot.rain === "no" ? !rainy : true);
+      // (always some people at a stop, whatever the quality: at the lower levels only the few marked `small` — the
+      // automatic quality on a phone steps people right down to none, and the stops stood empty)
+      const wanted = d < NEAR.show && (share >= 0.35 || !!p.spot.small) && (p.spot.rain === "only" ? rainy : p.spot.rain === "no" ? !rainy : true);
       if (wanted && !p.actor && !made) {
         const src = S.ready.get(key);
         if (src) {
