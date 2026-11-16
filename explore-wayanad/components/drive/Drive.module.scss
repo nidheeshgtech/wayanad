@@ -433,3 +433,18 @@
   box-shadow: 0 0 14px rgba(47, 224, 207, .3), 0 4px 12px rgba(0, 0, 0, .35); opacity: 0; scale: .92; transition: opacity .18s, scale .18s;
   b { font-size: 16px; color: #ffcc33; }
   &[data-show] { opacity: 1; scale: 1; } }
+
+// ---- phones: the readouts in one slim strip, top left — speed, the road done, the coins in a row with hairlines
+// between (was a three-row panel over a fifth of a sideways phone); the race line, in a room, wraps under it ----
+@media (pointer: coarse) {
+  .speed { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0; row-gap: 5px; min-width: 0; max-width: calc(100vw - 120px);
+    padding: 6px 14px 6px 10px; --face-top: rgba(16, 38, 31, .8); --face-bot: rgba(5, 12, 10, .84); --glow-r: 5px;
+    b { font-size: 21px; gap: 6px; &::before { width: 19px; height: 19px; } }
+    small { padding: 0 0 0 4px; font-size: 10px; } }
+  .km, .score { margin: 0 0 0 11px !important; padding: 0 0 0 11px !important; border-top: 0 !important; border-left: 1px solid rgba(238, 242, 238, .18); min-width: 0; }
+  .km { font-size: 10px; > span:first-of-type { width: 17px; margin-right: 5px; &::before { width: 16px; height: 16px; } }
+    em { font-size: 14px; } i { margin-top: 3px; height: 2px; } }
+  .score { font-size: 14px; &::before { width: 15px; height: 15px; margin: 0 6px 0 0; } }
+  .room { flex-basis: 100%; }
+  .raceLine { order: 10; flex-basis: 100%; max-width: none; margin: 0 !important; }
+}
