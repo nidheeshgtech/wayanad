@@ -18,6 +18,9 @@ import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from 
 import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
 import { cutCarWheels } from '@/lib/carWheels';
+import { blurDisc, blurMaterial } from '@/lib/wheelBlur';
+/** The traffic's wheel blur (lib/wheelBlur): one material for all, shown on a vehicle's wheels while they spin fast. */
+const trafficBlur = blurMaterial(0.72);
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
 import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
@@ -148,7 +151,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
   }, [curve,zones]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
-    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, flash: null as ((t: number, on?: boolean) => void) | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0, wheels: [] as { spinner: Group; r: number }[], rolled: 0 };
+    if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, flash: null as ((t: number, on?: boolean) => void) | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0, wheels: [] as { spinner: Group; r: number }[], rolled: 0, blurOn: false };
     const model = source.clone(true), bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3()), center = bounds.getCenter(new Vector3());
     const spec = VEHICLES[v.kind], scale = spec.length / size.z;
     // a bike without a rider in its file: a built one (sized before it, so the bike keeps its own proportions)
@@ -249,7 +252,11 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if (cut) {
         for (const m of parts) m.visible = false;
         for (const m of cut.rest) { m.castShadow = !small; m.receiveShadow = true; }
-        wheels = cut.wheels.map(w => ({ spinner: w.spinner, r: w.r }));
+        wheels = cut.wheels.map(w => {
+          // (a blur disc on each side wheel's outer face: lib/wheelBlur)
+          if (Math.abs(w.pivot.position.x) > .02) { const side = Math.sign(w.pivot.position.x), disc = blurDisc(w.r, trafficBlur); disc.position.x = side * (w.half + .002); disc.rotation.y = side * Math.PI / 2; w.pivot.add(disc); }
+          return { spinner: w.spinner, r: w.r };
+        });
       }
     }
     const seats = (people?.geometry.userData.seats as OccupiedSeat[] | undefined) ?? null;
@@ -258,7 +265,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     for (const c of root.children) if (!wheels.some(w => w.spinner.parent === c)) freeze(c);
     for (const w of wheels) { w.spinner.matrixAutoUpdate = true; }
     root.matrixWorldAutoUpdate = false; // (until it's in range and shown: see the frame loop)
-    return { root, lights, owned, people, flash, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0, wheels, rolled: v.distance };
+    return { root, lights, owned, people, flash, offset: new Vector3(), fresh: true, skip: 0, honked: false, crew: null as Crew | null, seats, bike: RIDERLESS.test(spec.name) ? spec.length : 0, wheels, rolled: v.distance, blurOn: false };
   }), [fleet, models, small]);
   useEffect(() => () => { objects.forEach(o => o.owned.forEach(m => m.dispose())); }, [objects]);
   useEffect(() => { if (process.env.NODE_ENV !== 'production') (globalThis as { __trafficObjects?: unknown }).__trafficObjects = { objects, fleet }; }, [objects, fleet]);
@@ -362,7 +369,10 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         if (chasing) nearestChaser = Math.min(nearestChaser, far2);
       }
       // its wheels roll with the road it covers (its own way along it)
-      if (o.wheels.length) { const d = (v.distance - o.rolled) * v.direction; o.rolled = v.distance; if (Math.abs(d) < 1) for (const w of o.wheels) w.spinner.rotation.x += d / Math.max(0.01, w.r); }
+      if (o.wheels.length) { const d = (v.distance - o.rolled) * v.direction; o.rolled = v.distance; if (Math.abs(d) < 1) for (const w of o.wheels) w.spinner.rotation.x += d / Math.max(0.01, w.r);
+        // the blur over them while they spin fast (past ~18 km/h)
+        const fast = Math.abs(d) / Math.max(0.01, o.wheels[0].r) / Math.max(1e-3, dt) > 16;
+        if (o.blurOn !== fast) { o.blurOn = fast; for (const w of o.wheels) for (const c of w.spinner.parent!.children) if (c.name === 'wheel-blur') c.visible = fast; } }
       // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
       const isBus = BUS.test(VEHICLES[v.kind].name);
       if ((o.seats || o.bike) && far2 < (isBus ? crewing.busNear : crewing.near) ** 2 && aboard < crewing.cap) {

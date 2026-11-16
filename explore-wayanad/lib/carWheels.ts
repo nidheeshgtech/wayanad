@@ -16,7 +16,7 @@ import { plainGeometry } from "@/lib/vehicleAssets";
 // (pieces name the part they came from, by its place in `meshes`: each vehicle draws them in its own materials — the
 // traffic tints each car its own colour)
 type Piece = { part: number; g: BufferGeometry };
-type Cut = { rest: Piece[]; wheels: { at: Vector3; r: number; pieces: Piece[] }[] };
+type Cut = { rest: Piece[]; wheels: { at: Vector3; r: number; half: number; pieces: Piece[] }[] };
 const cuts = new Map<string, Cut | null>();
 
 function build(cut: Cut, into: Group, meshes: Mesh[]) {
@@ -26,7 +26,7 @@ function build(cut: Cut, into: Group, meshes: Mesh[]) {
     pivot.position.copy(w.at); pivot.add(spinner);
     for (const p of w.pieces) spinner.add(new Mesh(p.g, meshes[p.part].material));
     into.add(pivot);
-    return { pivot, spinner, r: w.r };
+    return { pivot, spinner, r: w.r, half: w.half };
   });
   return { rest, wheels };
 }
@@ -80,7 +80,7 @@ export function cutCarWheels(meshes: Mesh[], into: Group, key: string, size: { w
     if (body) rest.push({ g: body, part });
     wheels.forEach((w, k) => { const piece = pick((t) => which[t] === k, w.at); if (piece) w.pieces.push({ part, g: piece }); });
   });
-  const cut: Cut = { rest, wheels: wheels.filter((w) => w.pieces.length).map((w) => ({ at: w.at.clone(), r: w.r, pieces: w.pieces })) };
+  const cut: Cut = { rest, wheels: wheels.filter((w) => w.pieces.length).map((w) => ({ at: w.at.clone(), r: w.r, half: (w.x1 - w.x0) / 2, pieces: w.pieces })) };
   cuts.set(key, cut);
   return build(cut, into, meshes);
 }

@@ -21,6 +21,7 @@ import { prepareVehicle } from "@/lib/carModel";
 import { cutBikeWheels } from "@/lib/bikeWheels";
 import { instanceWheels } from "@/lib/wheelInstances";
 import { modelWheels } from "@/lib/modelWheels";
+import { blurDisc, blurFor, blurMaterial } from "@/lib/wheelBlur";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { driverOf, personHeight } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
@@ -173,6 +174,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // (`roll`: turns per unit of the game's wheel angle — it assumes a 33 cm tyre — for this wheel's real size;
     // `angle`: where it has turned to)
     const wheels: { pivot: Group; spinner: Group; front: boolean; roll?: number; angle?: number }[] = [];
+    const blur = blurMaterial(); // (the wheels' motion blur, lib/wheelBlur: one material, faded with the spin)
     // (in this model one "wheel" node holds all four wheels, each a child: each child with meshes is a wheel)
     const dummies = new Set<Object3D>(); for (const m of meshes) { const d = under(m, isWheel); if (d) dummies.add(d); }
     const units: Object3D[] = [];
@@ -196,6 +198,8 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const own: Mesh[] = []; d.traverse((o) => { if ((o as Mesh).isMesh) own.push(o as Mesh); });
       mergeInto(own, spinner, { byLook: true, looks });
       wheels.push({ pivot, spinner, front: c.z > 0, roll: r > 0.012 && r < 0.08 ? 0.033 / r : 1 });
+      // the blur disc on its outer face (it steers with the wheel, and needn't turn: it's round)
+      if (!car.bike && Math.abs(c.x) > 0.01) { const side = Math.sign(c.x), disc = blurDisc(r, blur); disc.position.x = (side > 0 ? box.max.x : box.min.x) + side * 0.0015 - c.x; /* (its real outer face: the pivot isn't always the wheel's middle) */ disc.rotation.y = side * Math.PI / 2; disc.visible = true; pivot.add(disc); } // (shown by its material: rig.blur.visible)
     }
     const wheelSet = instanceWheels(wheels, root); // (four copies of one wheel: one draw per material for all four)
     // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside).
@@ -275,7 +279,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // the police jeep and the ambulance: their light bar on the roof (lit while you drive them: see the frame loop)
     let flash: ((t: number, on?: boolean) => void) | null = null;
     if (car.siren) { const lb = lightBar(0.11, 0.24); lb.bar.position.set(0, new Box3().setFromObject(body).max.y + 0.002, 0); body.add(lb.bar); flash = lb.flash; }
-    return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash };
+    return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash, blur };
   }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren, car.wheels]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
   useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; game.supercar = car.sound === "super"; }, [car.bike, car.heavy, car.siren, car.handling, car.sound, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -468,15 +472,17 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // the plate follows the name you start with
     const plate = rig.plate, name = game.started ? (game.driver ?? "").toUpperCase() : "";
     if (plate && plate.text !== name) { plate.text = name; plate.mesh.visible = !!name; if (plate.front) plate.front.visible = !!name; if (name) { drawPlate(plate.canvas, name); plate.tex.needsUpdate = true; } }
-    // the wheels roll as far as the car goes, for their own size; past a spoke's width a frame they'd strobe (stand
-    // still or turn backwards to the eye), so they show their fastest clean spin instead
+    // the wheels roll as far as the car goes, for their own size, at their true rate; past a spoke's width a frame
+    // that would strobe (stand still or turn backwards to the eye), so the motion blur fades in over them with the spin
+    // (lib/wheelBlur) — they used to be held to a slow clean spin, and looked lazy at speed
     const dW = game.wheel - spun.current; spun.current = game.wheel;
-    const cap = 0.3 * Math.max(1, dt * 60);
+    let fastest = 0;
     for (const w of wheels) {
       const step = dW * (w.roll ?? 1);
-      w.angle = ((w.angle ?? 0) + Math.sign(step) * Math.min(Math.abs(step), cap)) % (Math.PI * 2);
+      w.angle = ((w.angle ?? 0) + step) % (Math.PI * 2); fastest = Math.max(fastest, Math.abs(step));
       w.spinner.rotation.x = w.angle; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0;
     }
+    { const o = blurFor(fastest / Math.max(1e-3, dt)); rig.blur.opacity = o; rig.blur.visible = o > 0.02; }
     rig.wheelSet?.update();
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
 
