@@ -20,6 +20,8 @@ export type Plate = { part?: string; material?: string; at?: { y: number; w: num
 /** `seat`: where the driver's steering wheel is, as fractions of the length (x + left, y up, z + forward), for models
  * whose wheel isn't a part of its own (PlayerCar finds it otherwise). */
 export type Car = { id: CarId; name: string; file: string; length: number; paint: RegExp; plate: Plate; bike?: boolean; seat?: { x: number; y: number; z: number };
+  /** how far forward a seated driver's feet may go, as a share of the length from the middle (an auto's nose is a narrow cowl over its one wheel: lib/people seatLegs) */
+  feet?: number;
   /** the body's colour is in its texture with the glass, lamps and trim (one material for the whole shell): paint only
    * the white of it (lib/carModel maskPaint), not the whole material */
   paintMask?: boolean;
@@ -66,7 +68,7 @@ export const BORROWABLE: Car[] = [
   { id: "t-hatch", name: "Hatchback", file: "/models/traffic/wagonr-real.glb", length: 3.6, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.55, w: 0.42, h: 0.11 } }, handling: { max: 2.35, accel: 0.42 } },
   { id: "t-mpv", name: "MPV", file: "/models/traffic/innova-real.glb", length: 4.58, paint: /^$/, plate: { at: { y: 0.6, w: 0.45, h: 0.11 } }, handling: { max: 2.5, accel: 0.42 } },
   { id: "t-van", name: "Van", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, handling: { max: 1.95, accel: 0.34 } },
-  { id: "t-auto", name: "Auto", file: "/models/traffic/auto-real.glb", length: 2.65, paint: /^$/, plate: { at: { y: 0.45, w: 0.3, h: 0.09 } }, seat: { x: 0, y: 0.36, z: 0.2 }, handling: { max: 1.4, accel: 0.28 } },
+  { id: "t-auto", name: "Auto", file: "/models/traffic/auto-real.glb", length: 2.65, paint: /^$/, plate: { at: { y: 0.45, w: 0.3, h: 0.09 } }, seat: { x: 0, y: 0.36, z: 0.2 }, feet: 0.15, handling: { max: 1.4, accel: 0.28 } },
   // the buses and the lorry (driver up front on the right), and the emergency services (painted white when taken)
   { id: "t-bus", name: "KSRTC bus", file: "/models/traffic/ksrtc-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.65, accel: 0.24 } },
   { id: "t-pbus", name: "Private bus", file: "/models/traffic/privatebus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.75, accel: 0.26 } },

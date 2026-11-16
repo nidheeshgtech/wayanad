@@ -233,7 +233,7 @@ export function reach(actor: Actor, targets: { left: Vector3; right: Vector3 }, 
  * on its footpegs (from its length `len`). Run after the mixer's update, each frame. Frame: +z forward, y up.
  */
 const lU = new Vector3(), lK = new Vector3(), lF = new Vector3(), lT = new Vector3(), lP = new Vector3(), lq = new Quaternion();
-export function seatLegs(actor: Actor, frame: Object3D, legs: { bike: boolean; len: number; floor: number }) {
+export function seatLegs(actor: Actor, frame: Object3D, legs: { bike: boolean; len: number; floor: number; front?: number }) {
   frame.updateWorldMatrix(true, false); frame.getWorldQuaternion(lq);
   const hips = actor.bones.get("Hips"); if (!hips) return;
   hips.updateWorldMatrix(true, true);
@@ -250,7 +250,9 @@ export function seatLegs(actor: Actor, frame: Object3D, legs: { bike: boolean; l
     } else {
       // forward along the floor as far as a leg with the knee still a little bent reaches
       const drop = Math.max(0.005, U.y - (legs.floor + 0.008)), fwd = Math.sqrt(Math.max(0, (0.9 * (a + b)) ** 2 - drop * drop));
-      lT.set(U.x + out * 0.004, legs.floor + 0.008, U.z + fwd);
+      // (never past `front`: the vehicle's nose, short of its front panel — an auto's cab is short, and a foot
+      // stretched out as in a car came out through the front)
+      lT.set(U.x + out * 0.004, legs.floor + 0.008, Math.min(U.z + fwd, Math.max(legs.front ?? Infinity, U.z + 0.02)));
     }
     frame.localToWorld(lT);
     const toT = lT.clone().sub(lU), d = Math.min(a + b - 1e-5, Math.max(Math.abs(a - b) + 1e-5, toT.length())); toT.normalize();
@@ -358,13 +360,13 @@ export const heightOf = (id: PersonId) => personHeight(id);
 
 /** A driver in their seat: where the hands go and how they sit, in the vehicle's own frame (+x left, +z forward). */
 /** `free`: a passenger — hands in the lap as the clip has them, not reaching for anything. */
-export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; palm: { left: Vector3; right: Vector3 }; lean: number; free?: boolean; legs: { bike: boolean; len: number; floor: number } };
+export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; palm: { left: Vector3; right: Vector3 }; lean: number; free?: boolean; legs: { bike: boolean; len: number; floor: number; front?: number } };
 /**
  * Sit `actor` in a vehicle `length` units long (frame: wheels on y = 0, centred): on a bike from the old rider's marks
  * (fractions of its length), leaning over the bars; in a car at its steering wheel's centre `wheel`, upright, right-hand
  * drive. Adds the actor to `frame`.
  */
-export function seat(actor: Actor, frame: Object3D, bike: boolean, length: number, wheel?: Vector3 | null, passenger = false): Seat {
+export function seat(actor: Actor, frame: Object3D, bike: boolean, length: number, wheel?: Vector3 | null, passenger = false, feet?: number): Seat {
   actor.play("sit", 0); actor.mixer.update(0.01);
   const L = length;
   let hipsAt = bike ? new Vector3(0, 0.37 * L, -0.1 * L) : wheel ? new Vector3(wheel.x, wheel.y - 0.04, wheel.z - 0.052) : new Vector3(-0.034, 0.062, -0.01);
@@ -376,7 +378,7 @@ export function seat(actor: Actor, frame: Object3D, bike: boolean, length: numbe
   frame.add(actor.root);
   return {
     actor, lean: bike ? (passenger ? 0.3 : 0.55) : -0.2, free: passenger,
-    legs: { bike, len: L, floor: hipsAt.y - 0.03 }, // (a car's floor ~30 cm under the hips)
+    legs: { bike, len: L, floor: hipsAt.y - 0.03, front: feet !== undefined ? L * feet : L * 0.5 - Math.max(0.04, L * 0.17) }, // (a car's floor ~30 cm under the hips; the feet short of the nose)
     hands: { left: new Vector3(grip.cx + grip.x, grip.y, grip.z), right: new Vector3(grip.cx - grip.x, grip.y, grip.z) },
     // elbows: in a car out and down; on a bike mostly down and back, tucked in (out-first read as arms flung up)
     pole: bike

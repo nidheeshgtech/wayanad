@@ -18,9 +18,9 @@ import { hasOccupants, occupantMaterial, occupantsFor, type OccupiedSeat } from 
 import { addRider } from '@/lib/carModel';
 import { cutBikeWheels } from '@/lib/bikeWheels';
 import { cutCarWheels } from '@/lib/carWheels';
-import { blurDisc, blurMaterial } from '@/lib/wheelBlur';
+import { blurDisc, blurMaterial, RIM_INSET } from '@/lib/wheelBlur';
 /** The traffic's wheel blur (lib/wheelBlur): one material for all, shown on a vehicle's wheels while they spin fast. */
-const trafficBlur = blurMaterial(0.72);
+const trafficBlur = blurMaterial(0.7);
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
 import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
@@ -254,7 +254,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
         for (const m of cut.rest) { m.castShadow = !small; m.receiveShadow = true; }
         wheels = cut.wheels.map(w => {
           // (a blur disc on each side wheel's outer face: lib/wheelBlur)
-          if (Math.abs(w.pivot.position.x) > .02) { const side = Math.sign(w.pivot.position.x), disc = blurDisc(w.r, trafficBlur); disc.position.x = side * (w.half + .002); disc.rotation.y = side * Math.PI / 2; w.pivot.add(disc); }
+          if (Math.abs(w.pivot.position.x) > .02) { const side = Math.sign(w.pivot.position.x), disc = blurDisc(w.r, trafficBlur); disc.position.x = side * (w.half - w.r * RIM_INSET); disc.rotation.y = side * Math.PI / 2; w.pivot.add(disc); }
           return { spinner: w.spinner, r: w.r };
         });
       }
@@ -376,7 +376,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // up close, real people aboard (lib/crew), the nearest vehicles first come first served; else the built ones
       const isBus = BUS.test(VEHICLES[v.kind].name);
       if ((o.seats || o.bike) && far2 < (isBus ? crewing.busNear : crewing.near) ** 2 && aboard < crewing.cap) {
-        o.crew = board(o.crew, o.root, v.id, o.seats, o.bike || null, BUS.test(VEHICLES[v.kind].name) ? crewing.bus : 8);
+        o.crew = board(o.crew, o.root, v.id, o.seats, o.bike || null, BUS.test(VEHICLES[v.kind].name) ? crewing.bus : 8, VEHICLES[v.kind].length, /auto/.test(VEHICLES[v.kind].name) ? .15 : undefined); // (an auto's driver's feet stay back of its nose)
         aboard += o.crew.people.length;
         poseCrew(o.crew, o.root, dt, !!o.bike);
       } else if (o.crew) { disembark(o.crew, o.root); o.crew = null; }

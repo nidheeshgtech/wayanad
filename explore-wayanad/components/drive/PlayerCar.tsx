@@ -21,7 +21,7 @@ import { prepareVehicle } from "@/lib/carModel";
 import { cutBikeWheels } from "@/lib/bikeWheels";
 import { instanceWheels } from "@/lib/wheelInstances";
 import { modelWheels } from "@/lib/modelWheels";
-import { blurDisc, blurFor, blurMaterial } from "@/lib/wheelBlur";
+import { blurDisc, blurFor, blurMaterial, RIM_INSET } from "@/lib/wheelBlur";
 import { carOf, colourOf, type Choice, type Plate } from "@/data/cars";
 import { driverOf, personHeight } from "@/data/drivers";
 import { hideStandIn, loadCast, makeActor, poseSeat, seat, type Actor, type Seat } from "@/lib/people";
@@ -199,7 +199,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       mergeInto(own, spinner, { byLook: true, looks });
       wheels.push({ pivot, spinner, front: c.z > 0, roll: r > 0.012 && r < 0.08 ? 0.033 / r : 1 });
       // the blur disc on its outer face (it steers with the wheel, and needn't turn: it's round)
-      if (!car.bike && Math.abs(c.x) > 0.01) { const side = Math.sign(c.x), disc = blurDisc(r, blur); disc.position.x = (side > 0 ? box.max.x : box.min.x) + side * 0.0015 - c.x; /* (its real outer face: the pivot isn't always the wheel's middle) */ disc.rotation.y = side * Math.PI / 2; disc.visible = true; pivot.add(disc); } // (shown by its material: rig.blur.visible)
+      if (!car.bike && Math.abs(c.x) > 0.01) { const side = Math.sign(c.x), disc = blurDisc(r, blur); disc.position.x = (side > 0 ? box.max.x : box.min.x) - side * r * RIM_INSET - c.x; /* (its real outer face: the pivot isn't always the wheel's middle) */ disc.rotation.y = side * Math.PI / 2; disc.visible = true; pivot.add(disc); } // (shown by its material: rig.blur.visible)
     }
     const wheelSet = instanceWheels(wheels, root); // (four copies of one wheel: one draw per material for all four)
     // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside).
@@ -323,7 +323,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const actor = makeActor(id, src, clips, driverOf(id).height / 10); // units of 10 m
       // (a model without its own steering wheel part says where the wheel is: data/cars `seat`)
       const wheel = rig.steering?.pivot.position ?? (car.seat ? new Vector3(car.seat.x * LENGTH, car.seat.y * LENGTH, car.seat.z * LENGTH) : null);
-      seated.current = seat(actor, rig.body, !!car.bike, LENGTH, wheel);
+      seated.current = seat(actor, rig.body, !!car.bike, LENGTH, wheel, false, car.feet);
       hideStandIn(rig.root); placed = actor;
     });
     return () => { gone = true; seated.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
@@ -337,7 +337,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (gone) return;
       const actor = makeActor(id, src, clips, personHeight(id) / 10);
       const wheel = rig.steering?.pivot.position ?? (car.seat ? new Vector3(car.seat.x * LENGTH, car.seat.y * LENGTH, car.seat.z * LENGTH) : null);
-      riding.current = seat(actor, rig.body, !!car.bike, LENGTH, wheel, true); placed = actor;
+      riding.current = seat(actor, rig.body, !!car.bike, LENGTH, wheel, true, car.feet); placed = actor;
     }, () => {});
     return () => { gone = true; riding.current = null; if (placed) { placed.mixer.stopAllAction(); placed.root.removeFromParent(); } };
   }, [rig, choice.passenger, car.bike, car.seat, LENGTH]);

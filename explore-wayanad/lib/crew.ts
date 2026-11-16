@@ -43,7 +43,7 @@ export const driverOfVehicle = (id: number) => drivers.get(id) ?? null;
 export const someDriver = (id: number) => DRIVING[Math.abs(id * 7 + 3) % DRIVING.length];
 
 /** One vehicle's people while it's near: who, their body, and how they sit. */
-export type Crew = { people: { id: PersonId; actor: Actor; driver: boolean; hands?: { left: Vector3; right: Vector3 }; legs?: { bike: boolean; len: number; floor: number } }[]; done: boolean };
+export type Crew = { people: { id: PersonId; actor: Actor; driver: boolean; hands?: { left: Vector3; right: Vector3 }; legs?: { bike: boolean; len: number; floor: number; front?: number } }[]; done: boolean };
 /** Someone for this seat, seeded (so the vehicle keeps its people), from whoever has loaded (the rest start loading). */
 const pick = (seed: number, list: PersonId[]) => {
   for (const id of list) want(id);
@@ -56,7 +56,7 @@ const pick = (seed: number, list: PersonId[]) => {
  * or, for a bike (`bike` its length), a rider astride. Who sits where is seeded by the vehicle, so it keeps its people.
  * Returns what it managed this frame (call again next frame until `done`).
  */
-export function board(crew: Crew | null, root: Object3D, seed: number, seats: OccupiedSeat[] | null, bike: number | null, max: number): Crew {
+export function board(crew: Crew | null, root: Object3D, seed: number, seats: OccupiedSeat[] | null, bike: number | null, max: number, length = 0, feet?: number): Crew {
   const C = crew ?? { people: [], done: false };
   if (C.done) return C;
   const wanted = bike ? 1 : Math.min(max, seats?.length ?? 0);
@@ -91,7 +91,7 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
       // end up with a hand on the head)
       const hands = driver ? { left: new Vector3(s!.x + 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k), right: new Vector3(s!.x - 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k) }
         : { left: new Vector3(s!.x + 0.11 * k, s!.y - 0.52 * k, s!.z + 0.26 * k), right: new Vector3(s!.x - 0.11 * k, s!.y - 0.52 * k, s!.z + 0.26 * k) };
-      C.people.push({ id, actor: a, driver, hands, legs: { bike: false, len: 0, floor } });
+      C.people.push({ id, actor: a, driver, hands, legs: { bike: false, len: 0, floor, front: !length ? undefined : feet !== undefined ? length * feet : length * 0.5 - Math.max(0.04, length * 0.17) } });
     }
   }
   C.done = true;
