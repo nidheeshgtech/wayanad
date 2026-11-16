@@ -44,20 +44,32 @@ const SCOLD: Record<string, string[][]> = {
 };
 const scoldKind = (name: string) => /bus|ksrtc/.test(name) ? "bus" : /lorry/.test(name) ? "lorry" : /auto/.test(name) ? "auto" : /pulsar|enfield|bike/.test(name) ? "bike" : name === "police" ? "police" : name === "ambulance" ? "ambulance" : "car";
 
-/** A speech bubble: white, rounded, the words in dark ink, a little tail at the bottom; a sprite above someone's head. */
+/** A speech bubble in the game's look (as the HUD's notices): a chamfered panel of dark teal glass, a neon edge — gold
+ * at the ends, teal along — glowing a little, a small pointer under it, the words in white bold italic; a sprite above
+ * someone's head. */
 function bubble(text: string) {
-  const c = document.createElement("canvas"); c.width = 640; c.height = 200;
+  const c = document.createElement("canvas"); c.width = 640; c.height = 176;
   const g = c.getContext("2d")!;
-  g.font = "700 64px 'Instrument Sans', Arial, sans-serif";
-  const w = Math.min(620, g.measureText(text).width + 70), x = (640 - w) / 2;
-  g.fillStyle = "rgba(255,255,255,.96)"; g.strokeStyle = "rgba(14,31,26,.85)"; g.lineWidth = 6;
-  g.beginPath(); g.moveTo(x + 36, 10); g.arcTo(x + w, 10, x + w, 150, 36); g.arcTo(x + w, 150, x, 150, 36);
-  g.lineTo(350, 150); g.lineTo(320, 190); g.lineTo(300, 150); g.arcTo(x, 150, x, 10, 36); g.arcTo(x, 10, x + w, 10, 36); g.closePath();
-  g.fill(); g.stroke();
-  g.fillStyle = "#0e1f1a"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 320, 82, w - 40);
+  g.font = "italic 800 44px 'Instrument Sans', Arial, sans-serif";
+  const w = Math.min(600, g.measureText(text).width + 72), x = (640 - w) / 2, y = 14, h = 118, big = 22, small = 9, mid = 320;
+  const shape = () => {
+    g.beginPath();
+    g.moveTo(x + big, y); g.lineTo(x + w - small, y); g.lineTo(x + w, y + small); g.lineTo(x + w, y + h - big); g.lineTo(x + w - big, y + h);
+    g.lineTo(mid + 16, y + h); g.lineTo(mid, y + h + 26); g.lineTo(mid - 16, y + h); // the pointer, down to the speaker
+    g.lineTo(x + small, y + h); g.lineTo(x, y + h - small); g.lineTo(x, y + big); g.closePath();
+  };
+  const glass = g.createLinearGradient(0, y, 0, y + h); glass.addColorStop(0, "rgba(22,58,52,.95)"); glass.addColorStop(1, "rgba(5,14,12,.95)");
+  shape(); g.fillStyle = glass; g.fill();
+  // the shine across the top half
+  g.save(); shape(); g.clip(); g.fillStyle = "rgba(255,255,255,.07)"; g.fillRect(x, y, w, h * 0.45); g.restore();
+  const edge = g.createLinearGradient(x, 0, x + w, 0);
+  edge.addColorStop(0, "#ffd34d"); edge.addColorStop(0.16, "#ffcc33"); edge.addColorStop(0.3, "#2fe0cf"); edge.addColorStop(0.7, "#2fe0cf"); edge.addColorStop(0.84, "#ffcc33"); edge.addColorStop(1, "#ffd34d");
+  g.shadowColor = "rgba(47,224,207,.75)"; g.shadowBlur = 12; g.lineJoin = "miter"; g.lineWidth = 5; g.strokeStyle = edge; shape(); g.stroke();
+  g.shadowColor = "rgba(0,0,0,.6)"; g.shadowBlur = 4; g.shadowOffsetY = 2;
+  g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, mid, y + h / 2 + 2, w - 44);
   const tex = new CanvasTexture(c); tex.colorSpace = SRGBColorSpace;
   const sp = new Sprite(new SpriteMaterial({ map: tex, depthTest: false, transparent: true })); sp.renderOrder = 10;
-  sp.scale.set(0.3, 0.094, 1); sp.center.set(0.5, 0);
+  sp.scale.set(0.24, 0.066, 1); sp.center.set(0.5, 0);
   return sp;
 }
 // (in front of it, where it stopped for you — traffic keeps a few metres back — or beside its doors)
