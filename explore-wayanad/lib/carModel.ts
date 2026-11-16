@@ -4,7 +4,7 @@
  * keep their own. Used by PlayerCar (before it rigs the wheels), the garage preview and RemoteCars (merged by
  * material, cached per car and colour, so twenty drivers in red Kabinis share one model).
  */
-import { Box3, CanvasTexture, CapsuleGeometry, Color, Euler, Group, Matrix4, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, SRGBColorSpace, Vector3, type Material, type Object3D } from "three";
+import { Box3, CanvasTexture, CapsuleGeometry, Color, Euler, Float32BufferAttribute, Group, Matrix4, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, SRGBColorSpace, Vector3, type Material, type Object3D } from "three";
 import { DecalGeometry } from "three/addons/geometries/DecalGeometry.js";
 import { loadVehicle, mergeByMaterial } from "@/lib/vehicleAssets";
 import { carOf, colourOf, type Car, type Choice } from "@/data/cars";
@@ -139,39 +139,115 @@ export function paintedCar(choice: Choice) {
   return p;
 }
 
-/* ---- the game's livery (data/cars `livery`): DRIVE WAYANAD down each side over a gold stripe, the road-curve logo in a
- * badge on the bonnet — decals projected onto the curved body (three's DecalGeometry), drawn in canvas ---- */
+/* ---- the game's livery (data/cars `livery`): on each side the DRIVE WAYANAD lockup (the road-curve logo, the words)
+ * on a dark slanted panel with speed slashes trailing it, over a gold stripe; the lockup again across the tail; twin
+ * dark racing stripes with gold edges over the top, and the logo badge between them on the bonnet. Dark panels and
+ * edges so it reads on every paint, white and yellow too. Decals projected onto the curved body (three's
+ * DecalGeometry), drawn in canvas ---- */
 const ROAD = "M26 78 C26 52 74 50 74 30 C74 18 62 14 52 18"; // the logo's curve, in a 100 × 100 box (app/icon)
+const INK = "#0b1a16", GOLD = "#ffcc33", TEAL = "#2fe0cf";
 function drawCurve(g: CanvasRenderingContext2D, x: number, y: number, size: number, width: number, colour: string) {
   g.save(); g.translate(x, y); g.scale(size / 100, size / 100);
   g.lineCap = "round"; g.lineWidth = width; g.strokeStyle = colour; g.stroke(new Path2D(ROAD)); g.restore();
 }
-let sideTex: CanvasTexture | null = null, badgeTex: CanvasTexture | null = null;
+/** The round logo badge: dark disc, gold ring, the gold road curve. */
+function drawBadge(g: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fillStyle = INK; g.fill();
+  g.lineWidth = r * 0.085; g.strokeStyle = GOLD; g.stroke();
+  g.beginPath(); g.arc(cx, cy, r * 0.8, 0, Math.PI * 2); g.lineWidth = r * 0.025; g.strokeStyle = "rgba(47,224,207,.7)"; g.stroke();
+  drawCurve(g, cx - r * 0.78, cy - r * 0.78, r * 1.56, 14, GOLD);
+}
+/** A slanted panel (leaning like the italic words), dark glass with a gold lower edge and a teal upper line. */
+function drawPanel(g: CanvasRenderingContext2D, x0: number, x1: number, y0: number, y1: number, lean: number) {
+  const shape = new Path2D(); shape.moveTo(x0 + lean, y0); shape.lineTo(x1 + lean, y0); shape.lineTo(x1, y1); shape.lineTo(x0, y1); shape.closePath();
+  const face = g.createLinearGradient(0, y0, 0, y1); face.addColorStop(0, "rgba(22,52,46,.96)"); face.addColorStop(1, "rgba(6,15,13,.96)");
+  g.fillStyle = face; g.fill(shape);
+  g.fillStyle = GOLD; g.beginPath(); g.moveTo(x0, y1); g.lineTo(x1, y1); g.lineTo(x1 + lean * 0.06, y1 - 8); g.lineTo(x0 + lean * 0.06, y1 - 8); g.fill();
+  g.strokeStyle = TEAL; g.lineWidth = 3; g.beginPath(); g.moveTo(x0 + lean, y0 + 1.5); g.lineTo(x1 + lean, y0 + 1.5); g.stroke();
+}
+/** The words: small DRIVE spaced out over a big gold WAYANAD, both italic. */
+function drawWords(g: CanvasRenderingContext2D, x: number, y: number, big: number) {
+  g.textBaseline = "alphabetic"; g.textAlign = "left";
+  g.font = `italic 800 ${Math.round(big * 0.42)}px Arial, sans-serif`; g.fillStyle = "#ffffff";
+  ("letterSpacing" in g) && ((g as unknown as { letterSpacing: string }).letterSpacing = `${Math.round(big * 0.22)}px`);
+  g.fillText("DRIVE", x + big * 0.12, y - big * 0.86);
+  ("letterSpacing" in g) && ((g as unknown as { letterSpacing: string }).letterSpacing = "1px");
+  g.font = `italic 900 ${big}px Arial, sans-serif`;
+  g.lineWidth = big * 0.08; g.strokeStyle = INK; g.lineJoin = "round"; g.strokeText("WAYANAD", x, y);
+  const fill = g.createLinearGradient(0, y - big * 0.75, 0, y); fill.addColorStop(0, "#ffe07a"); fill.addColorStop(1, "#ffb81c");
+  g.fillStyle = fill; g.fillText("WAYANAD", x, y);
+}
+const canvasTexture = (c: HTMLCanvasElement) => { const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace; t.anisotropy = 8; return t; };
+let sideTex: CanvasTexture | null = null, rearTex: CanvasTexture | null = null, badgeTex: CanvasTexture | null = null, stripeTex: CanvasTexture | null = null;
 function sideTexture() {
   if (sideTex) return sideTex;
   const c = document.createElement("canvas"); c.width = 1024; c.height = 256;
   const g = c.getContext("2d")!;
-  // a gold stripe along the bottom, thin dark edges, fading out toward the front
-  const grad = g.createLinearGradient(0, 0, 1024, 0); grad.addColorStop(0, "rgba(255,204,51,0)"); grad.addColorStop(0.12, "#ffcc33"); grad.addColorStop(1, "#ffb81c");
-  g.fillStyle = "rgba(14,20,18,.85)"; g.fillRect(40, 186, 984, 34);
-  g.fillStyle = grad; g.fillRect(40, 190, 984, 26);
-  // the logo, then the words
-  g.fillStyle = "rgba(14,20,18,.0)"; drawCurve(g, 70, 30, 150, 15, "#14191a"); drawCurve(g, 70, 30, 150, 10, "#ffcc33");
-  g.font = "italic 900 92px Arial, sans-serif"; g.textBaseline = "middle";
-  g.lineWidth = 10; g.strokeStyle = "#14191a"; g.strokeText("DRIVE", 230, 108); g.fillStyle = "#ffffff"; g.fillText("DRIVE", 230, 108);
-  const w = g.measureText("DRIVE ").width;
-  g.strokeText("WAYANAD", 230 + w, 108); g.fillStyle = "#ffcc33"; g.fillText("WAYANAD", 230 + w, 108);
-  sideTex = new CanvasTexture(c); sideTex.colorSpace = SRGBColorSpace; sideTex.anisotropy = 8;
-  return sideTex;
+  // (x = 0 is the car's front) a gold stripe along the bottom, a teal pinstripe under it, both fading out toward the front
+  const fade = (a: string, b: string) => { const f = g.createLinearGradient(0, 0, 1024, 0); f.addColorStop(0, a); f.addColorStop(0.14, b); f.addColorStop(1, b); return f; };
+  g.fillStyle = fade("rgba(11,26,22,0)", "rgba(11,26,22,.9)"); g.fillRect(30, 206, 994, 30);
+  g.fillStyle = fade("rgba(255,204,51,0)", GOLD); g.fillRect(30, 210, 994, 16);
+  g.fillStyle = fade("rgba(47,224,207,0)", TEAL); g.fillRect(30, 229, 994, 4);
+  // the panel, the badge and the words
+  drawPanel(g, 96, 790, 40, 196, 26);
+  drawBadge(g, 186, 118, 62);
+  drawWords(g, 272, 172, 100);
+  // speed slashes trailing behind it: gold to teal, thinner and fainter toward the back
+  for (let i = 0; i < 5; i++) {
+    const x = 812 + i * 42, w = 26 - i * 3.5, a = 1 - i * 0.17;
+    g.fillStyle = i < 2 ? `rgba(255,204,51,${a})` : `rgba(47,224,207,${a})`;
+    g.beginPath(); g.moveTo(x + 26, 40); g.lineTo(x + 26 + w, 40); g.lineTo(x + w, 196); g.lineTo(x, 196); g.closePath(); g.fill();
+    g.strokeStyle = `rgba(11,26,22,${0.8 * a})`; g.lineWidth = 3; g.stroke();
+  }
+  return (sideTex = canvasTexture(c));
+}
+function rearTexture() {
+  if (rearTex) return rearTex;
+  const c = document.createElement("canvas"); c.width = 1024; c.height = 256;
+  const g = c.getContext("2d")!;
+  // the lockup centred on a compact panel (kept narrow: clear of the tail lamps)
+  drawPanel(g, 150, 860, 44, 212, 24);
+  drawBadge(g, 236, 128, 62);
+  drawWords(g, 318, 182, 104);
+  return (rearTex = canvasTexture(c));
 }
 function badgeTexture() {
   if (badgeTex) return badgeTex;
   const c = document.createElement("canvas"); c.width = c.height = 256;
-  const g = c.getContext("2d")!;
-  g.beginPath(); g.arc(128, 128, 118, 0, Math.PI * 2); g.fillStyle = "#0e1f1a"; g.fill(); g.lineWidth = 10; g.strokeStyle = "#ffcc33"; g.stroke();
-  drawCurve(g, 28, 28, 200, 16, "#ffcc33");
-  badgeTex = new CanvasTexture(c); badgeTex.colorSpace = SRGBColorSpace; badgeTex.anisotropy = 8;
-  return badgeTex;
+  drawBadge(c.getContext("2d")!, 128, 128, 116);
+  return (badgeTex = canvasTexture(c));
+}
+/** Twin stripes along the car, for a decal box STRIPES.w of the body's width: each dark with gold edges and a teal
+ * pinstripe inside, at ±STRIPES.at of the width from the middle, STRIPES.each wide. */
+const STRIPES = { w: 0.4, at: 0.13, each: 0.078 };
+function stripeTexture() {
+  if (stripeTex) return stripeTex;
+  const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+  const g = c.getContext("2d")!, px = 256 / STRIPES.w, half = (STRIPES.each * px) / 2;
+  for (const side of [-1, 1]) {
+    const mid = 128 + side * STRIPES.at * px, x0 = mid - half;
+    g.fillStyle = "rgba(11,26,22,.94)"; g.fillRect(x0, 0, half * 2, 64);
+    g.fillStyle = GOLD; g.fillRect(x0, 0, 4, 64); g.fillRect(x0 + half * 2 - 4, 0, 4, 64);
+    g.fillStyle = "rgba(47,224,207,.85)"; g.fillRect(mid + side * half * 0.35 - 1, 0, 2.5, 64);
+  }
+  return (stripeTex = canvasTexture(c));
+}
+/** Only the triangles facing up (world normal's y over `min`): a decal projected down through the whole body would
+ * otherwise also land on its underside and anything inside it. */
+function facingUp(geo: DecalGeometry, min: number) {
+  const pos = geo.getAttribute("position"), keep: number[] = [];
+  const a = new Vector3(), b = new Vector3(), c = new Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    const n = b.sub(a).cross(c.sub(a)).normalize(); if (n.y > min) keep.push(i, i + 1, i + 2);
+  }
+  if (keep.length === pos.count) return geo;
+  for (const name of Object.keys(geo.attributes)) {
+    const at = geo.getAttribute(name), k = at.itemSize, out = new Float32Array(keep.length * k);
+    keep.forEach((v, j) => { for (let q = 0; q < k; q++) out[j * k + q] = at.array[v * k + q]; });
+    geo.setAttribute(name, new Float32BufferAttribute(out, k));
+  }
+  return geo;
 }
 const decalMaterial = (map: CanvasTexture) => new MeshStandardMaterial({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 0.35, metalness: 0.2 });
 export function addLivery(root: Object3D, body: RegExp, rear = 0.64) {
@@ -207,11 +283,18 @@ export function addLivery(root: Object3D, body: RegExp, rear = 0.64) {
     for (const m of solids) {
       if (!new Box3().setFromObject(m).intersectsBox(reach)) continue;
       const geo = new DecalGeometry(m, at, euler, dims);
-      if (geo.getAttribute("position").count) place(geo, sideTexture(), "livery-rear"); else geo.dispose();
+      if (geo.getAttribute("position").count) place(geo, rearTexture(), "livery-rear"); else geo.dispose();
     }
   }
-  // the bonnet badge: from above, on the front of the bonnet
-  const nose = new Vector3(mid.x, box.max.y, mid.z + size.z * 0.33);
-  place(new DecalGeometry(shell, nose, new Euler(-Math.PI / 2, 0, 0), new Vector3(size.x * 0.22, size.x * 0.22, size.y * 1.2)), badgeTexture(), "livery-badge");
+  // twin stripes over the top, nose to tail: projected from above onto the painted body only (not the glass, not the
+  // cabin seen through it), only what faces up
+  const painted = solids.filter((m) => [m.material].flat().some((x) => body.test((x as Material).name)));
+  for (const m of painted) {
+    const geo = facingUp(new DecalGeometry(m, mid, new Euler(-Math.PI / 2, 0, 0), new Vector3(size.x * STRIPES.w, size.z * 1.02, size.y * 1.1)), 0.3);
+    if (geo.getAttribute("position").count) place(geo, stripeTexture(), "livery-stripes"); else geo.dispose();
+  }
+  // the bonnet badge: from above, on the front of the bonnet, between the stripes
+  const nose = new Vector3(mid.x, box.max.y, mid.z + size.z * 0.33), d = size.x * (2 * (STRIPES.at - STRIPES.each / 2) - 0.02);
+  place(facingUp(new DecalGeometry(shell, nose, new Euler(-Math.PI / 2, 0, 0), new Vector3(d, d, size.y * 1.2)), 0.3), badgeTexture(), "livery-badge");
   return root;
 }

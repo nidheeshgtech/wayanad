@@ -91,7 +91,7 @@ export const COLOURS: { id: ColourId; name: string; hex: string }[] = [
 /** `paintHex`: a borrowed vehicle's own colour, instead of `colour`; `passenger`: its own driver, moved over to ride
  * along (never saved). */
 export type Choice = { car: CarId; colour: ColourId; driver: DriverId; paintHex?: string; passenger?: PersonId };
-export const DEFAULT_CHOICE: Choice = { car: "kalpetta", colour: "yellow", driver: DEFAULT_DRIVER }; // (the Supercar, in yellow)
+export const DEFAULT_CHOICE: Choice = { car: "kalpetta", colour: "white", driver: DEFAULT_DRIVER }; // (the Supercar, in white: the livery shows best on it)
 export const carOf = (id: string) => CARS.find((c) => c.id === id) ?? BORROWABLE.find((c) => c.id === id) ?? CARS[0];
 export const colourOf = (id: string) => COLOURS.find((c) => c.id === id) ?? COLOURS[0];
 

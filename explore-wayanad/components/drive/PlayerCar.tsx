@@ -58,7 +58,7 @@ const VIEW = {
   // close behind, as racing games' near chase: a little above the roof looking down onto it, the car in the lower third,
   // aimed well down the road so bends and traffic come into view sooner (was 5 m back at roof height: the car filled
   // the middle of the screen and hid what was ahead)
-  near: { back: 0.62, up: 0.25, ahead: 1.6, aimUp: 0 },
+  near: { back: 0.55, up: 0.23, ahead: 1.5, aimUp: 0 },
   hood: { at: new Vector3(0, 0.156, 0.05), look: new Vector3(0, 0.132, 1.2) }, // eye just ahead of the windscreen, in the car's frame
   ride: { at: new Vector3(0, 0.152, 0.03), look: new Vector3(0, 0.12, 1.2) },   // a bike's "bonnet" view: the rider's eyes, over the bars
 };
