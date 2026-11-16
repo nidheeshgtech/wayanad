@@ -1,4 +1,5 @@
 "use client";
+import { barrierGaps } from "@/lib/stops";
 import { timed } from "@/lib/perf";
 import { useMemo } from "react";
 import {
@@ -144,12 +145,15 @@ export default function Road({ curve, detail = 900, kind = "ghat", small = false
       new MeshStandardMaterial({ map: stripes(), roughness: 0.7 }),
       n,
     );
-    const m = new Matrix4(), side = new Vector3();
+    const m = new Matrix4(), side = new Vector3(), L = curve.getLength();
+    const gaps = barrierGaps(curve);
     const feet: { p: Vector3; y: number; outer: number; side: Vector3 }[] = [];
     let placed = 0;
     for (let i = 0; i < n; i++) {
       const t = i / n, pt = curve.getPointAt(t), tan = curve.getTangentAt(t);
       if (t > archT()) break; // the ghat ends at the gateway; Lakkidi's shops line the road beyond
+      const gap = gaps.find((g) => Math.abs(t * L - g.s) < g.half);
+      if (gap) { const sd = side.set(tan.z, 0, -tan.x).normalize(); if ((height(pt.x + sd.x * 2, pt.z + sd.z * 2) < height(pt.x - sd.x * 2, pt.z - sd.z * 2) ? 1 : -1) === gap.side) continue; } // the way onto the viewpoint's terrace, the kadas' fronts (lib/stops)
       side.set(tan.z, 0, -tan.x).normalize();
       // the drop is on whichever side the ground is lower, sampled past the road's edge
       const outer = height(pt.x + side.x * 2, pt.z + side.z * 2) < height(pt.x - side.x * 2, pt.z - side.z * 2) ? 1 : -1;

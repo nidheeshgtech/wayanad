@@ -6,7 +6,7 @@
  */
 import { Box3, Quaternion, Vector3, type Object3D } from "three";
 import { DRIVERS, EXTRAS, personHeight, type PersonId } from "@/data/drivers";
-import { lean, loadCast, makeActor, PALM, reach, seat as seatOnBike, settleHands, type Actor } from "@/lib/people";
+import { lean, loadCast, makeActor, PALM, reach, seat as seatOnBike, seatLegs, settleHands, type Actor } from "@/lib/people";
 import type { OccupiedSeat } from "@/lib/occupants";
 
 const ALL: PersonId[] = [...DRIVERS.map((d) => d.id), ...EXTRAS.map((e) => e.id)];
@@ -43,7 +43,7 @@ export const driverOfVehicle = (id: number) => drivers.get(id) ?? null;
 export const someDriver = (id: number) => DRIVING[Math.abs(id * 7 + 3) % DRIVING.length];
 
 /** One vehicle's people while it's near: who, their body, and how they sit. */
-export type Crew = { people: { id: PersonId; actor: Actor; driver: boolean; hands?: { left: Vector3; right: Vector3 } }[]; done: boolean };
+export type Crew = { people: { id: PersonId; actor: Actor; driver: boolean; hands?: { left: Vector3; right: Vector3 }; legs?: { bike: boolean; len: number; floor: number } }[]; done: boolean };
 /** Someone for this seat, seeded (so the vehicle keeps its people), from whoever has loaded (the rest start loading). */
 const pick = (seed: number, list: PersonId[]) => {
   for (const id of list) want(id);
@@ -69,7 +69,7 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
     if (driver) drivers.set(seed, id);
     if (bike) {
       const placed = seatOnBike(a, root, true, bike);
-      C.people.push({ id, actor: a, driver: true, hands: placed.hands });
+      C.people.push({ id, actor: a, driver: true, hands: placed.hands, legs: placed.legs });
     } else {
       a.play("sit", 0); a.mixer.update(0.01);
       // the head where the seat plan has it (the plan gives head positions; the body follows)
@@ -91,7 +91,7 @@ export function board(crew: Crew | null, root: Object3D, seed: number, seats: Oc
       // end up with a hand on the head)
       const hands = driver ? { left: new Vector3(s!.x + 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k), right: new Vector3(s!.x - 0.17 * k, s!.y - 0.36 * k, s!.z + 0.42 * k) }
         : { left: new Vector3(s!.x + 0.11 * k, s!.y - 0.52 * k, s!.z + 0.26 * k), right: new Vector3(s!.x - 0.11 * k, s!.y - 0.52 * k, s!.z + 0.26 * k) };
-      C.people.push({ id, actor: a, driver, hands });
+      C.people.push({ id, actor: a, driver, hands, legs: { bike: false, len: 0, floor } });
     }
   }
   C.done = true;
@@ -126,6 +126,7 @@ export function poseCrew(C: Crew, root: Object3D, dt: number, bike: boolean) {
   for (const p of C.people) {
     p.actor.mixer.update(Math.min(dt, 0.1));
     lean(p.actor, bike ? 0.55 : -0.15, side, up);
+    if (p.legs) seatLegs(p.actor, root, p.legs);
     if (p.hands) reach(p.actor, { left: root.localToWorld(tl.copy(p.hands.left)), right: root.localToWorld(tr.copy(p.hands.right)) },
       { left: pl.copy((bike ? POLE_BIKE : POLE).left).applyQuaternion(rq), right: pr.copy((bike ? POLE_BIKE : POLE).right).applyQuaternion(rq) },
       p.driver ? { left: ql.copy(bike ? PALM.bike.left : PALM.car.left).applyQuaternion(rq), right: qr.copy(bike ? PALM.bike.right : PALM.car.right).applyQuaternion(rq) } : undefined);

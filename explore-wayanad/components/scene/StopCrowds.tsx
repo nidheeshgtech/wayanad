@@ -29,20 +29,23 @@ const VIEWPOINT: Spot[] = [
   { id: "tourist", x: 0.12, z: D - 0.14, face: 0, move: "phone", rain: "no", small: true },
   { id: "kurti", x: 0.2, z: D - 0.14, face: 0.1, move: "gaze", rain: "no", small: true },
   { id: "dad", x: -0.48, z: D - 0.17, face: 0, move: "gaze", rain: "no" },
-  { id: "mum", x: -0.58, z: D - 0.2, face: 0.5, move: "chat", rain: "no" },
+  { id: "kurti", x: -0.58, z: D - 0.2, face: 0.5, move: "chat", rain: "no" },
   { id: "boy", x: -0.37, z: D - 0.24, face: 0, move: "idle", rain: "no" },
   { id: "backpacker", x: 0.62, z: D - 0.14, face: 0.25, move: "gaze", rain: "no", small: true },
   { id: "poncho", x: 0.4, z: D - 0.15, face: -0.1, move: "phone", rain: "only", small: true },
   { id: "uncle", x: GZ.x, z: GZ.z - 0.12, face: 0, move: "sitdrink" },
-  { id: "granny", x: GZ.x + 0.02, z: GZ.z + 0.12, face: Math.PI, move: "sitdrink" },
+  { id: "mum", x: GZ.x + 0.02, z: GZ.z + 0.12, face: Math.PI, move: "sitdrink" },
+  { id: "granny", x: GZ.x + 0.2, z: GZ.z + 0.05, face: -Math.PI / 2, move: "idle" },
   { id: "saree", x: -W * 0.3, z: D - 0.42, face: 0, move: "sitdrink", rain: "no" },
   { id: "lungi", x: 0.25, z: 0.32, face: 2.6, move: "talk" },
 ];
 // a chai kada: the owner behind the counter, customers in front (one on the bench or a stool, facing the road)
 const OWNERS: PersonId[] = ["lungi", "saree", "chaiman", "lungi", "churidar", "chaiman"];
 const CUSTOMERS: PersonId[] = ["student", "biker", "tourist", "kurti", "conductor", "dad", "collegegirl", "uncle", "backpacker", "picker", "collegeboy", "mum", "rider", "school", "auto", "trekker", "mechanic", "estate"];
+// (who sits: people whose models take the shared sitting clip well — the older-rig grandmother slumped over)
+const SITTERS: PersonId[] = ["uncle", "saree", "tourist", "dad", "collegegirl", "student", "kurti", "mum"];
 function kadaSpots(i: number): Spot[] {
-  const c = (k: number) => CUSTOMERS[(i * 3 + k) % CUSTOMERS.length];
+  const c = (k: number) => k === 2 ? SITTERS[i % SITTERS.length] : CUSTOMERS[(i * 3 + k) % CUSTOMERS.length];
   return [
     { id: OWNERS[i % OWNERS.length], x: -0.02, z: 0.2, face: Math.PI, move: i % 2 ? "idle" : "talk", small: true },
     { id: c(0), x: -0.09, z: -0.14, face: 0.25, move: "drink", small: true },

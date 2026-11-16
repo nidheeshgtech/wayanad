@@ -24,6 +24,7 @@ export type Stop = {
 
 export const PLAZA = { w: 3.0, d: 1.5 };       // the viewpoint terrace: 30 m along the road, 15 m deep
 export const KADA = { w: 0.42, d: 0.34 };      // a chai kada's footprint with its benches
+export const APRON = 0.26;                     // the paving from the road's edge to a stop (to just past the barrier line)
 const EDGE = 0.4 + 0.24;                       // from the centre line to just past the barrier posts (+ widen)
 
 const cache = new WeakMap<CatmullRomCurve3, Stop[]>();
@@ -93,7 +94,7 @@ export function stops(curve: CatmullRomCurve3): Stop[] {
     list.push(make(curve, "kada", s, side, order[i]));
   });
   cache.set(curve, list);
-  if (typeof window !== "undefined") (window as unknown as { __wayanadStops?: unknown }).__wayanadStops = list.map((x) => ({ kind: x.kind, s: x.s, side: x.side, valley: x.valley, style: x.style })); // for testing
+  if (typeof window !== "undefined") (window as unknown as { __wayanadStops?: unknown }).__wayanadStops = list.map((x) => ({ kind: x.kind, s: x.s, side: x.side, valley: x.valley, style: x.style, at: x.at.toArray(), out: [x.out.x, x.out.z] })); // for testing
   return list;
 }
 
@@ -111,4 +112,33 @@ export function clearAt(curve: CatmullRomCurve3, x: number, z: number, tall = 0)
     }
   }
   return false;
+}
+
+/** A stop's own +x (local "along") in the world: the terrace and kadas are built in that frame. */
+export function stopX(st: Stop) { return new Vector3(Math.cos(st.yaw), 0, -Math.sin(st.yaw)); }
+/** The distance along the road of a point `u` along a stop (its local x). */
+export const stopS = (st: Stop, u: number) => st.s + u * stopX(st).dot(st.along);
+
+/** Where the viewpoint's terrace opens to the road: a gap in the barrier there (Road), `u` along the terrace. */
+export const ENTRANCE = { u: -0.55, half: 0.45 };
+/** The gaps in the barrier: the terrace's way in, and the front of each kada (its customers stand there). */
+export function barrierGaps(curve: CatmullRomCurve3) {
+  return stops(curve).map((st) => st.kind === "viewpoint" ? { s: stopS(st, ENTRANCE.u), half: ENTRANCE.half, side: st.side } : { s: st.s, half: KADA.w / 2 + 0.08, side: st.side });
+}
+
+/**
+ * Standing on a stop's floor? The floor's height, and whether (x, z) is inside its walls — the terrace inside its
+ * railings, a kada's floor — or null when not on one. On foot (components/drive/OnFoot) the terrace is walked on, not
+ * the valley under it, and its railings hold you in.
+ */
+export function stopFloor(curve: CatmullRomCurve3, x: number, z: number): { y: number; viewpoint: boolean; v: number } | null {
+  for (const st of stops(curve)) {
+    const dx = x - st.at.x, dz = z - st.at.z, X = stopX(st);
+    const u = dx * X.x + dz * X.z, v = dx * st.out.x + dz * st.out.z;
+    // (each with a paved apron from the road's edge, APRON deep, at the road's level: walked straight on to)
+    if (st.kind === "viewpoint") {
+      if (Math.abs(u) < PLAZA.w / 2 - 0.035 && v > -APRON && v < PLAZA.d - 0.05) return { y: st.at.y, viewpoint: true, v };
+    } else if (Math.abs(u) < KADA.w / 2 + 0.06 && v > -APRON && v < 0.07 + KADA.d) return { y: st.at.y + (v > 0.03 ? 0.012 : 0.004), viewpoint: false, v };
+  }
+  return null;
 }

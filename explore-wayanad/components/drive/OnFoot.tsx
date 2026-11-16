@@ -10,6 +10,7 @@ import type { BorrowId } from "@/data/cars";
 import { driverOfVehicle, someDriver } from "@/lib/crew";
 import { announce } from "@/lib/score";
 import { height, roadShapeAt, SECTION } from "@/lib/terrain";
+import { stopFloor } from "@/lib/stops";
 import { driverOf, personHeight, type DriverId, type PersonId } from "@/data/drivers";
 import { loadCast, makeActor, settleHands, type Actor } from "@/lib/people";
 import { mark } from "@/lib/stats";
@@ -124,8 +125,10 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     curve.getPointAt(t, T.p); curve.getTangentAt(t, T.tan).setY(0).normalize();
     T.left.set(T.tan.z, 0, -T.tan.x);
     const lat = (x - T.p.x) * T.left.x + (z - T.p.z) * T.left.z, edge = SECTION.half + roadShapeAt(t).widen;
-    const y = Math.abs(lat) <= edge + 0.02 ? T.p.y - 0.588 : height(x, z);
-    return { s, lat, y };
+    // on a stop's floor (the viewpoint's terrace, a kada): its floor, not the ground under it (lib/stops)
+    const floor = stopFloor(curve, x, z);
+    const y = floor ? floor.y : Math.abs(lat) <= edge + 0.02 ? T.p.y - 0.588 : height(x, z);
+    return { s, lat, y, floor };
   };
 
   /** Is (s, lat) inside a vehicle — the traffic, the one you came in, your own parked one? Vehicles are solid: you walk
@@ -268,8 +271,11 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
     if (stepping) { /* moved by the steps */ } else if (v !== 0) {
       const next = place(nx, nz, st.s);
       // not up a cut face, not over the edge, not off into the trees, not far from the vehicle
-      const ok = Math.abs(next.lat) < ROAM.side && next.y - st.y < ROAM.climb && st.y - next.y < ROAM.drop && Math.abs(next.s - game.s) < ROAM.along
-        && !blocked(next.s, next.lat, F.s, F.lat);
+      // (on the terrace: anywhere inside its railings; off it only back toward the road — the railings hold you in)
+      const was = stopFloor(curve, F.x, F.z);
+      const railing = !!was?.viewpoint && !next.floor && was.v > 0.12;
+      const ok = (Math.abs(next.lat) < ROAM.side || !!next.floor) && next.y - st.y < ROAM.climb && st.y - next.y < ROAM.drop && Math.abs(next.s - game.s) < ROAM.along
+        && !railing && !blocked(next.s, next.lat, F.s, F.lat);
       if (ok) { F.x = nx; F.z = nz; st.s = next.s; st.y = next.y; st.moved += Math.abs(v) * dt; }
     } else { const here = place(F.x, F.z, st.s); st.s = here.s; st.y = here.y; } // (standing: kept on the ground wherever they are)
     // the step matched to the pace (the clips cover ~1.15 m/s walking, ~4.5 m/s running); backwards, the walk reversed

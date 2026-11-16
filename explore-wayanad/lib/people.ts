@@ -226,6 +226,46 @@ export function reach(actor: Actor, targets: { left: Vector3; right: Vector3 }, 
     if (want) holdHand(actor, side, want, FLEX);
   }
 }
+/**
+ * Seated legs placed for the seat, not a chair: the shared sitting clip has the knees bent and the shins straight down,
+ * which put the feet through a car's floor (a car seat is low) and onto the road from a bike. Each leg is bent at the
+ * knee (two-bone, knee up and forward) so the foot lands — in a car forward on the floor `floor` (frame y), on a bike
+ * on its footpegs (from its length `len`). Run after the mixer's update, each frame. Frame: +z forward, y up.
+ */
+const lU = new Vector3(), lK = new Vector3(), lF = new Vector3(), lT = new Vector3(), lP = new Vector3(), lq = new Quaternion();
+export function seatLegs(actor: Actor, frame: Object3D, legs: { bike: boolean; len: number; floor: number }) {
+  frame.updateWorldMatrix(true, false); frame.getWorldQuaternion(lq);
+  const hips = actor.bones.get("Hips"); if (!hips) return;
+  hips.updateWorldMatrix(true, true);
+  const H = frame.worldToLocal(hips.getWorldPosition(new Vector3()));
+  for (const side of ["Left", "Right"] as const) {
+    const up = actor.bones.get(`${side}UpLeg`), knee = actor.bones.get(`${side}Leg`), foot = actor.bones.get(`${side}Foot`);
+    if (!up || !knee || !foot) continue;
+    up.updateWorldMatrix(true, true);
+    lU.setFromMatrixPosition(up.matrixWorld); lK.setFromMatrixPosition(knee.matrixWorld); lF.setFromMatrixPosition(foot.matrixWorld);
+    const a = lU.distanceTo(lK), b = lK.distanceTo(lF), U = frame.worldToLocal(lU.clone()), out = Math.sign(U.x - H.x) || (side === "Left" ? 1 : -1);
+    if (legs.bike) {
+      // the pegs: ~15% of the bike's length up, a little ahead of the hips, a hand's width out
+      lT.set(H.x + out * Math.max(Math.abs(U.x - H.x), 0.085 * legs.len), 0.15 * legs.len, H.z + 0.07 * legs.len);
+    } else {
+      // forward along the floor as far as a leg with the knee still a little bent reaches
+      const drop = Math.max(0.005, U.y - (legs.floor + 0.008)), fwd = Math.sqrt(Math.max(0, (0.9 * (a + b)) ** 2 - drop * drop));
+      lT.set(U.x + out * 0.004, legs.floor + 0.008, U.z + fwd);
+    }
+    frame.localToWorld(lT);
+    const toT = lT.clone().sub(lU), d = Math.min(a + b - 1e-5, Math.max(Math.abs(a - b) + 1e-5, toT.length())); toT.normalize();
+    const x = (a * a - b * b + d * d) / (2 * d), h = Math.sqrt(Math.max(0, a * a - x * x));
+    lP.set(0, 1, legs.bike ? 1.2 : 0.5).normalize().applyQuaternion(lq); // the knee: up (and forward)
+    const bend = lP.addScaledVector(toT, -lP.dot(toT)).normalize();
+    const K = lU.clone().addScaledVector(toT, x).addScaledVector(bend, h);
+    aim(up, knee, K.clone().sub(lU).normalize());
+    knee.updateWorldMatrix(true, false);
+    aim(knee, foot, lT.clone().sub(lK.setFromMatrixPosition(knee.matrixWorld)).normalize());
+    // and the foot flat on the peg or the floor, toes forward (the clip had them pointing down, past the peg to the road)
+    const toe = actor.bones.get(`${side}ToeBase`);
+    if (toe) { foot.updateWorldMatrix(true, false); aim(foot, toe, lP.set(0, -0.12, 1).normalize().applyQuaternion(lq)); }
+  }
+}
 const WRIST = 0.006; // units (6 cm): how far short of the grip the wrist stops
 const FLEX = 0.6;    // rad (~35°): the wrist bent toward the palm, holding on
 /**
@@ -318,7 +358,7 @@ export const heightOf = (id: PersonId) => personHeight(id);
 
 /** A driver in their seat: where the hands go and how they sit, in the vehicle's own frame (+x left, +z forward). */
 /** `free`: a passenger — hands in the lap as the clip has them, not reaching for anything. */
-export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; palm: { left: Vector3; right: Vector3 }; lean: number; free?: boolean };
+export type Seat = { actor: Actor; hands: { left: Vector3; right: Vector3 }; pole: { left: Vector3; right: Vector3 }; palm: { left: Vector3; right: Vector3 }; lean: number; free?: boolean; legs: { bike: boolean; len: number; floor: number } };
 /**
  * Sit `actor` in a vehicle `length` units long (frame: wheels on y = 0, centred): on a bike from the old rider's marks
  * (fractions of its length), leaning over the bars; in a car at its steering wheel's centre `wheel`, upright, right-hand
@@ -336,6 +376,7 @@ export function seat(actor: Actor, frame: Object3D, bike: boolean, length: numbe
   frame.add(actor.root);
   return {
     actor, lean: bike ? (passenger ? 0.3 : 0.55) : -0.2, free: passenger,
+    legs: { bike, len: L, floor: hipsAt.y - 0.03 }, // (a car's floor ~30 cm under the hips)
     hands: { left: new Vector3(grip.cx + grip.x, grip.y, grip.z), right: new Vector3(grip.cx - grip.x, grip.y, grip.z) },
     // elbows: in a car out and down; on a bike mostly down and back, tucked in (out-first read as arms flung up)
     pole: bike
@@ -351,6 +392,7 @@ export function poseSeat(S: Seat, frame: Object3D, dt: number) {
   S.actor.mixer.update(Math.min(dt, 0.1));
   frame.updateWorldMatrix(true, false); frame.getWorldQuaternion(sq);
   lean(S.actor, S.lean, sside.set(1, 0, 0).applyQuaternion(sq), sup.set(0, 1, 0).applyQuaternion(sq));
+  seatLegs(S.actor, frame, S.legs);
   if (S.free) settleHands(S.actor);
   else reach(S.actor, { left: frame.localToWorld(sl.copy(S.hands.left)), right: frame.localToWorld(sr.copy(S.hands.right)) },
     { left: spl.copy(S.pole.left).applyQuaternion(sq), right: spr.copy(S.pole.right).applyQuaternion(sq) },

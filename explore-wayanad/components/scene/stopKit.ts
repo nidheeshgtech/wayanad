@@ -4,7 +4,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { rubble } from "./stone";
-import type { KadaStyle } from "@/lib/stops";
+import { APRON, type KadaStyle } from "@/lib/stops";
 
 /*
  * The parts of the churam's roadside stops (components/scene/Stops): the chai kadas in four styles — 0 traditional
@@ -180,6 +180,7 @@ export function buildKada(style: KadaStyle, stilts: boolean) {
   const front = 0.07, back = front + d;
   // the floor (and posts under it on the valley side)
   box(g, [w + 0.04, 0.012, d + 0.06], [0, 0.006, front + d / 2 - 0.01], mat("#5e5a52", { roughness: 0.9 }));
+  box(g, [w + 0.12, 0.008, APRON + 0.04], [0, 0.0, -APRON / 2 + 0.01], mat("#6d6a62", { roughness: 0.95 })); // the packed apron in front, from the road's edge
   if (stilts) for (const x of [-w / 2, w / 2]) for (const z of [front, back]) cyl(g, 0.008, 0.6, [x, -0.3, z], wood, 6);
   // posts, back and side walls
   for (const x of [-w / 2, w / 2]) { cyl(g, 0.007, h, [x, h / 2, front], wood, 6); cyl(g, 0.007, h, [x, h / 2, back], wood, 6); }
@@ -230,7 +231,7 @@ export function buildKada(style: KadaStyle, stilts: boolean) {
 export function buildTerrace(w: number, d: number, drop: number) {
   const g = new Group();
   // the paved deck and the walls under it
-  box(g, [w, 0.02, d], [0, -0.01, d / 2], pavingMat());
+  box(g, [w, 0.02, d + APRON], [0, -0.01, (d - APRON) / 2], pavingMat()); // (from the road's edge: the apron, lib/stops)
   box(g, [w, drop, 0.06], [0, -drop / 2 - 0.02, d], wallMat(w * 2, drop * 2));
   for (const s of [-1, 1]) box(g, [0.06, drop, d], [s * w / 2, -drop / 2 - 0.02, d / 2], wallMat(d * 2, drop * 2));
   // stone pillars along the outer edge and the ends, black rails between, lanterns on every other pillar
