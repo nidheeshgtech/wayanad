@@ -15,6 +15,7 @@ import { loading } from "@/lib/loading";
 import { mark, markLoaded, tickPlay, watchLeaving } from "@/lib/stats";
 import { shareCard } from "@/lib/shareCard";
 import { haptic, nativeReady, submitClimb } from "@/lib/native";
+import { VIEW_EVENT } from "./SwipeLook";
 import { begin, finish, resetPenalty, score } from "@/lib/score";
 import { BADGES, award, earned, finishBadges, startRun, badges as badgeState } from "@/lib/badges";
 import { PRESENTED_BY, STAY, linkedSponsors } from "@/data/sponsors";
@@ -145,6 +146,19 @@ export default function DriveHud() {
     try { v = localStorage.getItem(viewKey()) as View | null; } catch {}
     if (!v || !VIEWS.includes(v)) v = viewKey() === "drive-view-touch2" ? "near" : null;
     if (v) { game.view = v; setView(v); }
+  }, []);
+  // a double tap on the road changes the camera (SwipeLook), its name shown for a moment
+  const viewTag = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let t = 0;
+    const next = () => {
+      cycleView(); setView(game.view); haptic("light");
+      const el = viewTag.current; if (!el) return;
+      el.lastElementChild!.textContent = VIEW_NAME[game.view]; el.dataset.show = "";
+      clearTimeout(t); t = window.setTimeout(() => { delete el.dataset.show; }, 1100);
+    };
+    addEventListener(VIEW_EVENT, next);
+    return () => { removeEventListener(VIEW_EVENT, next); clearTimeout(t); };
   }, []);
   // phones: the settings menu (the top row's other keys live in it)
   const [menu, setMenu] = useState(false);
@@ -412,6 +426,7 @@ export default function DriveHud() {
         </div>
       </div>
       <div ref={streaks} className={styles.streaks} aria-hidden />
+      <div ref={viewTag} className={styles.viewTag} role="status" aria-live="polite"><span>Camera</span><b /></div>
       <div ref={wantedEl} className={styles.wanted} hidden role="status" aria-label="Wanted by the police" />
       <VoiceHud />
       {iosTip && (

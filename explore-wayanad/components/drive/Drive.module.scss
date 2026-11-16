@@ -424,3 +424,12 @@
     b { @include gold-key(7px, 7px); padding: 3px 8px; border-radius: 0; font: italic 900 12px/1.2 var(--font-sans), sans-serif; } }
   .checkpoint { top: calc(54px + env(safe-area-inset-top, 0px)); b { font-size: 15px; } span { font-size: 10px; } }
 }
+
+// the camera's name for a moment after a double tap on the road (DriveHud, SwipeLook): a small dark-glass tag with a
+// teal edge, as the HUD's other notices
+.viewTag { position: fixed; left: 50%; top: 16%; translate: -50% 0; z-index: 6; pointer-events: none; display: flex; gap: 8px; align-items: baseline;
+  padding: 8px 18px 9px; font: italic 800 13px/1 var(--font-sans), sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #cfeee9;
+  background: linear-gradient(180deg, rgba(22, 58, 52, .94), rgba(5, 14, 12, .94)); border: 1.5px solid rgba(47, 224, 207, .85); border-radius: 4px;
+  box-shadow: 0 0 14px rgba(47, 224, 207, .3), 0 4px 12px rgba(0, 0, 0, .35); opacity: 0; scale: .92; transition: opacity .18s, scale .18s;
+  b { font-size: 16px; color: #ffcc33; }
+  &[data-show] { opacity: 1; scale: 1; } }
