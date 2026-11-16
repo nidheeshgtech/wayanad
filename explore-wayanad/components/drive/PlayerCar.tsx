@@ -51,12 +51,14 @@ function glowTexture() {
   return (glowTex = new CanvasTexture(c));
 }
 const VIEW = {
-  chase: { back: 0.78, up: 0.2, ahead: 0.9, aimUp: 0.06 },
+  // (both chase views sit well above the roof, as racing games' do, so you see over your own car to the traffic ahead:
+  // at 1.8 m up — 40 cm over a roof — the car hid the road for ~18 m in front of it)
+  chase: { back: 0.8, up: 0.28, ahead: 1.2, aimUp: 0.02 },
   back: { back: 0.62, up: 0.17, ahead: 1.2, aimUp: 0.04 }, // looking back (held): in front of the car, facing down the road
   // close behind, as racing games' near chase: a little above the roof looking down onto it, the car in the lower third,
   // aimed well down the road so bends and traffic come into view sooner (was 5 m back at roof height: the car filled
   // the middle of the screen and hid what was ahead)
-  near: { back: 0.58, up: 0.18, ahead: 1.4, aimUp: 0.05 },
+  near: { back: 0.62, up: 0.25, ahead: 1.6, aimUp: 0 },
   hood: { at: new Vector3(0, 0.156, 0.05), look: new Vector3(0, 0.132, 1.2) }, // eye just ahead of the windscreen, in the car's frame
   ride: { at: new Vector3(0, 0.152, 0.03), look: new Vector3(0, 0.12, 1.2) },   // a bike's "bonnet" view: the rider's eyes, over the bars
 };
