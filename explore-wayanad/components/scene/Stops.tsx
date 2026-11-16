@@ -48,7 +48,7 @@ function build(st: Stop) {
 }
 
 export default function Stops({ curve }: { curve: CatmullRomCurve3 }) {
-  const { groups, steam } = useMemo(() => {
+  const { groups, steam, holder } = useMemo(() => {
     const list = stops(curve), groups = list.map(build);
     const map = steamTexture(), steam: { sp: Sprite; base: Vector3; phase: number; group: Group }[] = [];
     for (const g of groups) {
@@ -62,10 +62,11 @@ export default function Stops({ curve }: { curve: CatmullRomCurve3 }) {
         }
       });
     }
-    return { groups, steam };
+    // (the holder made with them: a second memo adding the same groups took them from the first — React runs a memo
+    // twice in development, and the stops vanished there)
+    const holder = new Group(); holder.name = "stops"; groups.forEach((g) => holder.add(g)); steam.forEach((s) => holder.add(s.sp));
+    return { groups, steam, holder };
   }, [curve]);
-
-  const holder = useMemo(() => { const h = new Group(); h.name = "stops"; groups.forEach((g) => h.add(g)); steam.forEach((s) => h.add(s.sp)); return h; }, [groups, steam]);
 
   useFrame(({ camera, clock }) => {
     for (const g of groups) g.visible = g.position.distanceTo(camera.position) < SHOW;
