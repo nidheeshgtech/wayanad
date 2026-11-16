@@ -102,7 +102,7 @@ export function maskPaint(root: Object3D, match: RegExp, hex: string) {
 /** A clone of the vehicle ready to draw: painted (cars), or with its rider in the chosen colour (bikes). */
 export function prepareVehicle(root: Object3D, car: Car, hex: string) {
   if (car.bike) return addRider(root, hex);
-  if (car.paintMask) { maskPaint(root, car.paint, hex); return car.livery ? addLivery(root, car.paint) : root; }
+  if (car.paintMask) { maskPaint(root, car.paint, hex); return car.livery ? addLivery(root, car.paint, car.liveryRear) : root; }
   // a vehicle taken from the traffic (data/cars BORROWABLE): tinted as the traffic tints it — its body's own material,
   // textures kept, in the colour it had on the road — so it doesn't change colour as you get in
   // (the police jeep is the 4×4, painted as your own would be; the ambulance's body plain white, as in the traffic —
@@ -123,7 +123,7 @@ export function prepareVehicle(root: Object3D, car: Car, hex: string) {
   }
   // (the newer cars name their paint material their own way: data/cars `paint`; the first ones all say "primary")
   paintCar(root, hex, car.livery ? car.paint : PAINT);
-  return car.livery ? addLivery(root, /^paint$/) : root;
+  return car.livery ? addLivery(root, /^paint$/, car.liveryRear) : root;
 }
 
 const painted = new Map<string, Promise<Group>>();
@@ -174,7 +174,7 @@ function badgeTexture() {
   return badgeTex;
 }
 const decalMaterial = (map: CanvasTexture) => new MeshStandardMaterial({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 0.35, metalness: 0.2 });
-export function addLivery(root: Object3D, body: RegExp) {
+export function addLivery(root: Object3D, body: RegExp, rear = 0.64) {
   root.updateMatrixWorld(true);
   let shell: Mesh | null = null;
   root.traverse((o) => { const m = o as Mesh; if (!shell && m.isMesh && [m.material].flat().some((x) => body.test((x as Material).name))) shell = m; });
@@ -196,6 +196,18 @@ export function addLivery(root: Object3D, body: RegExp) {
       if (!new Box3().setFromObject(m).intersectsBox(reach)) continue;
       const geo = new DecalGeometry(m, at, euler, dims);
       if (geo.getAttribute("position").count) place(geo, sideTexture(), "livery-side"); else geo.dispose();
+    }
+  }
+  // the back: the same lettering across the tail, above the plate (at `rear`, a fraction of the body's height),
+  // projected from behind onto whatever's there — body, trim or the panel between the lamps
+  {
+    const at = new Vector3(mid.x, box.min.y + size.y * rear, box.min.z + size.z * 0.07);
+    const dims = new Vector3(size.x * 0.46, size.x * 0.46 / 4, size.z * 0.2), euler = new Euler(0, Math.PI, 0);
+    const reach = new Box3().setFromCenterAndSize(at, new Vector3(dims.x, dims.y, dims.z));
+    for (const m of solids) {
+      if (!new Box3().setFromObject(m).intersectsBox(reach)) continue;
+      const geo = new DecalGeometry(m, at, euler, dims);
+      if (geo.getAttribute("position").count) place(geo, sideTexture(), "livery-rear"); else geo.dispose();
     }
   }
   // the bonnet badge: from above, on the front of the bonnet

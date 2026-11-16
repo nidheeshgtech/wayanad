@@ -168,7 +168,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     let stat = meshes.filter((m) => !under(m, isWheel) && !under(m, isSteer)); const steer = meshes.filter((m) => !under(m, isWheel) && under(m, isSteer));
 
     // wheels: a pivot at each wheel's centre (front ones steer about it), a spinner inside it that rolls
-    const wheels: { pivot: Group; spinner: Group; front: boolean }[] = [];
+    // (`roll`: turns per unit of the game's wheel angle — it assumes a 33 cm tyre — for this wheel's real size;
+    // `angle`: where it has turned to)
+    const wheels: { pivot: Group; spinner: Group; front: boolean; roll?: number; angle?: number }[] = [];
     // (in this model one "wheel" node holds all four wheels, each a child: each child with meshes is a wheel)
     const dummies = new Set<Object3D>(); for (const m of meshes) { const d = under(m, isWheel); if (d) dummies.add(d); }
     const units: Object3D[] = [];
@@ -185,12 +187,13 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       units.push(...found.units);
     }
     for (const d of units) {
-      const c = new Box3().setFromObject(d).getCenter(new Vector3());
+      const box = new Box3().setFromObject(d), c = (d.userData.centre as Vector3 | undefined)?.clone() ?? box.getCenter(new Vector3());
+      const r = (d.userData.radius as number | undefined) ?? box.getSize(new Vector3()).y / 2;
       const pivot = new Group(), spinner = new Group(); pivot.position.copy(c); pivot.add(spinner); root.add(pivot);
       root.updateMatrixWorld(true);
       const own: Mesh[] = []; d.traverse((o) => { if ((o as Mesh).isMesh) own.push(o as Mesh); });
       mergeInto(own, spinner, { byLook: true, looks });
-      wheels.push({ pivot, spinner, front: c.z > 0 });
+      wheels.push({ pivot, spinner, front: c.z > 0, roll: r > 0.012 && r < 0.08 ? 0.033 / r : 1 });
     }
     const wheelSet = instanceWheels(wheels, root); // (four copies of one wheel: one draw per material for all four)
     // a bike's wheels are baked into its body in the file: cut out (lib/bikeWheels) so they roll too (the rider aside).
@@ -344,6 +347,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
 
   const footWas = useRef(false);
   const cam = useRef({ yaw: 0, y: 0, lift: 0, boom: 1, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
+  const spun = useRef(game.wheel); // (the game's wheel angle last frame)
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
   const tmp = useMemo(() => ({ p: new Vector3(), tan: new Vector3(), left: new Vector3(), fwd: new Vector3(), r: new Vector3(), n: new Vector3(), m: new Matrix4(), q: new Quaternion(), want: new Vector3(), look: new Vector3(), dir: new Vector3(), a: new Vector3(), b: new Vector3(), qa: new Quaternion() }), []);
 
@@ -462,7 +466,15 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // the plate follows the name you start with
     const plate = rig.plate, name = game.started ? (game.driver ?? "").toUpperCase() : "";
     if (plate && plate.text !== name) { plate.text = name; plate.mesh.visible = !!name; if (plate.front) plate.front.visible = !!name; if (name) { drawPlate(plate.canvas, name); plate.tex.needsUpdate = true; } }
-    for (const w of wheels) { w.spinner.rotation.x = game.wheel; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0; }
+    // the wheels roll as far as the car goes, for their own size; past a spoke's width a frame they'd strobe (stand
+    // still or turn backwards to the eye), so they show their fastest clean spin instead
+    const dW = game.wheel - spun.current; spun.current = game.wheel;
+    const cap = 0.3 * Math.max(1, dt * 60);
+    for (const w of wheels) {
+      const step = dW * (w.roll ?? 1);
+      w.angle = ((w.angle ?? 0) + Math.sign(step) * Math.min(Math.abs(step), cap)) % (Math.PI * 2);
+      w.spinner.rotation.x = w.angle; w.pivot.rotation.y = w.front ? game.steer * 0.55 : 0;
+    }
     rig.wheelSet?.update();
     if (steering) steering.pivot.quaternion.setFromAxisAngle(steering.axis, game.steer * 2.6);
 

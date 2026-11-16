@@ -54,14 +54,39 @@ export function modelWheels(model: Object3D, spec: Wheels, into: Group) {
     const r = new Vector3(0, spec.cut.r, 0).applyMatrix4(toLocal).distanceTo(new Vector3(0, 0, 0).applyMatrix4(toLocal));
     const innerX = Math.abs(centres[0].c.x - new Vector3(0, 0, 0).applyMatrix4(toLocal).x);
     const groups = centres.map(() => new Group());
-    model.traverse((o) => {
-      const m = o as Mesh; if (!m.isMesh || !spec.cut.from.test(m.name)) return;
-      const g = local(m), which = (c: Vector3) => centres.findIndex(({ side, c: w }) => Math.sign(c.x) === Math.sign(w.x) && Math.abs(c.x) > innerX && Math.hypot(c.y - w.y, c.z - w.z) < r);
-      centres.forEach((_, k) => { const part = pick(g, (c) => which(c) === k); if (part) groups[k].add(meshOf(part, m)); });
-      const rest = pick(g, (c) => which(c) < 0);
+    const parts: { m: Mesh; g: BufferGeometry }[] = [];
+    model.traverse((o) => { const m = o as Mesh; if (m.isMesh && spec.cut.from.test(m.name)) parts.push({ m, g: local(m) }); });
+    // each wheel's true axle, from its tyre: the middle of the points within reach of the guess, out past `inner`,
+    // taken again from there (the tyre is the outermost thing round the axle, so its extent settles the centre)
+    const v = new Vector3();
+    for (const w of centres) for (let pass = 0; pass < 4; pass++) {
+      let y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (const { g } of parts) { const p = g.getAttribute("position");
+        for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i);
+          if (Math.sign(v.x) !== Math.sign(w.c.x) || Math.abs(v.x) < innerX || Math.hypot(v.y - w.c.y, v.z - w.c.z) > r) continue;
+          y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } }
+      if (y0 < y1) w.c.set(w.c.x, (y0 + y1) / 2, (z0 + z1) / 2);
+    }
+    // a triangle is the wheel's when all its corners are inside the tyre (a long strip of trim reaching in isn't)
+    const inside = (g: BufferGeometry, t: number) => {
+      const p = g.getAttribute("position");
+      for (let k = 0; k < centres.length; k++) {
+        const { c: w } = centres[k]; let all = true;
+        for (let q = 0; q < 3 && all; q++) { v.fromBufferAttribute(p, t + q); all = Math.sign(v.x) === Math.sign(w.x) && Math.abs(v.x) > innerX && Math.hypot(v.y - w.y, v.z - w.z) < r; }
+        if (all) return k;
+      }
+      return -1;
+    };
+    for (const { m, g } of parts) {
+      const owner = new Int8Array(g.getAttribute("position").count / 3);
+      for (let t = 0; t < owner.length; t++) owner[t] = inside(g, t * 3);
+      let n = 0; const byTri = (k: number) => (c: Vector3) => { void c; return owner[n++] === k; };
+      centres.forEach((_, k) => { n = 0; const part = pick(g, byTri(k)); if (part) groups[k].add(meshOf(part, m)); });
+      n = 0; const rest = pick(g, byTri(-1));
       replaced.set(m, rest ? meshOf(rest, m) : null);
-    });
-    for (const gr of groups) if (gr.children.length) { into.add(gr); units.push(gr); }
+    }
+    // (each wheel turns about its own axle, at its own size: not the middle of the box of what was cut)
+    groups.forEach((gr, k) => { if (!gr.children.length) return; gr.userData.centre = centres[k].c.clone(); gr.userData.radius = r; into.add(gr); units.push(gr); });
   }
   // the rest stand in for what was cut, in the same frame as the wheels
   for (const m of replaced.values()) if (m) into.add(m);
