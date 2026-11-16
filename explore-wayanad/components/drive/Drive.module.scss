@@ -96,7 +96,7 @@
   &:active, &[data-on] { transform: translateY(5px); filter: brightness(1.1);
     box-shadow: 0 1px 0 var(--lip), 0 3px 8px rgba(0, 0, 0, .4), inset 0 0 0 1.5px rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .16); } }
 // steer: arrow-shaped plates pointing the way they turn (a neon edge — gold at the tip, teal behind — round dark
-// glass), a double chevron with speed streaks on each; held, the face lights gold and the plate sinks. Two clip-path
+// glass), a double chevron on each; held, the face lights gold and the plate sinks. Two clip-path
 // layers like the bevelled keys (no box-shadow: its rectangle showed past the cut shape)
 .steer button { --tip: 34%; --k: 7px; isolation: isolate; border-radius: 0; color: #fff; background: none; box-shadow: none !important; filter: none;
   --edge-a: #ffcc33; --edge-b: #2fe0cf; --face-top: #12302d; --face-bot: #050d0c; --glow: rgba(47, 224, 207, .55);
@@ -109,10 +109,8 @@
   &[data-side="right"] { --edge-dir: 270deg; &::before, &::after { clip-path: polygon(100% 50%, calc(100% - var(--tip)) 0, var(--k) 0, 0 var(--k), 0 calc(100% - var(--k)), var(--k) 100%, calc(100% - var(--tip)) 100%); } }
   svg { position: relative; width: 62%; height: auto; aspect-ratio: 1; fill: none; stroke: currentColor; stroke-width: 2.6; filter: none; }
   svg :global(.lead) { color: #ffd34d; stroke: #ffd34d; }
-  svg :global(.streak) { stroke: rgba(95, 240, 224, .75); stroke-width: 1.8; }
   &:active, &[data-on] { transform: translateY(2px) scale(.96); filter: none;
-    --face-top: #8a6510; --face-bot: #2a1d04; --edge-b: #ffcc33; --glow: rgba(255, 200, 60, .9); color: #fff6d6;
-    svg :global(.streak) { stroke: #ffe28a; } } }
+    --face-top: #8a6510; --face-bot: #2a1d04; --edge-b: #ffcc33; --glow: rgba(255, 200, 60, .9); color: #fff6d6; } }
 // pedals: the accelerator gold and tall, the brake red; an icon and the word
 .pedals button { @include bevel(18px, 8px); width: 66px; height: 90px; gap: 4px; color: #fff;
   svg { width: 40%; height: auto; aspect-ratio: 1; fill: none; stroke: currentColor; stroke-width: 2.4; filter: drop-shadow(0 0 4px var(--glow)); }
