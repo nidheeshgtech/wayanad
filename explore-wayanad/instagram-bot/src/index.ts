@@ -48,6 +48,8 @@ export default {
     const url = new URL(req.url);
     if (url.pathname === "/") return new Response(`drive-wayanad instagram bot: ok${(await token(env)) ? "" : " (no token yet: log in at the app's login URL)"}\n`);
     if (url.pathname === "/auth") return auth(url, env);
+    // the owner's check-up (key = VERIFY_TOKEN): subscribes the account to the app's webhooks, reports what Meta says
+    if (url.pathname === "/setup" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await setup(env));
     if (url.pathname !== "/webhook") return new Response("not found", { status: 404 });
 
     // Meta's verification handshake
@@ -59,7 +61,7 @@ export default {
 
     // a notification: only Meta's (signed with the app secret)
     const body = await req.text();
-    if (!(await signed(body, req.headers.get("x-hub-signature-256"), env.APP_SECRET))) return new Response("bad signature", { status: 401 });
+    if (!(await signed(body, req.headers.get("x-hub-signature-256"), env.APP_SECRET?.trim()))) return new Response("bad signature", { status: 401 });
     let note: Notification;
     try { note = JSON.parse(body); } catch { return new Response("bad json", { status: 400 }); }
     // answer Meta at once (it retries slow endpoints); the replies go on after
@@ -115,7 +117,7 @@ async function auth(url: URL, env: Env) {
   const code = url.searchParams.get("code");
   if (!code) return page(`No code. ${url.searchParams.get("error_description") ?? ""}`.replace(/</g, "&lt;"), 400);
   const back = `${url.origin}/auth`;
-  const ex = await fetch(`${GRAPH}/oauth/access_token?` + new URLSearchParams({ client_id: env.APP_ID, client_secret: env.APP_SECRET, redirect_uri: back, code }));
+  const ex = await fetch(`${GRAPH}/oauth/access_token?` + new URLSearchParams({ client_id: env.APP_ID, client_secret: env.APP_SECRET.trim(), redirect_uri: back, code }));
   const got = (await ex.json()) as { access_token?: string; error?: { message?: string } };
   if (!got.access_token) return page(`Meta refused the code: ${(got.error?.message ?? ex.status).toString().replace(/</g, "&lt;")}`, 400);
   const accounts = await igAccounts(got.access_token);
@@ -123,7 +125,22 @@ async function auth(url: URL, env: Env) {
   if (!mine) return page(`Logged in, but this login doesn't reach @${env.OWNER} (found: ${accounts.map((a) => "@" + a.username).join(", ") || "no Instagram accounts"}). Log in again and tick @${env.OWNER}.`, 403);
   await env.SEEN.put("token", got.access_token);
   await env.SEEN.put("ig", JSON.stringify(mine));
+  await setup(env).catch(() => {});
   return page(`✅ Connected to @${mine.username} (id ${mine.id}). You can close this tab.`);
+}
+
+/** Subscribe the connected account to the app's webhooks (comments, messages) and report the state (never the token). */
+async function setup(env: Env) {
+  const t = await token(env), ig = JSON.parse((await env.SEEN.get("ig")) ?? "null") as { id: string; username?: string } | null;
+  if (!t || !ig) return { ok: false, why: "not connected" };
+  const call = async (method: string, path: string) => {
+    const r = await fetch(`${api(env)}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`, { method });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const subscribe = await call("POST", `/${ig.id}/subscribed_apps?subscribed_fields=comments,messages`);
+  const now = await call("GET", `/${ig.id}/subscribed_apps`);
+  const me = await call("GET", `/${ig.id}?fields=id,username`);
+  return { account: ig, subscribe, now, me };
 }
 
 /** The Instagram accounts a token reaches (a Unified-login system user: assigned accounts; else through Pages). */
