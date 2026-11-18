@@ -52,6 +52,11 @@ export default {
     if (url.pathname === "/setup" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await setup(env));
     // the owner's read-only account report (key = VERIFY_TOKEN): profile, recent media with likes/comments, insights if allowed
     if (url.pathname === "/report" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await report(env));
+    // the owner's "check now" (key = VERIFY_TOKEN): runs the cron's poll at once, a dry run with ?dry=1 (lists, sends nothing)
+    if (url.pathname === "/poll" && url.searchParams.get("key") === env.VERIFY_TOKEN) {
+      const dry = url.searchParams.has("dry");
+      return Response.json({ ok: true, dry, found: await poll(env, graph, dry) });
+    }
     // the owner's manual reply (POST, key = VERIFY_TOKEN): {comment, text} → a public reply under that comment
     if (url.pathname === "/reply" && req.method === "POST" && url.searchParams.get("key") === env.VERIFY_TOKEN) {
       const { comment, text } = (await req.json()) as { comment: string; text: string };
@@ -76,6 +81,10 @@ export default {
     ctx.waitUntil(handle(note, env).catch((e) => console.error("handle", e)));
     return new Response("ok");
   },
+  // the cron (wrangler.toml): look for new comments asking for the game
+  async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(poll(env).catch((e) => console.error("poll", e)));
+  },
 };
 
 type Comment = { id: string; text?: string; from?: { id: string; username?: string }; media?: { id: string; media_product_type?: string } };
@@ -83,7 +92,7 @@ type Messaging = { sender?: { id: string }; recipient?: { id: string }; message?
 type Entry = { id: string; field?: string; value?: Comment; changes?: { field: string; value: Comment }[]; messaging?: Messaging[] };
 type Notification = { object?: string; entry?: Entry[] };
 
-export async function handle(note: Notification, env: Env, send = graph) {
+export async function handle(note: Notification, env: Env, send: Send = graph) {
   const API = api(env);
   if (note.object !== "instagram") return;
   for (const e of note.entry ?? []) {
@@ -93,15 +102,7 @@ export async function handle(note: Notification, env: Env, send = graph) {
     for (const c of comments) {
       if (!c?.id || !c.from || c.from.id === me) continue; // (our own replies come back as comments too)
       if (!ASKS.test(c.text ?? "")) continue;
-      if (await env.SEEN.get(`c:${c.id}`)) continue;
-      await env.SEEN.put(`c:${c.id}`, "1", { expirationTtl: 60 * 60 * 24 * 8 });
-      // (one DM a person a day, however many reels they comment on)
-      const capped = await env.SEEN.get(`u:${c.from.id}`);
-      if (!capped) {
-        await send(env, `${API}/${me}/messages`, { recipient: { comment_id: c.id }, message: { text: dmText(env, c.from.username, "comment") } });
-        await env.SEEN.put(`u:${c.from.id}`, "1", { expirationTtl: 60 * 60 * 24 });
-      }
-      await send(env, `${API}/${c.id}/replies`, { message: PUBLIC_REPLIES[hash(c.id) % PUBLIC_REPLIES.length] });
+      await answer(env, me, { id: c.id, username: c.from.username, fromId: c.from.id }, send);
     }
     // messages: someone DMs "PLAY"
     for (const m of e.messaging ?? []) {
@@ -114,9 +115,57 @@ export async function handle(note: Notification, env: Env, send = graph) {
   }
 }
 
-async function graph(env: Env, url: string, payload: unknown) {
+async function graph(env: Env, url: string, payload: unknown): Promise<boolean> {
   const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token(env)}` }, body: JSON.stringify(payload) });
   if (!r.ok) console.error("graph", url.replace(api(env), ""), r.status, (await r.text()).slice(0, 300));
+  return r.ok;
+}
+type Send = (env: Env, url: string, payload: unknown) => Promise<boolean | void>;
+
+/** One comment asking for the game: a DM (private reply) when Meta allows it, and a public reply. If the DM can't go
+ *  (an app not yet approved for everyone can't DM strangers), the public reply carries the link itself. */
+async function answer(env: Env, me: string, c: { id: string; username?: string; fromId?: string }, send: Send) {
+  if (await env.SEEN.get(`c:${c.id}`)) return false;
+  await env.SEEN.put(`c:${c.id}`, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+  let dm = false;
+  const who = c.fromId ?? c.username ?? c.id;
+  if (!(await env.SEEN.get(`u:${who}`))) { // (one DM a person a day, however many reels they comment on)
+    dm = (await send(env, `${api(env)}/${me}/messages`, { recipient: { comment_id: c.id }, message: { text: dmText(env, c.username, "comment") } })) !== false;
+    if (dm) await env.SEEN.put(`u:${who}`, "1", { expirationTtl: 60 * 60 * 24 });
+  }
+  const text = dm ? PUBLIC_REPLIES[hash(c.id) % PUBLIC_REPLIES.length] : `${c.username ? `@${c.username} ` : ""}${LINK_REPLY}`;
+  await send(env, `${api(env)}/${c.id}/replies`, { message: text });
+  console.log("answered", c.username, dm ? "dm+reply" : "reply");
+  return true;
+}
+const LINK_REPLY = "Here you go 🚗 drivewayanad.com — free in your browser, no download! Link is in our bio too 🌿";
+
+/** Every few minutes (cron): look at the recent posts whose comment count changed, answer new comments asking for the game
+ *  that nobody from the account has answered. (Works while Meta's webhooks only reach app testers.) */
+export async function poll(env: Env, send: Send = graph, dry = false) {
+  const found: { user?: string; text?: string }[] = [];
+  const t = await token(env), ig = JSON.parse((await env.SEEN.get("ig")) ?? "null") as { id: string; username?: string } | null;
+  if (!t || !ig) return found;
+  const get = async (path: string) => (await (await fetch(`${api(env)}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`)).json().catch(() => null)) as any;
+  const media = await get(`/${ig.id}/media?fields=id,comments_count&limit=25`);
+  if (!media?.data) { console.error("poll media", media?.error?.message); return found; }
+  let answered = 0;
+  for (const m of media.data as { id: string; comments_count?: number }[]) {
+    const n = String(m.comments_count ?? 0);
+    if (!dry && (await env.SEEN.get(`n:${m.id}`)) === n) continue;
+    const cs = await get(`/${m.id}/comments?fields=id,text,username,from,replies{username}&limit=100`);
+    if (!cs?.data) { console.error("poll comments", cs?.error?.message); continue; }
+    for (const c of cs.data as { id: string; text?: string; username?: string; from?: { id: string }; replies?: { data?: { username?: string }[] } }[]) {
+      if (c.username === ig.username || c.from?.id === ig.id || !ASKS.test(c.text ?? "")) continue;
+      if ((c.replies?.data ?? []).some((r) => r.username === ig.username)) continue; // already answered (by hand or by us)
+      if (answered >= 8) break; // (a run's share of requests; the rest go next run)
+      found.push({ user: c.username, text: c.text });
+      if (dry) continue;
+      if (await answer(env, ig.id, { id: c.id, username: c.username, fromId: c.from?.id }, send)) answered++;
+    }
+    if (!dry && answered < 8) await env.SEEN.put(`n:${m.id}`, n);
+  }
+  return found;
 }
 
 /** The login's redirect: exchange the code, check the token reaches OWNER's Instagram account, keep it. */

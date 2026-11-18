@@ -13,3 +13,7 @@ OWNER = "drivewayanad.official"
 [[kv_namespaces]]
 binding = "SEEN"
 id = "3224691f393e4c3fa52449b474d39d3e"
+
+# every 5 minutes: answer new comments asking for the game (src/index.ts poll)
+[triggers]
+crons = ["*/5 * * * *"]
