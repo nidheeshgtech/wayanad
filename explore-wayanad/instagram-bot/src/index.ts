@@ -50,6 +50,8 @@ export default {
     if (url.pathname === "/auth") return auth(url, env);
     // the owner's check-up (key = VERIFY_TOKEN): subscribes the account to the app's webhooks, reports what Meta says
     if (url.pathname === "/setup" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await setup(env));
+    // the owner's read-only account report (key = VERIFY_TOKEN): profile, recent media with likes/comments, insights if allowed
+    if (url.pathname === "/report" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await report(env));
     if (url.pathname !== "/webhook") return new Response("not found", { status: 404 });
 
     // Meta's verification handshake
@@ -141,6 +143,31 @@ async function setup(env: Env) {
   const now = await call("GET", `/${ig.id}/subscribed_apps`);
   const me = await call("GET", `/${ig.id}?fields=id,username`);
   return { account: ig, subscribe, now, me };
+}
+
+/** Read-only: the account, its recent media (likes, comments, the comments themselves) and insights when permitted. */
+async function report(env: Env) {
+  const t = await token(env), ig = JSON.parse((await env.SEEN.get("ig")) ?? "null") as { id: string } | null;
+  if (!t || !ig) return { ok: false, why: "not connected" };
+  const get = async (path: string) => {
+    const r = await fetch(`${api(env)}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`);
+    return (await r.json().catch(() => null)) as any;
+  };
+  const profile = await get(`/${ig.id}?fields=username,name,biography,website,followers_count,follows_count,media_count`);
+  const media: any[] = [];
+  let next: string | null = `/${ig.id}/media?fields=id,caption,media_type,media_product_type,timestamp,like_count,comments_count,permalink&limit=50`;
+  while (next && media.length < 200) {
+    const page = await get(next);
+    if (!page?.data) { media.push({ error: page?.error }); break; }
+    media.push(...page.data);
+    next = page.paging?.next ? page.paging.next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+/, "").replace(/[?&]access_token=[^&]*/, "") : null;
+  }
+  for (const m of media.filter((m) => m.comments_count > 0).slice(0, 40)) {
+    const c = await get(`/${m.id}/comments?fields=text,username,timestamp,replies{text,username}&limit=50`);
+    m.comments = c?.data ?? c?.error;
+  }
+  const insights = await get(`/${ig.id}/insights?metric=reach,profile_views,follower_count&period=day`);
+  return { profile, media, insights };
 }
 
 /** The Instagram accounts a token reaches (a Unified-login system user: assigned accounts; else through Pages). */
