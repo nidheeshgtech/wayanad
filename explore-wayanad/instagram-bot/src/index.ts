@@ -1,5 +1,5 @@
 /**
- * "Comment PLAY for the link" — Drive Wayanad's Instagram auto-reply (Instagram API with Instagram Login).
+ * "Comment PLAY for the link" — Drive Wayanad's Instagram auto-reply (Instagram API, Unified login or Instagram Login).
  *
  *   GET  /webhook   Meta's verification: echoes hub.challenge when hub.verify_token matches VERIFY_TOKEN
  *   POST /webhook   comment and message notifications, signed by Meta (X-Hub-Signature-256: HMAC-SHA256 of the body
@@ -9,21 +9,33 @@
  *                   For a DM asking the same: the link, in reply.
  *   GET  /          a health line
  *
- * Secrets (never in the repo; `npx wrangler secret put <NAME>`): IG_TOKEN (a long-lived Instagram User access token with
- * instagram_business_basic, instagram_business_manage_comments, instagram_business_manage_messages), APP_SECRET (the
- * Meta app's secret, to check signatures), VERIFY_TOKEN (any string, also typed into the app's webhook settings).
- * KV `SEEN`: comment ids answered (so a retried notification isn't answered twice) and a per-person daily cap.
+ *   GET  /auth      the redirect URL of the app's login (Instagram API setup with Unified login): Meta sends the owner
+ *                   here with a code after they log in; the code is exchanged for the account's token (a system-user
+ *                   token, it doesn't expire), kept in KV, never shown. Only the OWNER account's login is kept.
+ *
+ * New Meta apps (from Oct 2026) only get "Unified login": a Facebook-Login token, used on graph.facebook.com, comments
+ * arriving as entry.changes[]. (Older Instagram-Login apps: GRAPH=https://graph.instagram.com/v25.0 and an IG_TOKEN.)
+ *
+ * Secrets (never in the repo; `npx wrangler secret put <NAME>`): APP_SECRET (the Meta app's secret: signatures and the
+ * code exchange), VERIFY_TOKEN (any string, also typed into the app's webhook settings), IG_TOKEN (optional: a token
+ * pasted by hand instead of the /auth login). Vars (wrangler.toml): APP_ID, OWNER (the Instagram username).
+ * KV `SEEN`: comment ids answered (so a retried notification isn't answered twice), a per-person daily cap, the token.
  */
 export interface Env {
-  IG_TOKEN: string;
+  IG_TOKEN?: string;
   APP_SECRET: string;
+  APP_ID: string;
+  OWNER: string;
+  GRAPH?: string;
   VERIFY_TOKEN: string;
   SEEN: KVNamespace;
   /** optional: overrides the public reply / DM text and the link */
   LINK?: string;
 }
 
-const API = "https://graph.instagram.com/v25.0";
+const GRAPH = "https://graph.facebook.com/v25.0";
+const api = (env: Env) => env.GRAPH ?? GRAPH;
+const token = async (env: Env) => env.IG_TOKEN || (await env.SEEN.get("token")) || "";
 const ASKS = /\b(play|link|game|details|download|app)\b|🎮|പ്ലേ|ലിങ്ക്/iu;
 const link = (env: Env, medium: string) => `${env.LINK ?? "https://drivewayanad.com"}/?utm_source=instagram&utm_medium=${medium}`;
 const dmText = (env: Env, name: string | undefined, medium: string) =>
@@ -34,7 +46,8 @@ const PUBLIC_REPLIES = ["Sent! Check your DMs 📩", "Link's in your DMs 🚗", 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname === "/") return new Response("drive-wayanad instagram bot: ok\n");
+    if (url.pathname === "/") return new Response(`drive-wayanad instagram bot: ok${(await token(env)) ? "" : " (no token yet: log in at the app's login URL)"}\n`);
+    if (url.pathname === "/auth") return auth(url, env);
     if (url.pathname !== "/webhook") return new Response("not found", { status: 404 });
 
     // Meta's verification handshake
@@ -61,6 +74,7 @@ type Entry = { id: string; field?: string; value?: Comment; changes?: { field: s
 type Notification = { object?: string; entry?: Entry[] };
 
 export async function handle(note: Notification, env: Env, send = graph) {
+  const API = api(env);
   if (note.object !== "instagram") return;
   for (const e of note.entry ?? []) {
     const me = e.id;
@@ -91,8 +105,42 @@ export async function handle(note: Notification, env: Env, send = graph) {
 }
 
 async function graph(env: Env, url: string, payload: unknown) {
-  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.IG_TOKEN}` }, body: JSON.stringify(payload) });
-  if (!r.ok) console.error("graph", url.replace(API, ""), r.status, (await r.text()).slice(0, 300));
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token(env)}` }, body: JSON.stringify(payload) });
+  if (!r.ok) console.error("graph", url.replace(api(env), ""), r.status, (await r.text()).slice(0, 300));
+}
+
+/** The login's redirect: exchange the code, check the token reaches OWNER's Instagram account, keep it. */
+async function auth(url: URL, env: Env) {
+  const page = (msg: string, status = 200) => new Response(`<!doctype html><meta name=viewport content="width=device-width"><body style="font:16px system-ui;padding:24px;max-width:560px">${msg}</body>`, { status, headers: { "content-type": "text/html; charset=utf-8" } });
+  const code = url.searchParams.get("code");
+  if (!code) return page(`No code. ${url.searchParams.get("error_description") ?? ""}`.replace(/</g, "&lt;"), 400);
+  const back = `${url.origin}/auth`;
+  const ex = await fetch(`${GRAPH}/oauth/access_token?` + new URLSearchParams({ client_id: env.APP_ID, client_secret: env.APP_SECRET, redirect_uri: back, code }));
+  const got = (await ex.json()) as { access_token?: string; error?: { message?: string } };
+  if (!got.access_token) return page(`Meta refused the code: ${(got.error?.message ?? ex.status).toString().replace(/</g, "&lt;")}`, 400);
+  const accounts = await igAccounts(got.access_token);
+  const mine = accounts.find((a) => a.username?.toLowerCase() === env.OWNER.toLowerCase());
+  if (!mine) return page(`Logged in, but this login doesn't reach @${env.OWNER} (found: ${accounts.map((a) => "@" + a.username).join(", ") || "no Instagram accounts"}). Log in again and tick @${env.OWNER}.`, 403);
+  await env.SEEN.put("token", got.access_token);
+  await env.SEEN.put("ig", JSON.stringify(mine));
+  return page(`✅ Connected to @${mine.username} (id ${mine.id}). You can close this tab.`);
+}
+
+/** The Instagram accounts a token reaches (a Unified-login system user: assigned accounts; else through Pages). */
+async function igAccounts(t: string) {
+  const get = async (path: string) => (await (await fetch(`${GRAPH}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`)).json()) as any;
+  const out: { id: string; username?: string }[] = [];
+  const a = await get("/me/assigned_instagram_accounts?fields=id,username").catch(() => null);
+  for (const x of a?.data ?? []) out.push({ id: x.id, username: x.username });
+  if (!out.length) {
+    const p = await get("/me/accounts?fields=instagram_business_account{id,username}").catch(() => null);
+    for (const x of p?.data ?? []) if (x.instagram_business_account) out.push(x.instagram_business_account);
+  }
+  if (!out.length) {
+    const me = await get("/me?fields=id,username").catch(() => null);
+    if (me?.username) out.push({ id: me.id, username: me.username });
+  }
+  return out;
 }
 
 /** Meta's signature: "sha256=" + hex HMAC-SHA256 of the raw body, keyed with the app secret; compared in constant time. */

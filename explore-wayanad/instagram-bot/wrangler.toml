@@ -1,9 +1,14 @@
 # Drive Wayanad's Instagram auto-reply (src/index.ts): comment PLAY → the link in a DM. `npm run deploy` publishes it to
 # the Cloudflare account wrangler is logged in to; its webhook URL is https://<name>.<account>.workers.dev/webhook.
-# Secrets (never in this file): npx wrangler secret put IG_TOKEN | APP_SECRET | VERIFY_TOKEN
+# Secrets (never in this file): npx wrangler secret put APP_SECRET | VERIFY_TOKEN (IG_TOKEN optional; the /auth login
+# keeps the token in KV instead)
 name = "drive-wayanad-instagram"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
+
+[vars]
+APP_ID = "1691463982608126"
+OWNER = "drivewayanad.official"
 
 [[kv_namespaces]]
 binding = "SEEN"
