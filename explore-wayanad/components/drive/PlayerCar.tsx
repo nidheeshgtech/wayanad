@@ -6,7 +6,7 @@ import {
   Object3D, PlaneGeometry, Quaternion, Raycaster, SphereGeometry, SpotLight, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type PerspectiveCamera,
 } from "three";
 import { CAR, game, setVehicle, type View } from "@/lib/game";
-import { collideRemotes } from "@/lib/net";
+import { collideRemotes, net } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
 import { collidePeople } from "@/components/scene/Pedestrians";
@@ -38,6 +38,7 @@ import { lightBar, own } from "@/lib/emergency";
 /** Phase one ends just past the Lakkidi gate: the car brakes by itself over the last `brake` units and stops `after`
  * units (400 m) beyond the arch, and the HUD says goodbye. */
 const GATE = { after: 40, brake: 12 };
+const END_T = 0.995; // where the road from Adivaram ends, at Kalpetta (the card for the road on to Sulthan Bathery)
 /** Speed felt: from `from` units/s (~32 km/h) over `span` to full (~90 km/h); the view widens by `fov` degrees, the chase
  * camera sits `back` (a fraction) further behind. The speed streaks at the screen's edges (DriveHud) read game.speedFx. */
 const SPEED_FX = { from: 0.9, span: 1.6, fov: 12, back: 0.18 };
@@ -368,7 +369,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     // out on foot (OnFoot): the vehicle stands where you left it, and the keys walk you instead
     if (game.foot.on) game.speed = 0;
     if (game.started && game.phase === "drive" && !game.paused && !game.hold && !game.foot.on) {
-      const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && game.s > gateStop - GATE.brake;
+      // the climb ends at the Lakkidi gate. In a private room's race everyone stops there (the room's rounds follow);
+      // otherwise the road stays open past it, on through Vythiri to Kalpetta (DriveHud cheers the finish as you pass)
+      const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && !!net.party && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       alpha = simulate(road, dt);
       if (game.leg === 0) { scoreDrive(dt, game.s, game.speed); tickBadges(dt, weather.rain, nightness(), game.speed); } // points for new road, the clean-driving streak, time in rain / dark
@@ -394,7 +397,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
         }
         else if ((T.clear += dt) > 0.4) T.peak = 0;
       }
-      if (game.leg === 0 && game.s > road.length * 0.995) { game.phase = "between"; game.speed = 0; }
+      if (game.leg === 0 && game.s > road.length * END_T) { game.phase = "between"; game.speed = 0; }
       const stop = FOREST_ROUTE.stop * road.length;
       if (game.leg === 1 && game.s >= stop) { game.s = stop; game.speed = 0; game.phase = "finished"; }
     } else if (!game.paused && !game.foot.on) game.input.throttle = 0;
@@ -431,9 +434,14 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const places = scrollState.places.filter((pl) => pl.t <= t);
       game.bends = scrollState.bends.filter((b) => b <= t).length;
       game.place = t < scrollState.arch ? (game.bends ? `Hairpin ${game.bends}` : "Adivaram") : places.length ? places[places.length - 1].name : "Lakkidi";
-      [game.next, game.nextM] = t < scrollState.arch ? ["Lakkidi gate", (scrollState.arch - t) * L * 10] : ["End of the drive", Math.max(0, scrollState.arch * L + GATE.after - s) * 10];
-      // the km readout: road distance from Adivaram (units of 10 m → km), out of the drive's length to its stop
-      game.km = s / 100; game.kmTotal = (scrollState.arch * L + GATE.after) / 100;
+      // past the gate: the next town on the plateau, and the road's end at Kalpetta
+      const ahead = scrollState.places.find((pl) => pl.t > t + 0.002), roadEnd = END_T * L;
+      [game.next, game.nextM] = t < scrollState.arch ? ["Lakkidi gate", (scrollState.arch - t) * L * 10]
+        : net.party ? ["End of the drive", Math.max(0, scrollState.arch * L + GATE.after - s) * 10]
+        : ahead ? [ahead.name, (ahead.t - t) * L * 10] : ["Kalpetta", Math.max(0, roadEnd - s) * 10];
+      // the km readout: road distance from Adivaram (units of 10 m → km), out of the climb's length — and once over the
+      // top (the road open beyond), out of the whole road to Kalpetta
+      game.km = s / 100; game.kmTotal = (!net.party && t >= scrollState.arch ? roadEnd : scrollState.arch * L + GATE.after) / 100;
     } else {
       const places = (forestRoad()?.places ?? []).filter((pl) => pl.t <= t);
       game.place = places.length ? places[places.length - 1].name : "Sulthan Bathery";

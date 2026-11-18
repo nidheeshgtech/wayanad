@@ -38,6 +38,7 @@ import { PedalArt, SteerArt } from "./TouchKeys";
 import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
 import { shareView } from "@/lib/shareCard";
+import Cheer, { type CheerData } from "./Cheer";
 
 /**
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
@@ -99,6 +100,18 @@ function backOnRoad() {
   resetCar();
 }
 
+type Summary = { km: number; min: number; sec: number; best: number; isNew: boolean; recorded: boolean; race: string; points: number };
+/** A finished climb (past the Lakkidi gate): your time against your best, the time bonus, a private race's result, the
+ *  leaderboards and badges. Once per climb: stopped at the gate (a room's race) or driving on past it. */
+function recordFinish(S: Summary, P: typeof net.party, racer: boolean) {
+  Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" });
+  if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; }
+  finish(game.clock, !game.jumped); S.points = score.points;
+  if (P && P.mode === "race" && P.phase === "race" && racer) partyFinish(game.clock, score.points);
+  haptic("success");
+  if (!game.jumped) { mark("finished"); submitClimb(game.clock, score.points); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); }
+}
+
 export default function DriveHud() {
   const [screen, setScreen] = useState<"start" | "drive" | "paused" | "between" | "finished" | "gate" | "room">("start");
   // how to play (multiplayer): alone, on the open road with everyone, or in a private room with friends
@@ -138,8 +151,9 @@ export default function DriveHud() {
   const streaks = useRef<HTMLDivElement>(null), nitroKey = useRef<HTMLButtonElement>(null), doorKey = useRef<HTMLButtonElement>(null);
   const tea = useRef<HTMLDivElement>(null), points = useRef<HTMLElement>(null), mult = useRef<HTMLElement>(null), pops = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLElement>(null), note = useRef<HTMLDivElement>(null), rim = useRef<HTMLDivElement>(null);
+  const [cheer, setCheer] = useState<CheerData | null>(null); // the finish at the gate, with the road open on (Cheer)
   const checkpoint = useRef<HTMLDivElement>(null), bendsSeen = useRef({ run: -1, n: 0 }); // the banner at each hairpin
-  const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "" }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
+  const summary = useRef({ km: 0, min: 0, sec: 0, best: 0, isNew: false, recorded: false, race: "", points: 0 }), buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   const flash = (name: string) => { const b = buttons.current[name]; if (!b) return; b.dataset.on = "1"; setTimeout(() => { delete b.dataset.on; }, 220); };
 
   // the camera you used last time
@@ -323,10 +337,19 @@ export default function DriveHud() {
       const want = roomScreen ? "room" : !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
       if (game.phase !== "drive") {
         const S = summary.current;
-        Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
+        if (game.climbed !== score.run) Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock }); // (a climb cheered at the gate keeps its own)
         // a finished climb (stopped past the Lakkidi gate): your time against your best, once
-        if (game.phase === "gate" && !S.recorded) { Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" }); if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; } finish(game.clock, !game.jumped); if (P && P.mode === "race" && P.phase === "race" && racer) partyFinish(game.clock, score.points); haptic("success"); if (!game.jumped) { mark("finished"); submitClimb(game.clock, score.points); finishBadges({ crashes: score.crashes, hairpins: score.big, sec: game.clock }); } }
-      } else summary.current.recorded = false;
+        if (game.phase === "gate" && !S.recorded) recordFinish(S, P, racer);
+      } else if (game.climbed !== score.run) summary.current.recorded = false;
+      // the climb done with the road open on (not a private room's race, which stops at the gate): cheered as you pass
+      // under it, and you keep driving to Kalpetta. Its time and score stay in the pause menu.
+      if (!P && game.started && game.leg === 0 && game.phase === "drive" && game.finishS > 0 && game.s >= game.finishS && game.climbed !== score.run) {
+        game.climbed = score.run;
+        const S = summary.current;
+        Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
+        recordFinish(S, P, racer); chime(true);
+        setCheer({ sec: S.sec, points: S.points, best: S.best, isNew: score.isNew, race: S.race, next: game.next || "Vythiri", km: Math.max(0, game.kmTotal - game.km) });
+      }
       if (loading.ready && !readySent.current) { readySent.current = true; markLoaded(); nativeReady(earned()); }
       setScreen((s) => (s === want ? s : want));
       raf = requestAnimationFrame(tick);
@@ -403,7 +426,6 @@ export default function DriveHud() {
       if (r === "downloaded") setTimeout(() => setSharing(""), 3000);
     } catch { setSharing(""); }
   };
-  const onward = () => { game.leg = 1; game.phase = "drive"; resetCar(3); };
   const chooseQuality = (m: QualityMode) => { setQualityMode(m); setMode(m); };
   // touch: hold to press; leaving the button lets go. `data-on` shows it pressed (sunk in) while held.
   const hold = (set: (on: boolean) => void) => ({
@@ -448,6 +470,7 @@ export default function DriveHud() {
       <div ref={note} className={styles.note} aria-live="polite" />
       <div ref={pops} className={styles.pops} aria-hidden />
       <div ref={checkpoint} className={styles.checkpoint} role="status" aria-live="polite" />
+      {cheer && screen === "drive" && <Cheer data={cheer} onDone={() => setCheer(null)} />}
       <div ref={countdown} className={styles.countdown} aria-live="assertive" />
       <div ref={tea} className={styles.tea} role="status" aria-live="polite">
         <TeaGlass />
@@ -578,10 +601,19 @@ export default function DriveHud() {
         <div className={styles.card} role="dialog" aria-label="Paused">
           <p className={styles.eyebrow}>Drive mode</p>
           <h1>Paused</h1>
+          {game.climbed === score.run && summary.current.recorded && (
+            // the climb's done (driving on past the gate): its result, to share
+            <div className={styles.result}>
+              <div><span>Climb</span><b>{clock(summary.current.sec)}</b></div>
+              <div><span>At the gate</span><b className={styles.points}>{summary.current.points.toLocaleString("en-IN")}</b></div>
+              <div><span>Now</span><b>{game.place || "Lakkidi"}</b></div>
+            </div>
+          )}
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={() => togglePause(false)} autoFocus>Resume</button>
+            {game.climbed === score.run && <button type="button" className={styles.ghostButton} onClick={() => void shareScore()} disabled={sharing === "Making your card…"}>{sharing || "Share my score"}</button>}
             <button type="button" className={styles.ghostButton} onClick={() => setGarage((g) => !g)}>{garage ? "Done" : "Change car"}</button>
-            {!(net.party && net.party.mode === "race") && <button type="button" className={styles.ghostButton} onClick={restart}>Restart from Adivaram</button>}
+            {!(net.party && net.party.mode === "race") && <button type="button" className={styles.ghostButton} onClick={restart}>{game.climbed === score.run ? "Climb again" : "Restart from Adivaram"}</button>}
           </div>
           {net.party && (
             <div className={styles.setting} role="group" aria-label={`Room ${net.party.code}`}>
@@ -614,11 +646,22 @@ export default function DriveHud() {
         </div>
       )}
       {screen === "between" && (
+        // the end of the open road, in Kalpetta town (the forest road from Sulthan Bathery isn't ready for driving yet)
         <div className={styles.card} role="dialog" aria-label="Kalpetta">
-          <p className={styles.eyebrow}>Kalpetta</p>
-          <h1>Kalpetta</h1>
-          <p>The road on to Sulthan Bathery (24 km) isn&apos;t built yet. The drive carries on from Sulthan Bathery, through the forest to the border.</p>
-          <button type="button" className={styles.go} onClick={onward} autoFocus>Drive on from Sulthan Bathery</button>
+          <p className={styles.eyebrow}>Kalpetta · end of the road</p>
+          <h1>You made it to Kalpetta!</h1>
+          <div className={styles.result}>
+            <div><span>Score</span><b className={styles.points}>{score.points.toLocaleString("en-IN")}</b></div>
+            <div><span>Total time</span><b>{clock(game.clock)}</b></div>
+            <div><span>Distance</span><b>{((game.odometer * 10) / 1000).toFixed(1)} km</b></div>
+          </div>
+          {game.climbed === score.run && summary.current.recorded && <p className={styles.tally}>Churam climb {clock(summary.current.sec)} · {summary.current.points.toLocaleString("en-IN")} at the gate</p>}
+          <p>Adivaram to Kalpetta, 28 km. The road on to Sulthan Bathery and the forest to the border opens in a coming update: follow us on Instagram to see it first.</p>
+          <div className={styles.row}>
+            <button type="button" className={styles.go} onClick={() => void shareScore()} disabled={sharing === "Making your card…"} autoFocus>{sharing || "Share my score"}</button>
+            <a className={styles.ghostButton} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer">Follow @{INSTAGRAM.handle}</a>
+            <button type="button" className={styles.ghostButton} onClick={restart}>Climb again</button>
+          </div>
         </div>
       )}
       {screen === "gate" && (

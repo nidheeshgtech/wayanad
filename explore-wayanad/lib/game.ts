@@ -51,6 +51,7 @@ const fresh = () => ({
   place: "Adivaram", next: "Lakkidi gate", nextM: 0, bends: 0,
   km: 0, kmTotal: 0,                          // along the road from Adivaram, and to the end of the drive
   roadLength: 0,                              // the road you're on, units (the minimap places other drivers with it)
+  climbed: -1,                                // the climb (score.run) whose finish at the gate has been cheered (DriveHud)
   finishS: 0,                                 // where the climb counts as done (the gate's braking zone, past the Lakkidi arch): lib/race
   /** On foot (components/drive/OnFoot): stopped, Enter gets your driver out to walk about and look at the view; Enter
    * by the car or bike gets back in. `x, z` where they stand (world units), `yaw` which way they face, `near` close
