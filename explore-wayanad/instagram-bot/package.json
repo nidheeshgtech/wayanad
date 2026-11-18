@@ -1,0 +1,16 @@
+{
+  "name": "drive-wayanad-instagram-bot",
+  "private": true,
+  "description": "Comment PLAY, get the link: Instagram comment/DM auto-reply for Drive Wayanad (Cloudflare Worker, see src/index.ts).",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.152.0"
+  }
+}
