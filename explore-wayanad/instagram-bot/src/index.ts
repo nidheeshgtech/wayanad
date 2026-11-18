@@ -52,6 +52,12 @@ export default {
     if (url.pathname === "/setup" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await setup(env));
     // the owner's read-only account report (key = VERIFY_TOKEN): profile, recent media with likes/comments, insights if allowed
     if (url.pathname === "/report" && url.searchParams.get("key") === env.VERIFY_TOKEN) return Response.json(await report(env));
+    // the owner's manual reply (POST, key = VERIFY_TOKEN): {comment, text} → a public reply under that comment
+    if (url.pathname === "/reply" && req.method === "POST" && url.searchParams.get("key") === env.VERIFY_TOKEN) {
+      const { comment, text } = (await req.json()) as { comment: string; text: string };
+      const r = await fetch(`${api(env)}/${encodeURIComponent(comment)}/replies`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token(env)}` }, body: JSON.stringify({ message: text }) });
+      return new Response(await r.text(), { status: r.status, headers: { "content-type": "application/json" } });
+    }
     if (url.pathname !== "/webhook") return new Response("not found", { status: 404 });
 
     // Meta's verification handshake
