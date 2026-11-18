@@ -162,11 +162,19 @@ async function report(env: Env) {
     const page = await get(next);
     if (!page?.data) { media.push({ error: page?.error }); break; }
     media.push(...page.data);
-    next = page.paging?.next ? page.paging.next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+/, "").replace(/[?&]access_token=[^&]*/, "") : null;
+    next = page.paging?.next ? page.paging.next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+/, "").replace(/([?&])access_token=[^&]*&?/, "$1") : null;
   }
+  const rel = (next: string) => next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+/, "").replace(/([?&])access_token=[^&]*&?/, "$1");
   for (const m of media.filter((m) => m.comments_count > 0).slice(0, 40)) {
-    const c = await get(`/${m.id}/comments?fields=text,username,timestamp,replies{text,username}&limit=50`);
-    m.comments = c?.data ?? c?.error;
+    const all: any[] = [];
+    let at: string | null = `/${m.id}/comments?fields=text,username,timestamp,replies{text,username}&limit=100`;
+    while (at && all.length < 1000) {
+      const c = await get(at);
+      if (!c?.data) { m.comments_error = c?.error?.message; break; }
+      all.push(...c.data);
+      at = c.paging?.next ? rel(c.paging.next) : null;
+    }
+    m.comments = all;
   }
   // insights (instagram_manage_insights): the last 28 days for the account, and each post's own numbers
   const until = Math.floor(Date.now() / 1000), since = until - 28 * 86400;
