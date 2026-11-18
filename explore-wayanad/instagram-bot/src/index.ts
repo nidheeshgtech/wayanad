@@ -151,7 +151,9 @@ async function report(env: Env) {
   if (!t || !ig) return { ok: false, why: "not connected" };
   const get = async (path: string) => {
     const r = await fetch(`${api(env)}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`);
-    return (await r.json().catch(() => null)) as any;
+    const j = (await r.json().catch(() => null)) as any;
+    if (j && path.includes("/insights")) delete j.paging; // (its links carry the token)
+    return j;
   };
   const profile = await get(`/${ig.id}?fields=username,name,biography,website,followers_count,follows_count,media_count`);
   const media: any[] = [];
@@ -166,7 +168,18 @@ async function report(env: Env) {
     const c = await get(`/${m.id}/comments?fields=text,username,timestamp,replies{text,username}&limit=50`);
     m.comments = c?.data ?? c?.error;
   }
-  const insights = await get(`/${ig.id}/insights?metric=reach,profile_views,follower_count&period=day`);
+  // insights (instagram_manage_insights): the last 28 days for the account, and each post's own numbers
+  const until = Math.floor(Date.now() / 1000), since = until - 28 * 86400;
+  const insights = {
+    totals: await get(`/${ig.id}/insights?metric=reach,views,profile_views,accounts_engaged,total_interactions,website_clicks,follows_and_unfollows&period=day&metric_type=total_value&since=${since}&until=${until}`),
+    daily: await get(`/${ig.id}/insights?metric=reach,follower_count&period=day&since=${since}&until=${until}`),
+    audience: await get(`/${ig.id}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=city`),
+  };
+  for (const m of media.filter((m) => m.id).slice(0, 40)) {
+    const reel = m.media_product_type === "REELS";
+    const r = await get(`/${m.id}/insights?metric=${reel ? "views,reach,saved,shares,total_interactions,ig_reels_avg_watch_time" : "views,reach,saved,shares,total_interactions"}`);
+    m.insights = r?.data ? Object.fromEntries(r.data.map((x: any) => [x.name, x.values?.[0]?.value ?? x.total_value?.value])) : r?.error?.message;
+  }
   return { profile, media, insights };
 }
 
