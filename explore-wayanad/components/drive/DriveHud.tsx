@@ -39,6 +39,7 @@ import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
 import { shareView } from "@/lib/shareCard";
 import Cheer, { type CheerData } from "./Cheer";
+import SupportButton, { SupportNote, supportStyles } from "@/components/ui/SupportButton";
 
 /**
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
@@ -529,7 +530,7 @@ export default function DriveHud() {
         <StartScreen compact
           title={<>Drive to <br /><em>Wayanad.</em></>}
           startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
-          onStart={start} presentedBy={PRESENTED_BY} footer={<SafetyLinks />}
+          onStart={start} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><SupportButton /><SafetyLinks /></div>}
           beforeStart={<>
             {net.enabled && (
               <div className={panelStyles.nameField} data-big>
@@ -662,6 +663,7 @@ export default function DriveHud() {
             <a className={styles.ghostButton} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer">Follow @{INSTAGRAM.handle}</a>
             <button type="button" className={styles.ghostButton} onClick={restart}>Climb again</button>
           </div>
+          <SupportNote />
         </div>
       )}
       {screen === "gate" && (
@@ -706,6 +708,7 @@ export default function DriveHud() {
               <button type="button" className={partyStyles.textButton} onClick={leaveParty}><GIcon name="leave" />Leave room</button>
             </div>
           )}
+          <SupportNote />
         </div>
       )}
       {screen === "finished" && (
@@ -716,6 +719,7 @@ export default function DriveHud() {
           <div className={styles.row}>
             <button type="button" className={styles.go} onClick={restart} autoFocus>Drive again</button>
           </div>
+          <SupportNote />
         </div>
       )}
     </>

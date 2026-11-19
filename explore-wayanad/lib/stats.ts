@@ -10,6 +10,7 @@
  *   /play/1min … 30min still driving after that much play (1, 3, 5, 10, 20, 30; paused and hidden time not counted)
  *   /play/walked       got out and walked;  /play/took  drove off in someone else's vehicle
  *   /play/finished     reached the Lakkidi gate (a full climb, not one started part-way with ?at=)
+ *   /play/support      pressed "Buy Me a Chaya" (the support page opens in a new tab)
  *   /play/fps-60 … fps-low   the frame rate over the first minute of driving (after a 10 s settle): 60, 45, 30, 24 or
  *                      low (under 20); and /play/fps-30-android-web etc., the same split by device (desktop,
  *                      android-web, ios-web, android-app, ios-app); /play/jank if frames over 100 ms came often
@@ -18,7 +19,7 @@
 import { pageview } from "@vercel/analytics";
 import { platform } from "@/lib/native";
 
-export type Step = "loaded" | "started" | "finished" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
+export type Step = "loaded" | "started" | "finished" | "support" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
 const sent = new Set<string>();
 
 export function mark(step: Step) {
