@@ -7,6 +7,9 @@
  *                     - a private reply (one DM to the commenter, allowed once per comment, within 7 days)
  *                     - a short public reply under the comment ("Sent! Check your DMs 📩")
  *                   For a DM asking the same: the link, in reply.
+ *   cron (5 min)    poll: the same for comments asking for the game, and (from SINCE on) a short public reply to the
+ *                   rest: YES (Zara's lift), KEEP DRIVING, app questions (Android soon), anything else (thanks + link).
+ *                   Spam is left alone for the owner.
  *   GET  /          a health line
  *
  *   GET  /auth      the redirect URL of the app's login (Instagram API setup with Unified login): Meta sends the owner
@@ -42,6 +45,30 @@ const dmText = (env: Env, name: string | undefined, medium: string) =>
   `Hey${name ? ` ${name}` : ""}! 🚗 Here's Drive Wayanad — the Thamarassery churam in 3D, free to play in your browser:\n${link(env, medium)}\n\n` +
   `Nine hairpins, chai at Lakkidi, real Kerala traffic. Drive safe! 🌿`;
 const PUBLIC_REPLIES = ["Sent! Check your DMs 📩", "Link's in your DMs 🚗", "Check your DMs — see you on the churam! 🌿"];
+
+/** Every other kind of comment (poll only, and only comments from SINCE on, so old ones left alone stay alone): a short
+ *  public reply in the account's own style. Spam is left for the owner. Order matters: spam, app questions (before
+ *  ASKS: "Play store?" is a question, not a request for the link), the link, "keep driving", "yes", anything else. */
+const SINCE = Date.parse("2026-11-19T18:00:00Z");
+const SPAM = /https?:\/\/|www\.(?!drivewayanad)|\b(promo(te|tion)?|collab|followers|dm (me|us)|earn|crypto|bitcoin|forex|giveaway|sugar ?daddy|onlyfans|telegram)\b/iu;
+const APPQ = /play\s*store|android|apk|\bios\b|iphone|app\s*store|mobile(il)?|phone\b/iu;
+const KEEP = /keep\s*driv|drive\s*on|\bno+\b|venda|വേണ്ട/iu;
+const YES = /\b(yes+|ye+s|yeah|yep|sure|ok(ay)?|lift)\b|✅|👍|അതെ|ഉവ്വ്|കേറ്റ|കയറ്റ/iu;
+const SITE = "www.drivewayanad.com";
+const REPLIES: Record<"yes" | "keep" | "app" | "other", string[]> = {
+  yes: [`🥳🚗 Zara says thank you for the lift! ❤️ Drive her yourself 👉 ${SITE} 🎮`, `🙌 Lift given! Zara's on board 🚗🌿 Play free 👉 ${SITE}`, `❤️ Nice! Zara hops in 🚗💨 Your turn to drive 👉 ${SITE} 🎮`],
+  keep: [`😂🚗 No stopping on the churam! Keep driving 👉 ${SITE} 🏁`, `💨 Zara will wait for the next car 😏 Drive on 👉 ${SITE} 🎮`, `🏎️🔥 Full speed to Kalpetta! Play free 👉 ${SITE}`],
+  app: [`📱 Android app is coming soon 🙌 iPhone after that. Till then play FREE in your browser 👉 ${SITE} 🚗`],
+  other: [`❤️🚗 Thank you! Play Drive Wayanad FREE 👉 ${SITE} 🌿`, `🚗🌿 Play here 👉 ${SITE} 🎮❤️ Enjoy the ride! ⛰️`, `🙌🔥 Thanks for the love! Drive the churam 👉 ${SITE} 🎮`],
+};
+export function kindOf(text: string): "spam" | "app" | "ask" | "keep" | "yes" | "other" {
+  if (SPAM.test(text)) return "spam";
+  if (APPQ.test(text)) return "app";
+  if (ASKS.test(text)) return "ask";
+  if (KEEP.test(text)) return "keep";
+  if (YES.test(text)) return "yes";
+  return "other";
+}
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -138,12 +165,20 @@ async function answer(env: Env, me: string, c: { id: string; username?: string; 
   console.log("answered", c.username, dm ? "dm+reply" : "reply");
   return true;
 }
+/** A public reply to one comment, once (KV remembers it). */
+async function say(env: Env, id: string, text: string, send: Send) {
+  if (await env.SEEN.get(`c:${id}`)) return false;
+  await env.SEEN.put(`c:${id}`, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+  const ok = (await send(env, `${api(env)}/${id}/replies`, { message: text })) !== false;
+  console.log("replied", id, ok);
+  return ok;
+}
 const LINK_REPLY = "Here you go 🚗 drivewayanad.com — free in your browser, no download! Link is in our bio too 🌿";
 
 /** Every few minutes (cron): look at the recent posts whose comment count changed, answer new comments asking for the game
  *  that nobody from the account has answered. (Works while Meta's webhooks only reach app testers.) */
 export async function poll(env: Env, send: Send = graph, dry = false) {
-  const found: { user?: string; text?: string }[] = [];
+  const found: { user?: string; text?: string; kind?: string; reply?: string }[] = [];
   const t = await token(env), ig = JSON.parse((await env.SEEN.get("ig")) ?? "null") as { id: string; username?: string } | null;
   if (!t || !ig) return found;
   const get = async (path: string) => (await (await fetch(`${api(env)}${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(t)}`)).json().catch(() => null)) as any;
@@ -153,15 +188,19 @@ export async function poll(env: Env, send: Send = graph, dry = false) {
   for (const m of media.data as { id: string; comments_count?: number }[]) {
     const n = String(m.comments_count ?? 0);
     if (!dry && (await env.SEEN.get(`n:${m.id}`)) === n) continue;
-    const cs = await get(`/${m.id}/comments?fields=id,text,username,from,replies{username}&limit=100`);
+    const cs = await get(`/${m.id}/comments?fields=id,text,username,from,timestamp,replies{username}&limit=100`);
     if (!cs?.data) { console.error("poll comments", cs?.error?.message); continue; }
-    for (const c of cs.data as { id: string; text?: string; username?: string; from?: { id: string }; replies?: { data?: { username?: string }[] } }[]) {
-      if (c.username === ig.username || c.from?.id === ig.id || !ASKS.test(c.text ?? "")) continue;
+    for (const c of cs.data as { id: string; text?: string; username?: string; timestamp?: string; from?: { id: string }; replies?: { data?: { username?: string }[] } }[]) {
+      if (c.username === ig.username || c.from?.id === ig.id) continue;
       if ((c.replies?.data ?? []).some((r) => r.username === ig.username)) continue; // already answered (by hand or by us)
+      const kind = kindOf(c.text ?? "");
+      if (kind !== "ask" && !(Date.parse(c.timestamp ?? "") >= SINCE)) continue; // (only the link for older comments)
+      if (kind === "spam") { if (!dry && !(await env.SEEN.get(`s:${c.id}`))) { await env.SEEN.put(`s:${c.id}`, JSON.stringify({ user: c.username, text: c.text, media: m.id }), { expirationTtl: 60 * 60 * 24 * 30 }); console.log("spam left", c.username); } found.push({ user: c.username, text: c.text, kind }); continue; }
       if (answered >= 8) break; // (a run's share of requests; the rest go next run)
-      found.push({ user: c.username, text: c.text });
+      const list = kind === "ask" ? null : REPLIES[kind], reply = list ? `${c.username ? `@${c.username} ` : ""}${list[hash(c.id) % list.length]}` : undefined;
+      found.push({ user: c.username, text: c.text, kind, reply });
       if (dry) continue;
-      if (await answer(env, ig.id, { id: c.id, username: c.username, fromId: c.from?.id }, send)) answered++;
+      if (kind === "ask" ? await answer(env, ig.id, { id: c.id, username: c.username, fromId: c.from?.id }, send) : await say(env, c.id, reply!, send)) answered++;
     }
     if (!dry && answered < 8) await env.SEEN.put(`n:${m.id}`, n);
   }
