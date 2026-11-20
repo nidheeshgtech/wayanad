@@ -29,6 +29,8 @@ const STATES: Record<WeatherName, Target & { hold: [number, number]; next: Parti
   clearing: { cloud: 0.25, mist: 0.12, rain: 0, hold: [40, 80], next: { clear: 4, partly: 1 } },
 };
 const TAU = { cloud: 30, mist: 25, rain: 15, wetUp: 18, wetDown: 70 }; // s: time constants
+/** The darkest drive mode's rain makes the day (weather.gloom): a downpour reaches it, rain nearly. */
+const GLOOM_MAX = 0.55;
 let RAIN_AFTER = 90; // s of a visit before drizzle is allowed
 let DRY_VISITS = 0.35; // share of visits with no drizzle at all
 /** Drive mode (/drive) wants weather you drive through: showers placed along the road by distance, shuffled every
@@ -141,8 +143,10 @@ export function stepWeather(dt: number, progress: number, driven = 0) {
   // (the moving shadows on the land come from CLOUD_SHADOW_GLSL; here only a gentle swell in the overall sunlight)
   const cover = weather.cloud + (passing - 0.5) * 0.35 * 4 * weather.cloud * (1 - weather.cloud);
   weather.sun = 1 - smooth(0.15, 0.9, cover);
-  // how dark the day gets (drive mode only): heavy cloud and rain, like a monsoon shower on the ghat
-  weather.gloom = showery ? Math.min(1, weather.cloud * 0.5 + weather.rain * 0.5) : 0;
+  // how dark the day gets (drive mode only): under the rain itself, like a monsoon shower on the ghat. Cloud alone
+  // doesn't add to it (it already greys the sky and lowers the exposure a little), and it stops at GLOOM_MAX: the
+  // lighting multiplies it in three places (exposure, sky light, sun), and at 1 a downpour went near black on phones
+  weather.gloom = showery ? Math.min(GLOOM_MAX, Math.max(0, weather.rain - 0.1) * 0.5) : 0;
   wetUniform.value = weather.wet;
   cloudShadowUniforms.uCloudCover.value = 0.55 * Math.min(1, 4 * weather.cloud * (1 - weather.cloud) * 1.2);
   cloudShadowUniforms.uWeatherTime.value = clock;
