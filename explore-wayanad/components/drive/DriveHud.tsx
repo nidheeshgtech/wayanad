@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } from "@/lib/game";
+import { FOREST_ROUTE, FOREST_STARTS, forestStart } from "@/lib/drive";
 import { beep, chime, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
@@ -398,8 +399,17 @@ export default function DriveHud() {
     if (net.enabled && playMode === "friends") { commitName(); setFriends(true); mark("friends"); return; }
     // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
     // up from Adivaram. A climb started part-way isn't kept as your best time.
-    const at = new URLSearchParams(location.search).get("at");
-    if (at && game.kmTotal) {
+    const at = new URLSearchParams(location.search).get("at"), onForest = forestStart();
+    // ?at=bathery | muthanga | border: the forest road (lib/drive FOREST_STARTS), once it has loaded (it comes a few
+    // seconds after the title screen; pressed sooner, the car is moved over as soon as it's there)
+    if (onForest) {
+      const jump = (tries: number) => {
+        if (!FOREST_ROUTE.length) { if (tries > 0) setTimeout(() => jump(tries - 1), 250); return; }
+        game.leg = 1; resetCar(FOREST_STARTS[onForest] * FOREST_ROUTE.length); game.jumped = true;
+      };
+      jump(120);
+    }
+    else if (at && game.kmTotal) {
       const km = at === "end" ? game.kmTotal - 1 : Number(at);
       if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
     }

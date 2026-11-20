@@ -6,7 +6,7 @@ import { addForest, archT, bendTs, buildRoadCurve, churamEndT, forestRoad, place
 import { loading } from "@/lib/loading";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
-import { DRIVER_LINE, ROUTE, setForestPace, setPace } from "@/lib/drive";
+import { DRIVER_LINE, ROUTE, forestStart, setForestPace, setPace } from "@/lib/drive";
 import { estateUniforms, setEstateFrame } from "@/lib/estates";
 import { patchAtmosphere } from "@/lib/atmosphere";
 import Terrain from "./Terrain";
@@ -123,10 +123,11 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
     setEstateFrame(curve.getPointAt(archT()).z, townCircles(curve));
     scrollState.roadMetres = curve.getLength() * 10;
   }, [curve]);
-  // the forest road arrives after the first screen is ready (story only): then it mounts like everything else
+  // the forest road arrives after the first screen is ready (story only, or drive mode started on it with ?at=bathery
+  // etc.: lib/drive forestStart): then it mounts like everything else
   const [forestIn, setForestIn] = useState(false);
   useEffect(() => {
-    if (mode !== "story") return;
+    if (mode !== "story" && !forestStart()) return;
     let raf = 0, live = true;
     const wait = () => { if (loading.ready) void loadForest().then((ok) => { if (live && ok) setForestIn(true); }); else raf = requestAnimationFrame(wait); };
     wait();

@@ -79,11 +79,21 @@ export function driveT2(q: number) {
  * entrance and stops for the elephant in FOREST.hold (act progress; the badge in ForestRoad.tsx uses the same window).
  * Act 8 drives on to FOREST.stop units short of the border gate in its first half, then holds while the camera turns. */
 export const FOREST = { turn: 70, cruise: 100, hold: [0.45, 0.62] as const, stop: 2.5, arrive: 0.5 };
-export const FOREST_ROUTE = { muthanga: 0.68, stop: 0.99 };
+export const FOREST_ROUTE = { muthanga: 0.68, stop: 0.99, length: 0 }; // (length: units, once the forest road is in)
+/** For filming and testing: ?at=bathery | muthanga | border starts drive mode on the forest road (Sulthan Bathery →
+ * Muthanga → the border gate), which players can't reach yet (the drive ends at Kalpetta). Where on it, as a share of
+ * that road: Bathery town, just short of Muthanga town (12.9 km of 20.3), 1 km before the border gate. Only with one of
+ * these does drive mode fetch the forest road at all. */
+export const FOREST_STARTS = { bathery: 0.002, muthanga: 0.6, border: 0.94 } as const;
+export function forestStart(): keyof typeof FOREST_STARTS | null {
+  if (typeof location === "undefined") return null;
+  const at = new URLSearchParams(location.search).get("at");
+  return at && Object.hasOwn(FOREST_STARTS, at) ? (at as keyof typeof FOREST_STARTS) : null;
+}
 
 export function setForestPace(turn: Float32Array, length: number, muthanga: number) {
   const ds = (1 / turn.length) * length, stop = 1 - FOREST.stop / length;
-  FOREST_ROUTE.muthanga = muthanga; FOREST_ROUTE.stop = stop;
+  FOREST_ROUTE.muthanga = muthanga; FOREST_ROUTE.stop = stop; FOREST_ROUTE.length = length;
   const at = (_: number, deg: number) => Math.max(deg / FOREST.turn, ds / FOREST.cruise);
   let s7: number, s8: number;
   [forest, s7] = build(turn, 1, 0, muthanga, at);
