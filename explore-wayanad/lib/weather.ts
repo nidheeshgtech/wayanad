@@ -164,6 +164,12 @@ function smooth(a: number, b: number, x: number) {
 }
 
 /** Development controls change targets; transitions remain smooth. Null resumes organic weather. */
+/** A mission's weather (the landslide rescue's drizzle), in any build; null hands it back to the drive's own. */
+export function forceWeather(name: WeatherName | null) {
+  if (!started) start();
+  forced = name;
+  if (name) weather.state = name; else until = clock + 30;
+}
 export function setWeatherForReview(name: WeatherName | null) {
   if (process.env.NODE_ENV === "production") return;
   if (!started) start();

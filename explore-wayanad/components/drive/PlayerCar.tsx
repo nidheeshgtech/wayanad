@@ -169,7 +169,8 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     const under = (o: Object3D, test: (n: Object3D) => boolean) => { for (let p: Object3D | null = o; p; p = p.parent) if (test(p)) return p; return null; };
     const isWheel = (n: Object3D) => /wheel_(lf|rf|lr|rr)_dummy/i.test(n.name), isSteer = (n: Object3D) => /^steer/i.test(n.name);
     const meshes: Mesh[] = []; model.traverse((o) => { if ((o as Mesh).isMesh) meshes.push(o as Mesh); });
-    let stat = meshes.filter((m) => !under(m, isWheel) && !under(m, isSteer)); const steer = meshes.filter((m) => !under(m, isWheel) && under(m, isSteer));
+    const isArm = (n: Object3D) => !!car.arm && car.arm.test(n.name), arm = meshes.filter((m) => under(m, isArm));
+    let stat = meshes.filter((m) => !under(m, isWheel) && !under(m, isSteer) && !under(m, isArm)); const steer = meshes.filter((m) => !under(m, isWheel) && under(m, isSteer));
 
     // wheels: a pivot at each wheel's centre (front ones steer about it), a spinner inside it that rolls
     // (`roll`: turns per unit of the game's wheel angle — it assumes a 33 cm tyre — for this wheel's real size;
@@ -226,6 +227,14 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       body.add(driver(centre));
     }
     mergeInto(stat, body, { byLook: true, looks });
+    // a moving part (the digger's front loader): its own group, pivoting about the top of its back end (the hinge)
+    if (arm.length) {
+      body.updateMatrixWorld(true);
+      const inv = body.matrixWorld.clone().invert(), box = new Box3();
+      for (const m of arm) box.expandByObject(m);
+      const hinge = new Vector3(0, box.max.y, box.min.z).applyMatrix4(inv), pivot = new Group(); pivot.name = "digger-arm"; pivot.position.copy(hinge); body.add(pivot); body.updateMatrixWorld(true);
+      mergeInto(arm, pivot, { byLook: true, looks });
+    }
     // lamps: the model's own light materials glow (tail and brake lamps red, headlamps warm white)
     const lamps = { head: [] as MeshStandardMaterial[], tail: [] as MeshStandardMaterial[] };
     body.traverse((o) => {
@@ -281,7 +290,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     let flash: ((t: number, on?: boolean) => void) | null = null;
     if (car.siren) { const lb = lightBar(0.11, 0.24); lb.bar.position.set(0, new Box3().setFromObject(body).max.y + 0.002, 0); body.add(lb.bar); flash = lb.flash; }
     return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash, blur };
-  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren, car.wheels]);
+  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren, car.wheels, car.arm]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
   useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; game.supercar = car.sound === "super"; }, [car.bike, car.heavy, car.siren, car.handling, car.sound, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { own.siren = false; }, []);

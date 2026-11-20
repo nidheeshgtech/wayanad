@@ -8,7 +8,7 @@ import { DEFAULT_DRIVER, driverOf, type DriverId, type PersonId } from "./driver
 
 export type CarId = "lakkidi" | "vythiri" | "kabini" | "banasura" | "pookode" | "chembra" | "kuruva" | "kalpetta" | "edakkal" | "bathery" | "muthanga" | BorrowId;
 /** The traffic you can wave down and drive away in (components/drive/OnFoot): not in the garage. */
-export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb" | "t-jimny";
+export type BorrowId = "t-hatch" | "t-mpv" | "t-van" | "t-auto" | "t-bus" | "t-pbus" | "t-tbus" | "t-lorry" | "t-police" | "t-amb" | "t-jimny" | "t-digger";
 export type ColourId = "white" | "black" | "red" | "blue" | "green" | "yellow" | "silver" | "orange";
 /** `plate`: where the number plates are in the model (a part, by its name in the file, or a material): the rear one
  * (the part's faces behind the middle of the car) gets the driver's name over it (components/drive/PlayerCar). A model
@@ -40,7 +40,10 @@ export type Car = { id: CarId; name: string; file: string; length: number; paint
    * and how quickly it picks up (lib/game setVehicle) */
   handling?: { max: number; accel: number };
   /** wheels the file doesn't name as the game's own cars do (wheel_lf_dummy…), found so they roll (lib/modelWheels) */
-  wheels?: Wheels };
+  wheels?: Wheels;
+  /** a part that moves on its own (the digger's front loader): kept out of the merged body, in a group about its
+   * hinge (the top of its back end) named "digger-arm" (components/drive/PlayerCar) */
+  arm?: RegExp };
 /** By name (each node a wheel, or with `split` an axle of two), or cut from a part they're baked into: the axles' z and
  * height, the wheels' radius and how far out from the middle they start, in the file's own units. */
 export type Wheels = { nodes: RegExp; split?: boolean } | { cut: { from: RegExp; at: [number, number][]; r: number; inner: number } };
@@ -74,6 +77,9 @@ export const BORROWABLE: Car[] = [
   { id: "t-pbus", name: "Private bus", file: "/models/traffic/privatebus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.135, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.75, accel: 0.26 } },
   { id: "t-tbus", name: "Tourist bus", file: "/models/traffic/tourbus-real.glb", length: 9.4, paint: /^$/, plate: { at: { y: 0.5, w: 0.5, h: 0.12 } }, seat: { x: -0.085, y: 0.14, z: 0.4 }, heavy: { width: 2.25 }, handling: { max: 1.7, accel: 0.25 } },
   { id: "t-lorry", name: "Lorry", file: "/models/traffic/lorry-real.glb", length: 7.8, paint: /^$/, plate: { at: { y: 0.45, w: 0.5, h: 0.12 } }, seat: { x: -0.075, y: 0.2, z: 0.37 }, heavy: { width: 2.71 }, handling: { max: 1.45, accel: 0.2 } },
+  // the landslide rescue's backhoe loader (components/scene/Landslide): slow; `arm` its front loader, kept as a part that
+  // tilts about its hinge by the cab (PlayerCar names it "digger-arm")
+  { id: "t-digger", name: "Digger", file: "/models/traffic/digger.glb", length: 5.9, paint: /^$/, plate: { at: { y: 0.55, w: 0.4, h: 0.1 } }, heavy: { width: 2.3 }, handling: { max: 0.75, accel: 0.3 }, arm: /^Front_loader/ },
   { id: "t-police", name: "Police jeep", file: "/models/traffic/bolero-real.glb", length: 4.2, paint: /^$/, plate: { at: { y: 0.42, w: 0.42, h: 0.11 } }, siren: true, handling: { max: 2.6, accel: 0.44 } },
   { id: "t-jimny", name: "Small 4×4", file: "/models/traffic/jimny-real.glb", length: 3.45, paint: /^$/, plate: { at: { y: 0.45, w: 0.4, h: 0.11 } }, handling: { max: 2.4, accel: 0.44 } },
   { id: "t-amb", name: "Ambulance", file: "/models/traffic/omni-real.glb", length: 3.4, paint: /^(body|chassis_ok)/, plate: { at: { y: 0.5, w: 0.4, h: 0.11 } }, seat: { x: -0.095, y: 0.29, z: 0.25 }, siren: true, handling: { max: 2.2, accel: 0.4 } },

@@ -43,6 +43,7 @@ import { shareView } from "@/lib/shareCard";
 import Cheer, { type CheerData } from "./Cheer";
 import SupportButton, { SupportNote, supportStyles } from "@/components/ui/SupportButton";
 import { AnimalHint, StickerButton, StickerPop } from "./Stickers";
+import { MissionButton, MissionHud } from "./Mission";
 
 /**
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
@@ -475,6 +476,7 @@ export default function DriveHud() {
       <VoiceHud />
       <AnimalHint />
       <StickerPop />
+      <MissionHud />
       {iosTip && (
         <div className={styles.iosTip} role="status">
           <span><b>Full screen on iPhone</b>Tap <i>≡</i> beside the address, then <b>Hide Toolbar</b>. Or Share → <b>Add to Home Screen</b> to play like an app.</span>
@@ -544,7 +546,7 @@ export default function DriveHud() {
         <StartScreen compact
           title={<>Drive to <br /><em>Wayanad.</em></>}
           startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
-          onStart={start} waitFor={firstProgress} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><StickerButton /><SupportButton /><SafetyLinks /></div>}
+          onStart={start} waitFor={firstProgress} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><MissionButton onGo={start} /><StickerButton /><SupportButton /><SafetyLinks /></div>}
           beforeStart={<>
             {net.enabled && (
               <div className={panelStyles.nameField} data-big>
