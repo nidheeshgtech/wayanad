@@ -44,7 +44,6 @@ import Cheer, { type CheerData } from "./Cheer";
 import SupportButton, { SupportNote, supportStyles } from "@/components/ui/SupportButton";
 import { AnimalHint, StickerButton, StickerPop } from "./Stickers";
 import { MissionButton, MissionHud } from "./Mission";
-import { mission, requestLandslide } from "@/lib/mission";
 
 /**
  * Drive mode's controls and readouts. Keys: W/↑ accelerate, S/↓ brake (then reverse), A/D or ←/→ steer, Space (or
@@ -402,8 +401,6 @@ export default function DriveHud() {
     if (net.enabled && playMode === "friends") { commitName(); setFriends(true); mark("friends"); return; }
     // for testing: ?at=end starts 1 km before the end of the drive (just before the Lakkidi gate), ?at=6.5 that many km
     // up from Adivaram. A climb started part-way isn't kept as your best time.
-    // ?mission=landslide: Start goes straight into the landslide rescue (a link to share, or for filming)
-    if (new URLSearchParams(location.search).get("mission") === "landslide" && mission.phase === "none") { requestLandslide(); mark("landslide"); }
     const at = new URLSearchParams(location.search).get("at"), onForest = forestStart();
     // ?at=bathery | muthanga | border: the forest road (lib/drive FOREST_STARTS), once it has loaded (it comes a few
     // seconds after the title screen; pressed sooner, the car is moved over as soon as it's there)
