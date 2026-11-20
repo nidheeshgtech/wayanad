@@ -6,8 +6,11 @@ import {
   BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
   LineSegments, Mesh, MeshStandardMaterial, SRGBColorSpace, Vector3,
 } from "three";
-import { SECTION, archT, height, placesT, roadShapeAt } from "@/lib/terrain";
+import { SECTION, archT, forestRoad, height, placesT, roadShapeAt } from "@/lib/terrain";
+import { townLots, type Lot } from "./realTowns";
+import { buildTown } from "./townKit";
 import { rubble } from "./stone";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /* Lakkidi after the gateway: a strip of shops and houses on both sides, as in photographs of the place — one- and
  * two-storey concrete buildings in Kerala's pastel paints, tiled hip roofs or flat roofs with parapets, shop fronts with
@@ -116,55 +119,43 @@ const PLAN: { side: 1 | -1; at: number; w: number; kind: Kind }[] = [
 
 /** Where each building stands: position, rotation (front, +z, toward the road), and a footprint radius that keeps
  * trees and rocks off it (Vegetation and Props call this too). Pure: no DOM, deterministic. */
-/* Towns along Act 2, generated around each place on the road (lib/terrain placesT): how far either side of the place
- * the buildings run (metres along the road), how often a plot is built on, and how many are two-storey shops.
- * Kalpetta, the district headquarters, is the largest and densest. Typical Kerala roadside towns, not surveyed. */
-const TOWNS: Record<string, { before: number; after: number; built: number; tall: number }> = {
-  Vythiri: { before: 250, after: 300, built: 0.7, tall: 0.3 },
-  Chundale: { before: 200, after: 200, built: 0.65, tall: 0.25 },
-  Kalpetta: { before: 900, after: 0, built: 0.9, tall: 0.6 },
-};
-
 export type Placed = { side: 1 | -1; w: number; kind: Kind; at: Vector3; y: number; rotation: number; radius: number; floors?: number };
 
-/** Every building on the road: Lakkidi's hand-placed few past the gateway, then the towns along Act 2. Each with its
- * position, rotation (front, +z, toward the road), and a footprint radius that keeps trees and rocks off it
- * (Vegetation and Props call this too). Pure: no DOM, deterministic. */
+/** Which road a curve is, and its named places (as t), for the towns on it (realTowns). */
+const roadOf = (curve: CatmullRomCurve3) => { const f = forestRoad(); return f && f.curve === curve ? { road: "forest" as const, places: f.places } : { road: "churam" as const, places: placesT() }; };
+
+/** Everything built along the road: Lakkidi's hand-placed few past the gateway (drive from Adivaram only), then the
+ * towns' lots (realTowns). Each with its position and a footprint radius that keeps trees and rocks off it (Vegetation
+ * and Props call this too); Lakkidi's with the rotation that faces it to the road. Pure, deterministic, cached. */
+const plans = new WeakMap<CatmullRomCurve3, Placed[]>();
 export function townPlan(curve: CatmullRomCurve3) {
-  const L = curve.getLength(), gate = archT() * L, up = new Vector3(0, 1, 0), out: Placed[] = [];
+  const hit = plans.get(curve); if (hit) return hit;
+  const L = curve.getLength(), gate = archT() * L, up = new Vector3(0, 1, 0), out: Placed[] = [], { road, places } = roadOf(curve);
   const place = (s: number, side: 1 | -1, w: number, kind: Kind, offset: number, floors?: number) => {
     const t = Math.min(0.999, Math.min(s, L - END_MARGIN) / L);
     const p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize(), left = new Vector3().crossVectors(up, tan).normalize();
     const at = p.clone().addScaledVector(left, side * (offset + roadShapeAt(t).widen)), facing = left.clone().multiplyScalar(-side);
     out.push({ side, w, kind, at, y: Math.min(height(at.x, at.z), p.y - 0.6), rotation: Math.atan2(facing.x, facing.z), radius: w * 0.75 + (kind === "temple" ? 0.6 : 0.4), floors });
   };
-  PLAN.forEach((b, i) => {
+  if (road === "churam") PLAN.forEach((b, i) => {
     const w = b.w * 0.1;
     place(gate + b.at * 0.1 + w / 2, b.side, w, b.kind, b.kind === "temple" ? SECTION.half + 0.45 : SETBACK[0] + ((i * 0.37) % 1) * (SETBACK[1] - SETBACK[0]));
   });
-  const r = rng(2026);
-  for (const pl of placesT()) {
-    const town = TOWNS[pl.name];
-    if (!town) continue;
-    const centre = pl.t * L;
-    for (const side of [1, -1] as const) {
-      for (let s = centre - town.before * 0.1; s < centre + town.after * 0.1;) {
-        const w = 0.6 + r() * 0.5, offset = SETBACK[0] + r() * (SETBACK[1] - SETBACK[0]);
-        if (r() < town.built) place(s + w / 2, side, w, r() < 0.8 ? "shop" : "house", offset, r() < town.tall ? 2 : 1);
-        s += w + 0.05 + r() * 0.3;
-      }
-    }
-  }
+  for (const lot of townLots(curve, road, places)) out.push({ side: 1, w: lot.radius * 2, kind: lot.kind === "house" ? "house" : "shop", at: lot.centre, y: lot.y, rotation: 0, radius: lot.radius + 0.25, floors: lot.floors });
+  plans.set(curve, out);
   return out;
 }
+
+/* How far each town spreads along the road (metres before and after its place), for the tea estates' town circles. */
+const SPREAD: Record<string, [number, number]> = { Vythiri: [250, 300], Chundale: [200, 200], Kalpetta: [900, 0] };
 
 /** Town circles [x, z, radius] in units for lib/estates (no tea in town): Lakkidi, and each Act 2 town. */
 export function townCircles(curve: CatmullRomCurve3): [number, number, number][] {
   const L = curve.getLength(), at = (t: number) => curve.getPointAt(Math.min(0.999, t));
   const lakkidi = at(archT() + 30 / L);
-  return [[lakkidi.x, lakkidi.z, 45], ...placesT().filter((p) => TOWNS[p.name]).map((p): [number, number, number] => {
-    const c = at(p.t - ((TOWNS[p.name].before - TOWNS[p.name].after) / 2) * 0.1 / L);
-    return [c.x, c.z, ((TOWNS[p.name].before + TOWNS[p.name].after) / 2) * 0.1 + 15];
+  return [[lakkidi.x, lakkidi.z, 45], ...placesT().filter((p) => SPREAD[p.name]).map((p): [number, number, number] => {
+    const [before, after] = SPREAD[p.name], c = at(p.t - ((before - after) / 2) * 0.1 / L);
+    return [c.x, c.z, ((before + after) / 2) * 0.1 + 15];
   })];
 }
 
@@ -242,20 +233,26 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
       const t = Math.min(0.999, s / L), p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize();
       return { p, tan, left: new Vector3().crossVectors(up, tan).normalize() }; // driver's left
     };
-    for (const b of townPlan(curve)) {
+    const { road, places } = roadOf(curve), lots = townLots(curve, road, places);
+    // the towns: per town, walls and the rest as two merged meshes (townKit)
+    const byTown = new Map<string, Lot[]>(); for (const lot of lots) (byTown.get(lot.town) ?? byTown.set(lot.town, []).get(lot.town)!).push(lot);
+    let seed = 17; for (const [, list] of byTown) for (const m of buildTown(list, seed++ * 7919, height)) g.add(m);
+    for (const b of townPlan(curve).slice(0, road === "churam" ? PLAN.length : 0)) { // Lakkidi's few, each its own
       const obj = b.kind === "temple" ? temple(b.w) : b.kind === "shed" ? shed(b.w) : b.kind === "teal" ? teal(b.w) : building(r, b.w, b.kind === "shop", b.floors);
       obj.position.set(b.at.x, b.y, b.at.z);
       obj.rotation.y = b.rotation;
       g.add(obj);
     }
     // electric poles on the left with three sagging wires
-    const poleMat = new MeshStandardMaterial({ color: 0x9a9890, roughness: 0.9 }), tops: Vector3[][] = [];
-    for (let s = gate - 1; s < L - END_MARGIN; s += 3.5) {
+    // (all in one mesh: as one mesh each, the ~460 poles and their arms were ~920 draw calls)
+    const poleMat = new MeshStandardMaterial({ color: 0x9a9890, roughness: 0.9 }), tops: Vector3[][] = [], parts: BufferGeometry[] = [];
+    for (let s = gate - 1; road === "churam" && s < L - END_MARGIN; s += 3.5) { // (the drive from Adivaram: past the gate)
       const { p, tan, left } = frame(s), at = p.clone().addScaledVector(left, SECTION.half + 0.22), y = height(at.x, at.z);
-      const pole = new Mesh(new BoxGeometry(0.02, 0.9, 0.02), poleMat); pole.position.set(at.x, y + 0.45, at.z); pole.castShadow = true; g.add(pole);
-      const arm = new Mesh(new BoxGeometry(0.12, 0.012, 0.012), poleMat); arm.position.set(at.x, y + 0.85, at.z); arm.rotation.y = Math.atan2(tan.x, tan.z) + Math.PI / 2; g.add(arm);
+      parts.push(new BoxGeometry(0.02, 0.9, 0.02).translate(at.x, y + 0.45, at.z));
+      parts.push(new BoxGeometry(0.12, 0.012, 0.012).rotateY(Math.atan2(tan.x, tan.z) + Math.PI / 2).translate(at.x, y + 0.85, at.z));
       tops.push([-0.05, 0, 0.05].map((k) => at.clone().addScaledVector(left, k).setY(y + 0.86)));
     }
+    if (parts.length) { const poles = new Mesh(mergeGeometries(parts, false), poleMat); poles.castShadow = true; g.add(poles); parts.forEach((x) => x.dispose()); }
     const wires: number[] = [];
     for (let i = 1; i < tops.length; i++) for (let w = 0; w < 3; w++) {
       const a = tops[i - 1][w], b = tops[i][w];

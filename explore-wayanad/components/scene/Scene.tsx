@@ -17,6 +17,7 @@ import Vegetation from "./Vegetation";
 import Props from "./Props";
 import Gateway from "./Gateway";
 import Town, { townCircles } from "./Town";
+import { loadTowns, setTowns } from "@/lib/towns";
 import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
@@ -72,8 +73,10 @@ const loadTerrain = () =>
     loadHeightmap(),
     loadHeightmap("/terrain/plateau").catch((err) => void console.warn("Plateau terrain unavailable:", err)),
     loadRoad().catch((err) => void console.warn("Road unavailable, using the procedural road:", err)),
+    loadTowns(),
   ])
-    .then(([hm, plateau, road]) => {
+    .then(([hm, plateau, road, towns]) => {
+      setTowns(towns);
       const tiles = [{ ...hm, region: "churam" }, ...(plateau ? [{ ...plateau, region: "plateau" }] : [])];
       setHeightmaps(tiles, road ?? null, null);
       scrollState.bends = bendTs();
@@ -183,6 +186,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
           <Road curve={forest.curve} detail={Math.round(forest.curve.getLength() * (small ? 2 : 4))} kind="forest" />
           <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" tile={small ? 320 : undefined} />
           <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
+          <Town curve={forest.curve} />
           <Shafts curve={forest.curve} count={small ? 40 : 90} />
           <Elephant curve={forest.curve} />
           <Checkpost curve={forest.curve} />

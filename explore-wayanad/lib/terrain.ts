@@ -52,6 +52,9 @@ export function addForest(hm: Heightmap, forestData: RoadData) {
   forest = buildRealRoad(forestData);
 }
 
+/** lat/lon → world x, z (units), in the same projection as the road and the heightmaps (for map data: lib/towns). */
+export function latLonToWorld(lat: number, lon: number) { return toWorld(field!, lat, lon); }
+
 /** lat/lon → world x, z. */
 function toWorld(_f: Field, lat: number, lon: number) {
   return { x: (lon - GEO.origin.lon) * proj.perLon * GEO.unitsPerMetre, z: -(lat - GEO.origin.lat) * proj.perLat * GEO.unitsPerMetre };

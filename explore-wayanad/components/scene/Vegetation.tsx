@@ -149,7 +149,7 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         const [d0, d1] = s.zone, d = d0 + (d1 - d0) * random() ** 1.6; // denser toward the road
         const x = p.x + side.x * d + (random() - 0.5) * 0.6, z = p.z + side.z * d + (random() - 0.5) * 0.6;
         if (roadDistance(x, z) < d0) continue; // another leg of the road (hairpins), or back onto the shoulder
-        if (ghat && t > townFrom && s.name !== "grass" && inTown(x, z, plan)) continue; // not on or against Lakkidi's buildings
+        if ((!ghat || t > townFrom) && s.name !== "grass" && inTown(x, z, plan)) continue; // not on or against the towns' buildings (Lakkidi on; Bathery on the forest road)
         const y = height(x, z);
         if (ghat && t > plateauFrom && s.name !== "grass" && teaAt(x, z, y) > 0.3 && random() > 0.04) continue; // estates are tea; a few shade trees stand in them
         if (s.trunk && Math.hypot(height(x + 0.2, z) - height(x - 0.2, z), height(x, z + 0.2) - height(x, z - 0.2)) / 0.4 > CUT_FACE) continue;
