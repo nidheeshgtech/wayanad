@@ -46,6 +46,7 @@ export default function Drivers({ empty }: { empty: string }) {
 export function SafetyLinks() {
   return (
     <p className={styles.links}>
+      <a href="/wayanad-drive" target="_blank" rel="noopener">About the game</a>
       <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
     </p>
   );

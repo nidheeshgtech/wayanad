@@ -1,0 +1,12 @@
+// The Wayanad drive page's own parts, on top of the privacy page's reading styles (.play doubled to beat its link colour).
+.play.play { display: inline-flex; border: 0; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #d9a441; color: #0e1f1a; font-weight: 500; text-decoration: none;
+  &:hover { filter: brightness(1.06); } &:focus-visible { outline: 2px solid #eef2ee; outline-offset: 3px; } }
+.route { list-style: none; margin: 0 0 14px; padding: 0; border-left: 2px solid #5e7a70;
+  li { position: relative; display: grid; gap: 2px; padding: 0 0 16px 18px;
+    &::before { content: ""; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: #0e1f1a; border: 2px solid #d9a441; } }
+  span { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8fa89e; }
+  b { color: #eef2ee; font-weight: 500; }
+  small { font-size: 15px; } }
+.qa { margin: 0 0 18px;
+  h3 { margin: 0 0 4px; font: 500 18px/1.35 var(--font-sans), system-ui, sans-serif; color: #eef2ee; }
+  p { margin: 0; } }

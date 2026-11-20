@@ -22,6 +22,7 @@
 // the start screen's links: a gold icon each (a shield, an envelope), a line between
 .links { align-items: center;
   a { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; color: #e6efe9; text-decoration: none; }
+  a[href="/wayanad-drive"]::before { @include icon("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1.3 8h2.6v8h-2.6zm1.3-5a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z'/></svg>", 16px); color: #ffd34d; }
   a[href="/privacy"]::before { @include icon($icon-shield, 16px); color: #ffd34d; }
   a[href^="mailto:"]::before { @include icon($icon-mail, 18px); color: #ffd34d; }
   a + a { padding-left: 16px; border-left: 1.5px solid rgba(238, 242, 238, .3); } }
