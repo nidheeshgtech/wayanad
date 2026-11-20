@@ -10,7 +10,13 @@
  *   /play/1min … 30min still driving after that much play (1, 3, 5, 10, 20, 30; paused and hidden time not counted)
  *   /play/walked       got out and walked;  /play/took  drove off in someone else's vehicle
  *   /play/finished     reached the Lakkidi gate (a full climb, not one started part-way with ?at=)
- *   /play/support      pressed "Buy Me a Chaya" (the support page opens in a new tab)
+ *   /play/support      pressed "Buy Me a Chaya" (the support page opens in a new tab); and where: support-title (the
+ *                      start screen) or support-end (an end-of-drive card)
+ *   /play/support-seen-end  an end-of-drive card with the support note came up (seen minus support-end = passed it by)
+ *   /play/support-back-10s … how long they spent on the support page before coming back to the game: back-10s (a
+ *                      glance), back-30s, back-60s, back-slow (over a minute: likely read it, maybe gave). No "back" at
+ *                      all after a support click = they never came back to this tab. Payments themselves only show on
+ *                      Buy Me a Coffee's own dashboard (it's their page; nothing comes back to us)
  *   /play/fps-60 … fps-low   the frame rate over the first minute of driving (after a 10 s settle): 60, 45, 30, 24 or
  *                      low (under 20); and /play/fps-30-android-web etc., the same split by device (desktop,
  *                      android-web, ios-web, android-app, ios-app); /play/jank if frames over 100 ms came often
@@ -19,7 +25,7 @@
 import { pageview } from "@vercel/analytics";
 import { platform } from "@/lib/native";
 
-export type Step = "loaded" | "started" | "finished" | "support" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
+export type Step = "loaded" | "started" | "finished" | "support" | "support-title" | "support-end" | "support-seen-end" | `support-back-${string}` | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
 const sent = new Set<string>();
 
 export function mark(step: Step) {
@@ -73,3 +79,20 @@ export function tickPlay(dt: number) {
   }
 }
 const fps = { frames: 0, time: 0, long: 0 };
+
+/** A press of "Buy Me a Chaya" (`where`: the start screen or an end card): counted, then timed until the player comes
+ * back to the game's tab (the support page opens in a new one, so this page goes hidden meanwhile). */
+let supportAt = 0;
+export function markSupport(where: "title" | "end") {
+  mark("support"); mark(`support-${where}`);
+  if (supportAt) return; // (timing the first visit only: one "back" per page load, like every other step)
+  supportAt = performance.now();
+  const back = () => {
+    if (document.visibilityState !== "visible") return;
+    const away = (performance.now() - supportAt) / 1000;
+    if (away < 1) return; // (still the click itself: the new tab hasn't taken over yet)
+    document.removeEventListener("visibilitychange", back);
+    mark(`support-back-${away <= 10 ? "10s" : away <= 30 ? "30s" : away <= 60 ? "60s" : "slow"}`);
+  };
+  document.addEventListener("visibilitychange", back);
+}

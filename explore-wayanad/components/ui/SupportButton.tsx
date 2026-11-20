@@ -1,6 +1,7 @@
 "use client";
 import { SUPPORT_URL } from "@/data/support";
-import { mark } from "@/lib/stats";
+import { useEffect } from "react";
+import { mark, markSupport } from "@/lib/stats";
 import styles from "./SupportButton.module.scss";
 
 /**
@@ -8,11 +9,11 @@ import styles from "./SupportButton.module.scss";
  * support page (data/support.ts) in a new tab. A glass of chaya for an icon; its steam rises on hover. Only on the title
  * screen and the end-of-drive cards, never on the road. Enter on it opens the page without starting the drive.
  */
-export default function SupportButton({ size = "small" }: { size?: "small" | "large" }) {
+export default function SupportButton({ size = "small", where = "title" }: { size?: "small" | "large"; where?: "title" | "end" }) {
   return (
     <a className={styles.key} data-size={size} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer"
       aria-label="Buy Me a Chaya: support Drive Wayanad (opens in a new tab)"
-      onClick={() => mark("support")} onKeyDown={(e) => e.stopPropagation()}>
+      onClick={() => markSupport(where)} onKeyDown={(e) => e.stopPropagation()}>
       <ChayaGlass /><span>Buy Me a Chaya</span>
     </a>
   );
@@ -20,10 +21,11 @@ export default function SupportButton({ size = "small" }: { size?: "small" | "la
 
 /** The end-of-drive cards' support note: a line of thanks and the button, under the card's own buttons. */
 export function SupportNote() {
+  useEffect(() => mark("support-seen-end"), []); // (shown: so a card passed by without a press shows in the counts)
   return (
     <div className={styles.note}>
       <p>Enjoying Drive Wayanad? ☕ Support us with a Chaya and help us bring more cars, locations, and exciting features!</p>
-      <SupportButton size="large" />
+      <SupportButton size="large" where="end" />
     </div>
   );
 }
