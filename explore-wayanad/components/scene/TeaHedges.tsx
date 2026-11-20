@@ -60,11 +60,11 @@ export default function TeaHedges({ curve, density = 1 }: { curve: CatmullRomCur
       mesh.matrixAutoUpdate = false; mesh.matrixWorldAutoUpdate = false; // (at the origin: no per-frame matrix work)
       return { centre: curve.getPointAt(Math.min(0.999, (c0 + CHUNK / 2) / L)), mesh };
     };
-    for (let c0 = from; c0 < L; c0 += CHUNK * 4) {
+    for (let c0 = from; c0 < L; c0 += CHUNK) { // (one chunk a job: a short one, between frames)
       const first = c0;
       later(async () => {
         if (!alive) return;
-        const got = timed("tea hedges", () => [0, 1, 2, 3].map((k) => first + k * CHUNK).filter((x) => x < L).map(buildChunk).filter((x): x is Chunk => !!x));
+        const got = timed("tea hedges", () => [first].filter((x) => x < L).map(buildChunk).filter((x): x is Chunk => !!x));
         if (!compiled && got.length) { compiled = true; try { await gl.compileAsync(got[0].mesh, camera, scene); } catch { /* on first draw instead */ } }
         if (alive && got.length) setChunks((prev) => [...prev, ...got]);
       }, { after: true }); // (the estates are minutes up the road: after the forest)

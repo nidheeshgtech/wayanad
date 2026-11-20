@@ -12,6 +12,7 @@ import ThemeToggle from "@/components/ui/ThemeToggle";
 import StartScreen, { panelStyles } from "@/components/ui/StartScreen";
 import { clock, recordClimb } from "@/lib/share";
 import { loading } from "@/lib/loading";
+import { firstProgress } from "@/lib/later";
 import { mark, markLoaded, tickPlay, watchLeaving } from "@/lib/stats";
 import { shareCard } from "@/lib/shareCard";
 import { haptic, nativeReady, submitClimb } from "@/lib/native";
@@ -530,7 +531,7 @@ export default function DriveHud() {
         <StartScreen compact
           title={<>Drive to <br /><em>Wayanad.</em></>}
           startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
-          onStart={start} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><SupportButton /><SafetyLinks /></div>}
+          onStart={start} waitFor={firstProgress} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><SupportButton /><SafetyLinks /></div>}
           beforeStart={<>
             {net.enabled && (
               <div className={panelStyles.nameField} data-big>

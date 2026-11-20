@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { loading, progress } from "@/lib/loading";
 import styles from "./StartScreen.module.scss";
 
@@ -11,7 +11,7 @@ import styles from "./StartScreen.module.scss";
  * mode), a controls panel bottom-right, and Start (Enter starts too). `scene: false` (no canvas, e.g. the video tier)
  * is ready at once.
  */
-export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy, beforeStart, compact = false }: {
+export default function StartScreen({ eyebrow, title, lead, stats, startLabel, onStart, scene = true, panel, footer, leaving = false, presentedBy, beforeStart, compact = false, waitFor, waitLabel = "Getting the road ready" }: {
   /** the story's chapter line, intro and facts; the drive's title screen leaves them out (`compact`) */
   eyebrow?: string; title: ReactNode; lead?: string; stats?: [string, string][];
   startLabel: string; onStart: () => void; scene?: boolean | null;
@@ -23,6 +23,8 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
   /** the drive's title screen: only the title, the name box, the car, the controls and Start, all on one screen at any
    * size (no brand bar; on phones the controls sit above Start) */
   compact?: boolean;
+  /** work still going on behind the start screen, 0..1 (drive: the forest, lib/later): Start waits for it, showing how far */
+  waitFor?: () => number; waitLabel?: string;
 }) {
   const [ready, setReady] = useState(false), bar = useRef<HTMLSpanElement>(null), pct = useRef<HTMLSpanElement>(null), startButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -38,6 +40,16 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [scene]);
+  // Start waits for `waitFor` (a percent on the button meanwhile; only re-rendered when the percent changes)
+  const [waitPct, setWaitPct] = useState(waitFor ? 0 : 100);
+  useEffect(() => {
+    if (!ready || !waitFor) return;
+    let raf = 0, shown = -1;
+    const tick = () => { const pc = Math.floor(Math.min(1, waitFor()) * 100); if (pc !== shown) { shown = pc; setWaitPct(pc); } if (pc < 100) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [ready, waitFor]);
+  const waiting = waitPct < 100;
   // the page's HUD hides behind the title screen (app/globals.scss) until it leaves
   useEffect(() => {
     if (leaving) return;
@@ -45,13 +57,13 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
     return () => document.documentElement.removeAttribute("data-intro");
   }, [leaving]);
   // Start takes the focus without scrolling to it: the screen opens at its title (the button may be below the fold)
-  useEffect(() => { if (ready) startButton.current?.focus({ preventScroll: true }); }, [ready]);
+  useEffect(() => { if (ready && !waiting) startButton.current?.focus({ preventScroll: true }); }, [ready, waiting]);
   useEffect(() => {
-    if (!ready || leaving) return;
+    if (!ready || leaving || waiting) return;
     const key = (e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); onStart(); } };
     addEventListener("keydown", key);
     return () => removeEventListener("keydown", key);
-  }, [ready, leaving, onStart]);
+  }, [ready, leaving, waiting, onStart]);
 
   const brand = (
     <span className={styles.brand}>Explore Wayanad
@@ -79,8 +91,9 @@ export default function StartScreen({ eyebrow, title, lead, stats, startLabel, o
           </dl>}
           {beforeStart}
           <div className={styles.actions}>
-            <button type="button" ref={startButton} className={styles.start} onClick={onStart}>
-              {compact && <i className={styles.flag} aria-hidden />}<span>{startLabel}</span>{compact && <b className={styles.chev} aria-hidden>»</b>}<kbd aria-hidden>Enter ↵</kbd>
+            <button type="button" ref={startButton} className={styles.start} onClick={waiting ? undefined : onStart} aria-disabled={waiting || undefined} data-wait={waiting || undefined}
+              style={waiting ? ({ "--wait": waitPct / 100 } as CSSProperties) : undefined}>
+              {compact && <i className={styles.flag} aria-hidden />}<span>{waiting ? `${waitLabel}… ${waitPct}%` : startLabel}</span>{waiting && <i className={styles.waitBar} aria-hidden />}{compact && <b className={styles.chev} aria-hidden>»</b>}<kbd aria-hidden>Enter ↵</kbd>
             </button>
             {footer}
           </div>

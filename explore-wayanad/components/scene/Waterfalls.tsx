@@ -1,7 +1,8 @@
 "use client";
 import { timed } from "@/lib/perf";
-import { useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useState } from "react";
+import { slicer } from "@/lib/later";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, CircleGeometry, DataTexture, DoubleSide, Group, Mesh,
   MeshStandardMaterial, Points, PointsMaterial, Vector3, type WebGLProgramParametersWithUniforms,
@@ -88,10 +89,11 @@ function overGround(a: Vector3, b: Vector3, n: number) {
 }
 
 /** The rock faces beside the churam: where the uphill side stands as a face, its foot and lip (as Creepers.tsx). */
-function roadsideFalls(curve: CatmullRomCurve3): Fall[] {
+async function roadsideFalls(curve: CatmullRomCurve3, sl: ReturnType<typeof slicer>): Promise<Fall[]> {
   const L = curve.getLength(), end = L - 10, found: (Fall & { s: number; h: number })[] = [];
   const side = new Vector3();
   for (let s = 20; s < end - 10; s += 0.5) {
+    if (sl.due()) await sl.pause();
     const t = s / L, pt = curve.getPointAt(t), tan = curve.getTangentAt(t), widen = roadShapeAt(t).widen;
     side.set(tan.z, 0, -tan.x).normalize();
     for (const dir of [1, -1]) {
@@ -122,11 +124,12 @@ function roadsideFalls(curve: CatmullRomCurve3): Fall[] {
 }
 
 /** Thin falls on the far slopes: the steepest ground some way off the road, followed downhill. */
-function distantFalls(curve: CatmullRomCurve3): Fall[] {
+async function distantFalls(curve: CatmullRomCurve3, sl: ReturnType<typeof slicer>): Promise<Fall[]> {
   const L = curve.getLength(), end = L - 10, out: Fall[] = [];
   const grad = (x: number, z: number) => new Vector3(height(x + 0.3, z) - height(x - 0.3, z), 0, height(x, z + 0.3) - height(x, z - 0.3)).divideScalar(0.6);
   const candidates: { at: Vector3; steep: number; s: number }[] = [];
   for (let s = 60; s < end - 30; s += 6) {
+    if (sl.due()) await sl.pause();
     const t = s / L, p = curve.getPointAt(t), tan = curve.getTangentAt(t), side = new Vector3(tan.z, 0, -tan.x).normalize();
     for (const dir of [1, -1]) for (let d = DISTANT.from; d <= DISTANT.to; d += 2) {
       const x = p.x + side.x * d * dir, z = p.z + side.z * d * dir;
@@ -163,7 +166,15 @@ const foam = (time: { value: number }, flow: { value: number }) => (shader: WebG
 };
 
 export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
-  const built = useMemo(() => timed("waterfalls", () => {
+  // where they are: a search along the whole road, in slices (lib/later) so the drive keeps its frames while it runs
+  const [found, setFound] = useState<Fall[] | null>(null);
+  useEffect(() => {
+    let alive = true; const sl = slicer();
+    (async () => { const t0 = performance.now(), f = [...(await roadsideFalls(curve, sl)), ...(await distantFalls(curve, sl))]; timed(`waterfall search (sliced, ${Math.round(performance.now() - t0)}ms wall)`, () => 0); if (alive) setFound(f); })();
+    return () => { alive = false; };
+  }, [curve]);
+  const { gl, camera, scene } = useThree(), [compiled, setCompiled] = useState(false);
+  const built = useMemo(() => found && timed("waterfalls", () => {
     const time = { value: 0 }, flow = { value: 0.5 };
     const white = new DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); white.needsUpdate = true;
     const make = (speed: number) => {
@@ -179,7 +190,7 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     const spray = new PointsMaterial({ map: sprayTexture(), size: 0.05, transparent: true, depthWrite: false, opacity: 0.35, blending: AdditiveBlending, color: 0xdfe6ea });
     const mist = new PointsMaterial({ map: sprayTexture(), size: 0.32, transparent: true, depthWrite: false, opacity: 0.1, color: 0xe6ecef });
     const group = new Group(); group.name = "waterfalls";
-    const falls = [...roadsideFalls(curve), ...distantFalls(curve)];
+    const falls = found;
     if (typeof window !== "undefined") (window as unknown as { __wayanadFalls?: unknown }).__wayanadFalls = falls.map((f) => ({ top: f.top.toArray(), bottom: f.bottom.toArray(), facing: f.facing.toArray(), distant: f.distant, width: f.width }));
     if (process.env.NODE_ENV !== "production") console.info("[waterfalls]", JSON.stringify(falls.map((f) => ({ s: (f as { s?: number }).s ?? null, drop: +(f.top.y - f.bottom.y).toFixed(2), width: +f.width.toFixed(2), distant: f.distant }))));
     const parts = { near: [] as BufferGeometry[], far: [] as BufferGeometry[], wet: [] as BufferGeometry[], moss: [] as BufferGeometry[], pool: [] as BufferGeometry[] };
@@ -211,10 +222,15 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     };
     const sprays = { ...cloud(sprayN, spray), at: sprayAt }, mists = { ...cloud(mistN, mist), at: mistAt };
     return { group, time, flow, sprays, mists, falls };
-  }), [curve]);
+  }), [found]);
 
+  useEffect(() => {
+    if (!built) return; let alive = true;
+    gl.compileAsync(built.group, camera, scene).catch(() => {}).then(() => { if (alive) setCompiled(true); });
+    return () => { alive = false; };
+  }, [built, gl, camera, scene]);
   useFrame(({ camera }, dt) => {
-    if (game.paused) return;
+    if (game.paused || !built) return;
     const { time, flow, sprays, mists, falls } = built;
     time.value += Math.min(dt, 0.1);
     flow.value += (0.6 + 0.4 * Math.max(weather.wet, weather.rain) - flow.value) * Math.min(1, dt * 0.2);
@@ -236,5 +252,5 @@ export default function Waterfalls({ curve }: { curve: CatmullRomCurve3 }) {
     for (const f of falls) if (!f.distant) nearest = Math.min(nearest, camera.position.distanceTo(f.bottom) / (0.6 + f.width));
     waterSound(nearest, flow.value);
   });
-  return <primitive object={built.group} />;
+  return built && compiled ? <primitive object={built.group} /> : null;
 }

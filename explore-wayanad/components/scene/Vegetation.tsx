@@ -14,7 +14,7 @@ import { inTown, townPlan } from "./Town";
 import { teaAt } from "@/lib/estates";
 import { CLOUD_SHADOW_GLSL, cloudShadowUniforms } from "@/lib/weather";
 import { ownGeometry } from "@/lib/instancing";
-import { later } from "@/lib/later";
+import { later, slicer } from "@/lib/later";
 import { quality } from "@/lib/quality";
 
 /* Species, true scale (1 unit = 10 m). Plants are cut-out cards (public/vegetation, see its README).
@@ -94,9 +94,12 @@ function crossCards() {
 }
 
 const wind = { value: 0 };
-/** Sway: the card's top moves, its foot doesn't; each plant has its own phase from where it stands. */
+/** Sway: the card's top moves, its foot doesn't; each plant has its own phase from where it stands. How far a species
+ * sways is a uniform, not baked into the shader text: every species shares one program (one compile, ~1 s each on a
+ * slow phone, was a stall each time a new species joined the drive). */
 const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms) => {
   shader.uniforms.uWind = wind;
+  shader.uniforms.uSway = { value: sway };
   Object.assign(shader.uniforms, cloudShadowUniforms);
   shader.fragmentShader = shader.fragmentShader
     .replace("#include <common>", `#include <common>\nvarying vec2 vPlantXZ;\n${CLOUD_SHADOW_GLSL}`)
@@ -105,12 +108,12 @@ const swayShader = (sway: number) => (shader: WebGLProgramParametersWithUniforms
   // tilted toward the viewer — seen edge-on from afar, a sky-facing card would otherwise reflect the sky like glass
   shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\nnormal = normalize(vNormal + vec3(0.0, 0.0, 0.8));");
   shader.vertexShader = shader.vertexShader
-    .replace("#include <common>", "#include <common>\nuniform float uWind;\nvarying vec2 vPlantXZ;")
+    .replace("#include <common>", "#include <common>\nuniform float uWind, uSway;\nvarying vec2 vPlantXZ;")
     .replace("#include <begin_vertex>", `#include <begin_vertex>
       vec2 root = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
       vPlantXZ = (modelMatrix * vec4(root.x, 0.0, root.y, 1.0)).xz;
       float phase = dot(root, vec2(1.7, 2.3));
-      float bend = uv.y * uv.y * ${sway.toFixed(3)};
+      float bend = uv.y * uv.y * uSway;
       transformed.x += sin(uWind * 1.1 + phase) * bend * 4.0;
       transformed.z += cos(uWind * 0.8 + phase * 1.3) * bend * 3.0;`);
 };
@@ -125,17 +128,19 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
     const loader = new TextureLoader(), geo = crossCards(), L = curve.getLength(), random = rng(766), townFrom = archT(), plan = townPlan(curve), plateauFrom = churamEndT();
     const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color(), side = new Vector3();
     const ghat = kind === "ghat"; // the churam + plateau road: towns, tea and the plateau's thinning apply
-    const buildSpecies = (s: Species) => {
+    const buildSpecies = async (s: Species) => {
+      const sl = slicer();
       const map = loader.load(`/vegetation/${s.name}.webp`);
       map.colorSpace = SRGBColorSpace; map.anisotropy = 4;
       const material = new MeshStandardMaterial({ map, alphaTest: 0.45, side: DoubleSide, roughness: 1, alphaToCoverage });
       material.onBeforeCompile = swayShader(s.sway);
-      material.customProgramCacheKey = () => `veg2-${s.sway}`;
+      material.customProgramCacheKey = () => "veg3";
       const share = ghat ? PLATEAU[s.name] ?? 1 : 1, onGhat = ghat ? s.churam ?? 1 : 1, effective = L * (plateauFrom * onGhat + (1 - plateauFrom) * share);
       const count = Math.round(s.perUnit * effective * density), mats = new Float32Array(count * 16), cols = new Float32Array(count * 3);
       const aspect = CARDS[s.name].aspect;
       let placed = 0;
       for (let tries = 0; placed < count && tries < count * 6; tries++) {
+        if ((tries & 63) === 0 && sl.due()) await sl.pause();
         const t = random();
         if (ghat && t > plateauFrom && random() > share) continue;
         if (ghat && t <= plateauFrom && random() > onGhat) continue;
@@ -171,7 +176,9 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         (tiles.get(key) ?? tiles.set(key, []).get(key)!).push(i);
       }
       const depth = s.trunk ? new MeshDepthMaterial({ map, alphaTest: 0.45, depthPacking: RGBADepthPacking }) : null; // leaf-shaped shadows, not card-shaped ones
-      return [...tiles.values()].map((ids) => {
+      const out: InstancedMesh[] = [];
+      for (const ids of tiles.values()) {
+        if (sl.due()) await sl.pause();
         const mesh = new InstancedMesh(ownGeometry(geo), material, ids.length);
         ids.forEach((id, k) => { mesh.instanceMatrix.array.set(mats.subarray(id * 16, id * 16 + 16), k * 16); mesh.setColorAt(k, c.setRGB(cols[id * 3], cols[id * 3 + 1], cols[id * 3 + 2])); });
         mesh.instanceMatrix.needsUpdate = true;
@@ -182,12 +189,14 @@ export default function Vegetation({ curve, density = 1, alphaToCoverage = true,
         if (depth) { mesh.castShadow = true; mesh.customDepthMaterial = depth; }
         mesh.name = `veg-${s.name}`;
         mesh.matrixAutoUpdate = false; mesh.matrixWorldAutoUpdate = false; // (at the origin: the instances carry their places; no per-frame matrix work)
-        return mesh;
-      });
+        out.push(mesh);
+      }
+      return out;
     };
     for (const s of ghat ? SPECIES : FOREST_SPECIES) later(async () => {
       if (!alive) return;
-      const built = timed(`vegetation ${s.name}`, () => buildSpecies(s));
+      const t0 = performance.now(), built = await buildSpecies(s);
+      timed(`vegetation ${s.name} (sliced, ${Math.round(performance.now() - t0)}ms wall)`, () => 0);
       for (const mesh of built) { mesh.userData.full = mesh.count; mesh.count = Math.floor(mesh.count * quality.forest); } // (Quality thins by this)
       const holder = new Group(); holder.add(...built);
       try { await gl.compileAsync(holder, camera, scene); } catch { /* compiled on first draw instead */ }

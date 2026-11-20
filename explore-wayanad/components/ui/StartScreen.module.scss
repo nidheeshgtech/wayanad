@@ -301,3 +301,13 @@
     .chev { font-size: 22px; }
   }
 }
+
+// Start while the forest is still being built behind it (lib/later firstProgress): dimmed, not breathing, the label a
+// percent, and a light filling along its foot
+.start[data-wait], .screen[data-compact] .start[data-wait] { cursor: progress; animation: none !important; filter: saturate(.35) brightness(.7);
+  > span { font-size: .78em; letter-spacing: .02em; }
+  &::before { animation: none !important; }
+  &:active { transform: none; } }
+// (a child, not ::after: the game key's face is its ::after)
+.waitBar { position: absolute; z-index: 1; left: 18px; bottom: 10px; height: 3px; width: calc((100% - 36px) * var(--wait, 0)); border-radius: 2px;
+  background: rgba(27, 20, 5, .6); transition: width .3s; pointer-events: none; }

@@ -1,7 +1,9 @@
 "use client";
 import { timed, frameTimed } from "@/lib/perf";
-import { useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useState } from "react";
+import { slicer } from "@/lib/later";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Group } from "three";
 import {
   BufferAttribute, BufferGeometry, CanvasTexture, CatmullRomCurve3, Mesh, MeshStandardMaterial, Points, PointsMaterial, Vector3,
   type WebGLProgramParametersWithUniforms,
@@ -27,9 +29,10 @@ const ROAD_Y = 0.588 - 0.004;
 type Crossing = { s: number; side: 1 | -1; face: number };
 
 /** Steep banks on the uphill side, away from hairpins and towns: the tallest few, at least `spacing` apart. */
-function placeCrossings(curve: CatmullRomCurve3): Crossing[] {
+async function placeCrossings(curve: CatmullRomCurve3, sl: ReturnType<typeof slicer>): Promise<Crossing[]> {
   const L = curve.getLength(), plan = townPlan(curve), found: Crossing[] = [], side = new Vector3();
   for (let s = 40; s < L - 20; s += PLACE.step) {
+    if (sl.due()) await sl.pause();
     const t = s / L;
     if ([-2, 0, 2].some((d) => roadShapeAt(Math.min(1, Math.max(0, (s + d) / L))).widen > 0.02)) continue; // straight-ish only
     const pt = curve.getPointAt(t), tan = curve.getTangentAt(t);
@@ -136,8 +139,15 @@ function sprayTexture() {
 }
 
 export default function RoadStreams({ curve, small }: { curve: CatmullRomCurve3; small: boolean }) {
-  const built = useMemo(() => timed("streams", () => {
-    const L = curve.getLength(), crossings = placeCrossings(curve), b = builder(), up = new Vector3(0, 1, 0);
+  // where they cross: a search along the whole road, in slices (lib/later) so the drive keeps its frames while it runs
+  const [found, setFound] = useState<Crossing[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => { const t0 = performance.now(), c = await placeCrossings(curve, slicer()); timed(`stream search (sliced, ${Math.round(performance.now() - t0)}ms wall)`, () => 0); if (alive) setFound(c); })();
+    return () => { alive = false; };
+  }, [curve]);
+  const built = useMemo(() => found && timed("streams", () => {
+    const L = curve.getLength(), crossings = found, b = builder(), up = new Vector3(0, 1, 0);
     if (typeof window !== "undefined") (window as unknown as { __wayanadStreams?: unknown }).__wayanadStreams = crossings.map((c) => ({ s: c.s, km: +(c.s / 100).toFixed(2), side: c.side, face: +c.face.toFixed(2) }));
     const frame = (s: number) => {
       const t = Math.min(1, Math.max(0, s / L)), p = curve.getPointAt(t), tan = curve.getTangentAt(t).setY(0).normalize();
@@ -186,10 +196,18 @@ export default function RoadStreams({ curve, small }: { curve: CatmullRomCurve3;
     const drops = { vel: new Float32Array(n * 3), life: new Float32Array(n), next: 0, carry: 0, traffic: 0 };
     const zones = crossings.map((c) => ({ from: c.s - SHEET.length / 2 - 0.05, to: c.s + SHEET.length / 2 + 0.05 }));
     return { mesh, spray, positions, drops, zones, time, flow, frame };
-  }), [curve, small]);
+  }), [found, curve, small]);
 
+  const { gl, camera, scene } = useThree(), [compiled, setCompiled] = useState(false);
+  useEffect(() => { // (their shaders compiled before they join the scene, not on the first draw)
+    if (!built) return; let alive = true;
+    const holder = new Group(); holder.add(built.mesh, built.spray);
+    gl.compileAsync(holder, camera, scene).catch(() => {}).then(() => { holder.remove(built.mesh, built.spray); if (alive) setCompiled(true); });
+    return () => { alive = false; };
+  }, [built, gl, camera, scene]);
   const tmp = useMemo(() => ({ p: new Vector3(), o: new Vector3() }), []);
   useFrame(({ camera }, rawDt) => frameTimed("streams", () => {
+    if (!built) return;
     const { time, flow, positions, drops, zones, frame } = built;
     const dt = game.paused ? 0 : Math.min(rawDt, 0.1);
     time.value += dt;
@@ -242,5 +260,5 @@ export default function RoadStreams({ curve, small }: { curve: CatmullRomCurve3;
     built.spray.geometry.getAttribute("position").needsUpdate = true;
   }));
 
-  return <><primitive object={built.mesh} /><primitive object={built.spray} /></>;
+  return built && compiled ? <><primitive object={built.mesh} /><primitive object={built.spray} /></> : null;
 }
