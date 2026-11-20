@@ -17,6 +17,8 @@
  *                      glance), back-30s, back-60s, back-slow (over a minute: likely read it, maybe gave). No "back" at
  *                      all after a support click = they never came back to this tab. Payments themselves only show on
  *                      Buy Me a Coffee's own dashboard (it's their page; nothing comes back to us)
+ *   /play/upi-open     opened Pay by UPI; /play/upi-20 … upi-100 tapped an amount (opens their UPI app); /play/upi-copy
+ *                      copied the UPI ID. Whether they paid shows only in the UPI app, not here
  *   /play/sticker-<animal>  a new animal sticker found (lib/stickers); /play/stickers-all  every animal on the open road
  *   /play/fps-60 … fps-low   the frame rate over the first minute of driving (after a 10 s settle): 60, 45, 30, 24 or
  *                      low (under 20); and /play/fps-30-android-web etc., the same split by device (desktop,
@@ -26,7 +28,7 @@
 import { pageview } from "@vercel/analytics";
 import { platform } from "@/lib/native";
 
-export type Step = "loaded" | "started" | "finished" | "support" | "support-title" | "support-end" | "support-seen-end" | `support-back-${string}` | `sticker-${string}` | "stickers-all" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
+export type Step = "loaded" | "started" | "finished" | "support" | "support-title" | "support-end" | "support-seen-end" | `support-back-${string}` | `sticker-${string}` | "stickers-all" | "upi-open" | "upi-copy" | `upi-${number}` | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
 const sent = new Set<string>();
 
 export function mark(step: Step) {

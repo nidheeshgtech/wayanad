@@ -27,3 +27,23 @@
 // the title screen: on its own line under Start, the privacy link beside it (centred on phones, like Start)
 .foot { flex-basis: 100%; display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; }
 @media (max-width: 860px), (pointer: coarse) and (max-height: 500px) { .foot { justify-content: center; } }
+
+// Pay by UPI: the two keys side by side on the end cards; the sheet over the game
+.pair { display: flex; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 520px) { .pair { flex-direction: column; align-items: stretch; } }
+.sheet { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(6, 14, 11, .72); backdrop-filter: blur(4px); }
+.card { position: relative; width: min(380px, 100%); display: grid; justify-items: center; gap: 12px; padding: 24px 20px 20px; border-radius: 22px; text-align: center;
+  background: #0e1f1a; border: 1px solid rgba(217, 164, 65, .6); color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
+  > b { font: 400 26px/1.15 var(--font-serif), Georgia, serif; }
+  > p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--mute); }
+  > small { font-size: 12px; color: var(--dim); } }
+.close { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(238, 242, 238, .08); color: var(--ink); cursor: pointer; }
+.amounts { display: flex; gap: 10px;
+  a { min-width: 76px; min-height: 52px; display: grid; place-items: center; border-radius: 16px; background: #d9a441; color: #0e1f1a; font: 700 20px/1 var(--font-sans), sans-serif; text-decoration: none;
+    &:hover { filter: brightness(1.06); } &:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; } } }
+.qr { width: 180px; height: 180px; border-radius: 12px; background: #fff; padding: 8px; }
+.desk { font-size: 12px; color: var(--dim); }
+@media (pointer: coarse) { .qr, .desk { display: none; } }
+.id { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  span { font: 500 14px/1 var(--font-sans), sans-serif; color: var(--ink); user-select: all; }
+  button { min-height: 34px; padding: 0 14px; border-radius: 999px; border: 0; background: rgba(217, 164, 65, .18); color: #ffe2a0; font: 600 13px/1 var(--font-sans), sans-serif; cursor: pointer; } }
