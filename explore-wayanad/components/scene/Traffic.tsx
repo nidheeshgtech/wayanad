@@ -297,7 +297,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       const P0 = game.parked; if (onRoad && P0) blocks.push({ distance: P0.s, length: 0.4, lanes: playerLanes({ s: P0.s, lat: P0.lat, speed: 0, halfL: 0.2, halfW: 0.1 }), speed: 0 });
       // a police chase (lib/chase): the patrols after you are driven there, not by the traffic
       const driven = game.active ? tickChase(live, length, (d) => bendAtDistance(curve, d), (v) => vehicleLat(v, widen, length), Math.min(dt, .1)) : NO_CHASE;
-      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks, driven));
+      if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks, driven, widen));
       if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(driven.size ? live.filter(v => !driven.has(v.id)) : live, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
     const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
@@ -346,6 +346,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       o.root.position.copy(pose.position).add(o.offset); o.root.quaternion.copy(pose.rotation);
       // a knocked-over bike: tipped about its tyres' line onto its side, away from you (falls like a weight: slow, then
       // fast; gets up smoothly). Local +x is the vehicle's right, which is the road's −direction side
+      if (v.slideYaw) o.root.rotateY(v.slideYaw); // (turned by the slide it was thrown into, straightening as it rides on)
       if (v.fall) {
         const f = v.fall, k = (v.down ?? 0) > 0 ? f * f : f * f * (3 - 2 * f);
         o.root.rotateZ(FALL * k * (v.fallSide ?? 1) * v.direction);

@@ -31,6 +31,9 @@ export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: n
   /** a two-wheeler knocked over by the player (collidePlayer): seconds left lying on the road, which way it went over
    * (+1: toward the road's left), and how far over it's drawn (0 upright … 1 down; eased by Traffic) */
   down?: number; fallSide?: 1 | -1; fall?: number;
+  /** …and thrown by the hit: sliding along the road (units/s, + toward the road's end) and across it (units/s, + toward
+   * the road's left), how far across it has gone (units, road-left), and how far it has turned (radians); see SKID */
+  skid?: number; skidLat?: number; slide?: number; slideYaw?: number;
   /** a car, bus or lorry hit hard by the player: seconds left stopped (hazards blinking), seconds since the hit, how hard
    * (0–1) and which way its tail was knocked (Traffic draws the jolt: a wobble that settles, a hop) */
   jolt?: number; joltT?: number; joltKick?: number; joltSide?: 1 | -1;
@@ -42,6 +45,11 @@ export const JOLT = { min: 0.3, stop: 3.2 };
 export const isTwoWheeler = (kind: number) => /bike|scooter|pulsar|enfield/.test(VEHICLES[kind].name);
 /** A knocked-over bike: down for this long (s), then the rider picks it up (Traffic eases the bike upright) and rides on. */
 export const KNOCKED = { down: 6, min: 0.05 };
+/** A bike you hit is thrown, not just tipped: it takes a share of the hit (`along`: a little more than your closing
+ * speed, it's light; `across`: away from you, more the further off-centre you caught it) and slides on its side,
+ * slowed by the asphalt (`grip`, units/s², ≈ 6 m/s²) — about 5–10 m from a 30–40 km/h hit; it turns as it goes (`spin`)
+ * and keeps on the road (`edge`: the asphalt and shoulder's half-width at the plain road, as edgeRoom). */
+export const SKID = { along: 1.15, across: 0.45, grip: 0.6, max: 1.4, spin: 1.6, edge: 0.37 };
 /** Shared with the dev review panel (WeatherDebug): pause/rate, what's nearby, and the viewer's seat and give-way state.
  * stage*: dev-only hooks that put a vehicle just ahead of the seat to review a catch-up or an overtake. */
 export const trafficControl = { paused: false, rate: 1, count: 0, seat: -1, overtaking: false, following: false, held: null as string | null, horn: false, stageAhead: 0, stageMode: 'cruise' as Mode, staged: -1, stagedInfo: '',
@@ -58,7 +66,7 @@ export function lanePoint(curve: CatmullRomCurve3, distance: number, direction: 
  * stay on the asphalt and shoulder (Traffic hides any vehicle whose corners leave it). */
 export function edgeRoom(kind: number) { return Math.max(0, Math.min(DRIVE.edge, .37 - .2 - VEHICLES[kind].width / 2)); }
 export function vehiclePose(curve: CatmullRomCurve3, v: Vehicle, widen: (t: number) => number) {
-  const spec = VEHICLES[v.kind], halfAxle = spec.length * .31, edge = (v.shift ?? 0) * edgeRoom(v.kind);
+  const spec = VEHICLES[v.kind], halfAxle = spec.length * .31, edge = (v.shift ?? 0) * edgeRoom(v.kind) + (v.slide ?? 0) * v.direction;
   const front = lanePoint(curve, v.distance + halfAxle * v.direction, v.direction, widen, undefined, edge);
   const rear = lanePoint(curve, v.distance - halfAxle * v.direction, v.direction, widen, undefined, edge);
   const forward = front.clone().sub(rear).normalize(), right = up.clone().cross(forward).normalize();
@@ -90,7 +98,7 @@ const BACK_AWAY = .6;
 /** How hard traffic brakes, and how quickly it gets going in reverse (units/s²: 1 ≈ 1 g). Speeds change at these rates,
  * never at once (they used to drop to nothing in a frame); the gap is still kept by limiting each step to the room. */
 const BRAKE = .65, REVERSE = .45, ACCEL = .12;
-export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = [], driven?: Set<number>) {
+export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: number, rain: number, zones: PassingZone[] = [], viewer?: number, obstacles: Obstacle[] = [], driven?: Set<number>, widen: (t: number) => number = () => 0) {
   const length = curve.getLength(), span = length - 4;
   dt = Math.min(.05, Math.max(0, dt));
   // the viewer rides up the road (direction 1) like a bus: it holds narrow bends against oncoming traffic too
@@ -114,7 +122,23 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     // a knocked-over bike lies where it fell; once it's back up (Traffic eases it upright) the rider sets off again
     // (over in ~0.4 s, picked up again in ~1.2 s)
     if (v.fall !== undefined) v.fall = (v.down ?? 0) > 0 ? Math.min(1, v.fall + dt / .4) : Math.max(0, v.fall - dt / 1.2);
-    if (v.down !== undefined && v.down > 0) { v.down = Math.max(0, v.down - dt); return { speed: 0, move: 0 }; }
+    if (v.down !== undefined && v.down > 0) {
+      v.down = Math.max(0, v.down - dt);
+      // thrown by the hit: it slides on, slowing, turning a little, held on the road
+      const along = v.skid ?? 0, across = v.skidLat ?? 0, slow = Math.max(0, 1 - SKID.grip * dt / Math.max(1e-3, Math.hypot(along, across)));
+      if (along || across) {
+        const t = Math.min(1, Math.max(0, v.distance / length)), base = (.4 + widen(t)) * .5, lane = v.direction * base;
+        const room = SKID.edge + Math.max(0, widen(t)) * .5 - VEHICLES[v.kind].width / 2; // (the road's half-width, less the bike's)
+        v.slide = Math.max(-room - lane, Math.min(room - lane, (v.slide ?? 0) + across * dt));
+        v.slideYaw = (v.slideYaw ?? 0) + SKID.spin * Math.hypot(along, across) * (v.fallSide ?? 1) * dt;
+        v.skid = along * slow; v.skidLat = Math.abs(lane + v.slide) >= room - 1e-4 ? 0 : across * slow;
+        if (Math.hypot(v.skid, v.skidLat) < .02) v.skid = v.skidLat = 0;
+        return { speed: along * v.direction, move: along * v.direction * dt };
+      }
+      return { speed: 0, move: 0 };
+    }
+    // picked up and ridden back into its lane, straightened
+    if (v.slide) { const k = Math.exp(-dt / .9); v.slide = Math.abs(v.slide) < 1e-3 ? 0 : v.slide * k; v.slideYaw = (v.slideYaw ?? 0) * k; }
     if (v.joltT !== undefined) v.joltT += dt;
     if ((v.jolt ?? 0) > 0) { v.jolt = Math.max(0, v.jolt! - dt); return { speed: 0, move: 0 }; } // shaken: stopped a moment
     if ((v.fall ?? 0) > 0) return { speed: 0, move: 0 };
@@ -268,7 +292,7 @@ export function sideContact(p: Player, dLat: number, side: number, endOn: number
 export const playerLanes = (p: Player): (1 | -1)[] => [...(p.lat + p.halfW > 0.02 ? [1 as const] : []), ...(p.lat - p.halfW < -0.02 ? [-1 as const] : [])];
 /** A vehicle's centre, units left of the road's centre line (oncoming traffic: negative). */
 export const vehicleLat = (v: Vehicle, widen: (t: number) => number, length: number) =>
-  v.direction * ((.4 + widen(Math.min(1, Math.max(0, v.distance / length)))) * .5 + (v.shift ?? 0) * edgeRoom(v.kind));
+  v.direction * ((.4 + widen(Math.min(1, Math.max(0, v.distance / length)))) * .5 + (v.shift ?? 0) * edgeRoom(v.kind)) + (v.slide ?? 0);
 
 /**
  * Traffic and the player's bus (drive mode). Same states as with the viewer's seat, but the bus is real:
@@ -345,8 +369,14 @@ export function collidePlayer(fleet: Vehicle[], curve: CatmullRomCurve3, widen: 
     // a bike or scooter you hit goes over, away from you (rider and all), and lies there a few seconds
     const over = (k: number) => {
       if (!isTwoWheeler(v.kind) || k < KNOCKED.min || (v.down ?? 0) > 0) return;
-      v.down = KNOCKED.down; v.fall ??= 0; v.speed = 0; v.mode = 'cruise'; v.shift = 0;
+      v.down = KNOCKED.down; v.fall ??= 0; v.speed = 0; v.mode = 'cruise';
       v.fallSide = -Math.sign(dLat) as 1 | -1 || 1;
+      // thrown: along the road with you (a little faster than the hit, it's light), and off to the side away from you
+      // (more the further off-centre you caught it); its lane offset so far is kept, as the slide it starts from
+      v.slide = (v.slide ?? 0) + v.direction * (v.shift ?? 0) * edgeRoom(v.kind); v.shift = 0;
+      const push = Math.min(SKID.max, theirs + (p.speed - theirs) * SKID.along);
+      v.skid = Math.abs(push) > .03 ? push : 0;
+      v.skidLat = v.fallSide * Math.min(SKID.max, k * SKID.across * (.35 + .65 * Math.min(1, Math.abs(dLat) / side)));
     };
     const scrape = sideContact(p, dLat, side, reach - Math.abs(g));
     if (scrape >= 0) { knock = Math.max(knock, scrape); over(Math.max(scrape, Math.abs(p.speed - theirs) * .5)); continue; }
