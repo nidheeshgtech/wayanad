@@ -23,7 +23,6 @@ import { blurDisc, blurMaterial, RIM_INSET } from '@/lib/wheelBlur';
 const trafficBlur = blurMaterial(0.7);
 import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
-import { missionBlock } from '@/lib/mission';
 import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
 import { chase, tickChase } from '@/lib/chase';
 import { paintCar } from '@/lib/carModel';
@@ -289,7 +288,6 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // left it when you took another (lib/game `parked`)
       const blocks: Obstacle[] = onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : [];
       const rubble = stageBlock(); if (rubble) blocks.push({ ...rubble, lanes: [1, -1], keep: 0.12 }); // (a staged rockfall, filming only)
-      const slide = missionBlock(); if (slide) blocks.push({ ...slide, lanes: [1, -1], keep: 0.3 }); // (the landslide rescue: lib/mission)
       // you, in the police jeep or the ambulance, siren going: the traffic ahead of you pulls over, as for theirs
       if (own.siren && onRoad && Math.abs(game.speed) > .15) for (const v of live) {
         const gap = v.distance - game.s;

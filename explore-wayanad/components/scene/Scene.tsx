@@ -18,7 +18,6 @@ import Props from "./Props";
 import Gateway from "./Gateway";
 import Town, { townCircles } from "./Town";
 import Animals from "./Animals";
-import Landslide from "./Landslide";
 import { loadTowns, setTowns } from "@/lib/towns";
 import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
@@ -198,7 +197,6 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 5000 : 9000} />
       {mode === "drive" && <Animals curve={curve} forest={forest?.curve ?? null} />}
-      {mode === "drive" && <Landslide curve={curve} />}
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}:${choice.paintHex ?? ""}:${choice.passenger ?? ""}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}
       {mode === "drive" && borrowed && <Suspense fallback={null}><ParkedCar choice={own} /></Suspense>}
