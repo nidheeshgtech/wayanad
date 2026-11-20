@@ -15,6 +15,8 @@ import { award } from "@/lib/badges";
  * go by slowly: it rides on the roof (on the bonnet, facing you, in the bonnet view) for a few seconds, then hops off
  * to the roadside wherever you are by then — a bonus in lib/score. Once per troop per climb. Model: "Realsitic Monkey" (CC BY, Sketchfab — see
  * public/models/traffic/ATTRIBUTION.md), 45 cm tall. Units of 10 m. */
+/** Where the monkeys sit (world), for spotting them for the sticker book (components/scene/Animals). */
+export const monkeySpots: Vector3[] = [];
 const TROOPS = [1, 3, 4, 6, 8];     // which hairpins (0-based)
 const SIZE = 0.045;                 // sitting height
 const LOOK = { near: 5, rate: 2.2 }; // turn to look at anything within 50 m, this fast (rad/s)
@@ -50,6 +52,7 @@ export default function Monkeys({ curve }: { curve: CatmullRomCurve3 }) {
         monkeys.push({ root, base, along: tn.clone().setY(0).normalize(), out, yaw, look: yaw, next: 4 + r() * 10, hop: 1, from: base.clone(), to: base.clone(), phase: r() * 10, rider: i === 0, rode: -1 });
       }
     }
+    monkeySpots.length = 0; for (const m of monkeys) monkeySpots.push(m.base.clone()); // (for the sticker book: components/scene/Animals)
     if (typeof window !== "undefined") (window as unknown as { __wayanadMonkeys?: unknown }).__wayanadMonkeys = monkeys.map((m) => ({ at: m.base.toArray(), out: m.out.toArray() }));
     return { group, monkeys };
   }, [curve, source]);

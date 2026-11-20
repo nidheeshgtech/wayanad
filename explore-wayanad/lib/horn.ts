@@ -31,8 +31,10 @@ export function setHornKind(kind: HornKind) {
 export function honking() { return typeof performance !== "undefined" && performance.now() < horn.until; }
 
 /** `preview`: only the sound (choosing a horn), no give-way; `kind`: play that voice instead of the chosen one. */
+/** Called on each of your own honks (not traffic's, not a preview): components/scene/Animals spots animals with it. */
+export const onHonk = new Set<() => void>();
 export function honk({ audible = false, preview = false, kind }: { audible?: boolean; preview?: boolean; kind?: HornKind } = {}) {
-  if (!preview) horn.until = performance.now() + HORN_MS;
+  if (!preview) { horn.until = performance.now() + HORN_MS; onHonk.forEach((f) => f()); }
   if (!horn.sound && !audible) return;
   ctx ??= new AudioContext();
   if (ctx.state === "suspended") void ctx.resume();

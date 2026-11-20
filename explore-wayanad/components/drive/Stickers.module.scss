@@ -1,0 +1,43 @@
+// The animal sticker book: a white die-cut edge round each sticker (drop-shadows of the cut-out's own shape)
+$edge: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 4px 6px rgba(0, 0, 0, .35));
+
+.open { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(217, 164, 65, .55);
+  background: rgba(14, 31, 26, .55); color: var(--ink); font: 500 14px/1 var(--font-sans), sans-serif; cursor: pointer;
+  b { color: var(--amber); font-weight: 600; }
+  &:hover { border-color: var(--amber); } &:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; } }
+
+.book { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(6, 14, 11, .72); backdrop-filter: blur(4px); }
+.page { position: relative; width: min(920px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 22px 20px 24px; border-radius: 22px;
+  background: linear-gradient(180deg, #f6efdc, #efe3c3); color: #2b2416; box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  header { display: grid; gap: 4px; padding-right: 40px; margin-bottom: 14px; }
+  h2 { margin: 0; font: 400 clamp(24px, 5vw, 34px)/1.1 var(--font-serif), Georgia, serif; }
+  header p { margin: 0; font-size: 15px; color: #5b5036; b { color: #8a4b12; } }
+  ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+  li { display: grid; gap: 4px; align-content: start; padding: 10px 10px 12px; border-radius: 16px; border: 2px dashed rgba(120, 96, 50, .35); background: rgba(255, 255, 255, .35); text-align: center;
+    b { font-size: 15px; } i { font-style: normal; font-size: 13px; color: #6b5a33; } small { font-size: 12px; line-height: 1.35; color: #5b5036; }
+    &[data-got] { border-style: solid; border-color: rgba(217, 164, 65, .8); background: #fffaf0; }
+    &[data-soon] { opacity: .7; } } }
+.art { position: relative; display: grid; place-items: center; height: 104px;
+  img { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); object-fit: contain; filter: brightness(0) opacity(.22); }
+  span { position: absolute; font: 700 34px/1 var(--font-serif), Georgia, serif; color: rgba(90, 70, 30, .55); }
+  [data-got] & img { filter: $edge; transform: rotate(-3deg); } }
+.close { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(43, 36, 22, .1); color: #2b2416; font-size: 18px; cursor: pointer;
+  &:hover { background: rgba(43, 36, 22, .2); } }
+
+// a new sticker: slaps on, wobbles, then lifts away
+.pop { position: fixed; left: 50%; top: 22%; z-index: 40; display: grid; justify-items: center; gap: 4px; transform: translateX(-50%); pointer-events: none; text-align: center;
+  color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .6); animation: lift 3.2s ease-in forwards;
+  b { font: 800 clamp(22px, 5vw, 30px)/1 var(--font-sans), sans-serif; color: #ffd76a; letter-spacing: .02em; }
+  span { font: 600 clamp(16px, 3.8vw, 20px)/1.2 var(--font-sans), sans-serif; i { font-style: normal; opacity: .9; } }
+  small { font: 500 14px/1.2 var(--font-sans), sans-serif; opacity: .9; } }
+.sticker { width: clamp(120px, 26vw, 190px); aspect-ratio: 1; display: grid; place-items: center; animation: slap .55s cubic-bezier(.2, 1.6, .4, 1) both;
+  img { max-width: 100%; max-height: 100%; object-fit: contain; filter: $edge drop-shadow(0 10px 18px rgba(0, 0, 0, .35)); } }
+@keyframes slap { 0% { transform: scale(2.4) rotate(-18deg); opacity: 0; } 60% { transform: scale(.92) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(-4deg); } }
+@keyframes lift { 0%, 80% { opacity: 1; transform: translateX(-50%) translateY(0); } 100% { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(.9); } }
+
+.hint { position: fixed; left: 50%; top: 14%; z-index: 35; transform: translateX(-50%); display: inline-flex; gap: 8px; align-items: center; padding: 10px 18px; border-radius: 999px;
+  background: rgba(14, 31, 26, .82); border: 1px solid rgba(217, 164, 65, .7); color: var(--ink); font: 500 15px/1 var(--font-sans), sans-serif; pointer-events: none;
+  animation: nudge 1.2s ease-in-out infinite;
+  b { color: var(--amber); } }
+@keyframes nudge { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .pop, .sticker, .hint { animation: none; } }

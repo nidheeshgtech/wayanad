@@ -17,6 +17,7 @@ import Vegetation from "./Vegetation";
 import Props from "./Props";
 import Gateway from "./Gateway";
 import Town, { townCircles } from "./Town";
+import Animals from "./Animals";
 import { loadTowns, setTowns } from "@/lib/towns";
 import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
@@ -195,6 +196,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? 80 : 160} />
       <Rain count={small ? 5000 : 9000} />
+      {mode === "drive" && <Animals curve={curve} forest={forest?.curve ?? null} />}
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}:${choice.paintHex ?? ""}:${choice.passenger ?? ""}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}
       {mode === "drive" && borrowed && <Suspense fallback={null}><ParkedCar choice={own} /></Suspense>}
