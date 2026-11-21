@@ -20,11 +20,13 @@
  *   /play/sticker-<animal>  a new animal sticker found (lib/stickers); /play/stickers-all  every animal on the open road
  *   /play/fps-60 … fps-low   the frame rate over the first minute of driving (after a 10 s settle): 60, 45, 30, 24 or
  *                      low (under 20); and /play/fps-30-android-web etc., the same split by device (desktop,
- *                      android-web, ios-web, android-app, ios-app); /play/jank if frames over 100 ms came often
+ *                      android-web, ios-web, android-app, ios-app), and /play/fps-30-weak etc. on budget phones (lib/device);
+ *                      /play/jank if frames over 100 ms came often
  * Each step counts once per page load, so "Drive again" doesn't count twice. Totals only: no names, no cookies.
  */
 import { pageview } from "@vercel/analytics";
 import { platform } from "@/lib/native";
+import { device } from "@/lib/device";
 
 export type Step = "loaded" | "started" | "finished" | "support" | "support-title" | "support-end" | "support-seen-end" | `support-back-${string}` | `sticker-${string}` | "stickers-all" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
 const sent = new Set<string>();
@@ -74,7 +76,7 @@ export function tickPlay(dt: number) {
       sent.add("fps-done");
       const r = fps.frames / fps.time, b = r >= 52 ? "60" : r >= 38 ? "45" : r >= 27 ? "30" : r >= 20 ? "24" : "low";
       const where = platform() !== "web" ? `${platform()}-app` : /Android/i.test(navigator.userAgent) ? "android-web" : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "ios-web" : "desktop";
-      mark(`fps-${b}`); mark(`fps-${b}-${where}` as Step);
+      mark(`fps-${b}`); mark(`fps-${b}-${where}` as Step); if (device().weak) mark(`fps-${b}-weak`); // (a budget phone: lib/device)
       if (fps.long >= 6) mark("jank"); // (six or more frames over 100 ms in a minute: the "stuck" feeling)
     }
   }

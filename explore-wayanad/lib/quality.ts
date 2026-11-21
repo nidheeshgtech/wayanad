@@ -25,7 +25,11 @@ export const LITE_LEVELS = [
   { dpr: 1.25, forest: 0.55, shadows: false, people: 0 },
   { dpr: 1.1, forest: 0.5, shadows: false, people: 0 },   // (auto only)
   { dpr: 1, forest: 0.45, shadows: false, people: 0 },    // (auto only)
+  { dpr: 0.9, forest: 0.35, shadows: false, people: 0 },  // (auto only: weak phones, lib/device)
+  { dpr: 0.8, forest: 0.28, shadows: false, people: 0 },  // (auto only: weak phones)
 ];
+/** Where a weak phone's auto quality starts (lib/device): the plain lite floor, with the two weak steps below it. */
+export const WEAK_START = LITE_LEVELS.length - 3;
 export const FIXED: Record<Exclude<QualityMode, "auto">, number> = { high: 0, medium: 2, low: 4 };
 
 type QualityState = { mode: QualityMode; level: number; people: number; forest: number };

@@ -19,6 +19,8 @@ import Gateway from "./Gateway";
 import Town, { townCircles } from "./Town";
 import Animals from "./Animals";
 import { loadTowns, setTowns } from "@/lib/towns";
+import { device } from "@/lib/device";
+import { WEAK_START } from "@/lib/quality";
 import TeaHedges from "./TeaHedges";
 import RetainingWalls from "./RetainingWalls";
 import Creepers from "./Creepers";
@@ -95,7 +97,7 @@ const loadForest = () =>
 
 /** `mode`: "story" (the scroll-driven page) or "drive" (/drive: you drive the bus; components/drive). */
 export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "story" | "drive" }) {
-  const small = tier === "lite";
+  const small = tier === "lite", weak = small && device().weak; // (a budget phone: lighter scenery from the start, lowest quality first: lib/device)
   return (
     <Canvas
       dpr={[1, 2]}
@@ -107,14 +109,14 @@ export default function Scene({ tier, mode = "story" }: { tier: Tier; mode?: "st
       style={{ position: "fixed", inset: 0, zIndex: 0, filter: small ? undefined : "saturate(1.12) contrast(1.05)" }}
     >
       <Suspense fallback={null}>
-        <World small={small} mode={mode} />
+        <World small={small} weak={weak} mode={mode} />
       </Suspense>
     </Canvas>
   );
 }
 
 /** Everything that samples the ground. Renders once the heightmap has loaded (or failed). */
-function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
+function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "story" | "drive" }) {
   use(loadTerrain());
   const own = useChoice(), borrowed = useBorrow();
   // what you're driving: your own, or one you've waved down (OnFoot), driven by your own driver
@@ -166,26 +168,26 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       <Suspense fallback={null}><Traffic curve={curve} small={small} /></Suspense>
       {stage.scene === "rockfall" && <Suspense fallback={null}><Rockfall curve={curve} /></Suspense>}
       <RetainingWalls curve={curve} />
-      <Creepers curve={curve} density={small ? 0.5 : 1} />
+      <Creepers curve={curve} density={small ? (weak ? 0.3 : 0.5) : 1} />
       <Later><Waterfalls curve={curve} /></Later>{/* (seconds of building on a phone: after the start screen is up) */}
       <Later><RoadStreams curve={curve} small={small} /></Later>
       <Suspense fallback={null}><Monkeys curve={curve} /></Suspense>
       <Pedestrians curve={curve} small={small} />
-      <Vegetation curve={curve} density={small ? 0.45 : 1} alphaToCoverage={!small} tile={small ? 320 : undefined} />
-      <Suspense fallback={null}><Props curve={curve} density={small ? 0.4 : 1} /></Suspense>
+      <Vegetation curve={curve} density={small ? (weak ? 0.3 : 0.45) : 1} alphaToCoverage={!small} tile={small ? 320 : undefined} />
+      <Suspense fallback={null}><Props curve={curve} density={small ? (weak ? 0.25 : 0.4) : 1} /></Suspense>
       <Gateway curve={curve} />
       <Town curve={curve} />
-      <TeaHedges curve={curve} density={small ? 0.5 : 1} />
+      <TeaHedges curve={curve} density={small ? (weak ? 0.3 : 0.5) : 1} />
       <BendSigns curve={curve} />
       <Billboards curve={curve} />
-      <Shafts curve={curve} count={small ? 20 : 40} />
+      <Shafts curve={curve} count={small ? (weak ? 8 : 20) : 40} />
       </ShowIn>
       {forest && (
         <ShowIn acts={FOREST_ACTS} defer>
           {grids.filter((g) => g.region === "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={small ? Math.round((g.size - 1) / 2) : g.size - 1} />)}
           <RoadBand curve={forest.curve} spacing={small ? 0.8 : 0.4} />
           <Road curve={forest.curve} detail={Math.round(forest.curve.getLength() * (small ? 2 : 4))} kind="forest" />
-          <Vegetation curve={forest.curve} density={small ? 0.45 : 1} alphaToCoverage={!small} kind="forest" tile={small ? 320 : undefined} />
+          <Vegetation curve={forest.curve} density={small ? (weak ? 0.3 : 0.45) : 1} alphaToCoverage={!small} kind="forest" tile={small ? 320 : undefined} />
           <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
           <Town curve={forest.curve} />
           <Shafts curve={forest.curve} count={small ? 40 : 90} />
@@ -194,8 +196,8 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
         </ShowIn>
       )}
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
-      <ValleyClouds count={small ? 80 : 160} />
-      <Rain count={small ? 5000 : 9000} />
+      <ValleyClouds count={small ? (weak ? 40 : 80) : 160} />
+      <Rain count={small ? (weak ? 2500 : 5000) : 9000} />
       {mode === "drive" && <Animals curve={curve} forest={forest?.curve ?? null} />}
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}:${choice.paintHex ?? ""}:${choice.passenger ?? ""}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}
@@ -211,7 +213,7 @@ function World({ small, mode }: { small: boolean; mode: "story" | "drive" }) {
       {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />
-      <Quality start={small ? 3 : 0} lite={small} /> {/* (phones start a step lower and climb if smooth: a weak one never begins stuck) */}
+      <Quality start={small ? (weak ? WEAK_START : 3) : 0} lite={small} /> {/* (phones start a step lower and climb if smooth: a weak one never begins stuck) */}
       <PerfProbe />
       <Warmup needs={mode === "drive" ? ["mountain-traffic", "player-car"] : ["mountain-traffic"]} />
       {process.env.NODE_ENV !== "production" && <WeatherDebug />}
