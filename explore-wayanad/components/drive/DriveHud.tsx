@@ -41,7 +41,7 @@ import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
 import { shareView } from "@/lib/shareCard";
 import Cheer, { type CheerData } from "./Cheer";
-import SupportButton, { SupportNote, UpiButton, supportStyles } from "@/components/ui/SupportButton";
+import SupportButton, { SupportNote, supportStyles } from "@/components/ui/SupportButton";
 import { AnimalHint, StickerButton, StickerPop } from "./Stickers";
 
 /**
@@ -544,7 +544,7 @@ export default function DriveHud() {
         <StartScreen compact
           title={<>Drive to <br /><em>Wayanad.</em></>}
           startLabel={!net.enabled || playMode === "solo" ? "Start drive" : playMode === "open" ? "Drive with everyone" : inviteCode ? `Join room ${showCode(inviteCode)}` : "Play with friends"}
-          onStart={start} waitFor={firstProgress} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><StickerButton /><SupportButton /><UpiButton /><SafetyLinks /></div>}
+          onStart={start} waitFor={firstProgress} presentedBy={PRESENTED_BY} footer={<div className={supportStyles.foot}><StickerButton /><SupportButton /><SafetyLinks /></div>}
           beforeStart={<>
             {net.enabled && (
               <div className={panelStyles.nameField} data-big>
