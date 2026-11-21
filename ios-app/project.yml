@@ -12,7 +12,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"          # iPhone only for now
-    DEVELOPMENT_TEAM: ""                 # set to the Apple Developer team id once enrolled
+    DEVELOPMENT_TEAM: "W65TSM5BAM"       # Nidheesh Kakkavayal Narayanan (Individual), enrolled 2026-11-21 — NOT the employer's team
 targets:
   DriveWayanad:
     type: application
