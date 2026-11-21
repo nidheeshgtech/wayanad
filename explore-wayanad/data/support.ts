@@ -3,4 +3,4 @@
  * a new tab; the game itself never takes payments or payment details, and stays free to play. Every support button
  * (components/ui/SupportButton) links here, so this is the one place to set the page.
  */
-export const SUPPORT_URL = "https://buymeacoffee.com/nitheeshwo1";
+export const SUPPORT_URL = "https://buymeacoffee.com/drivewayanad";
