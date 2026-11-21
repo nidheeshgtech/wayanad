@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SITE } from "@/data/site";
+import { CONTACT_EMAIL, SITE } from "@/data/site";
 import doc from "../privacy/privacy.module.scss";
 import styles from "./drive.module.scss";
 
@@ -71,6 +71,7 @@ export default function WayanadDrive() {
         ))}
 
         <p><Link className={styles.play} href="/">Start driving →</Link></p>
+        <p>Questions or ideas: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
       </article>
     </main>
   );

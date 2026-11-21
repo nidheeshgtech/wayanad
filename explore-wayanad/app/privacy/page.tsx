@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SITE } from "@/data/site";
+import { CONTACT_EMAIL, SITE } from "@/data/site";
 import styles from "./privacy.module.scss";
 
 export const metadata: Metadata = {
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE}/privacy` },
 };
 
-const UPDATED = "13 November 2026";
+const UPDATED = "21 November 2026";
 
 /** The privacy policy for the website and the Android app (Google Play needs a public link to it). Server-rendered,
  * no canvas. Written against what the code actually does: lib/net (rooms), lib/voice (peer-to-peer voice),
@@ -105,6 +105,9 @@ export default function Privacy() {
 
         <h2>Changes</h2>
         <p>If this changes, we&apos;ll update this page and the date at the top.</p>
+
+        <h2>Contact</h2>
+        <p>Questions, reports about other players, or a request to delete anything: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
 
         <p className={styles.back}><Link href="/">Back to the drive</Link></p>
       </article>

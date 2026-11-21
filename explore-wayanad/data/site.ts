@@ -2,6 +2,6 @@
  * robots.txt use it, so search engines index one address. */
 export const SITE = "https://www.drivewayanad.com";
 
-/** Where people reach the maker: shown on /privacy and in the Play Store listing (public). */
-/** (no contact address shown for now: a new one is coming — the privacy page and the start screen link to it again then) */
-export const CONTACT_EMAIL = "";
+/** Where people reach the maker: the game's own Gmail (made 2026-11-21), on the start screen, the pause menu, /privacy and
+ * the store listings (public). */
+export const CONTACT_EMAIL = "drivewayanad@gmail.com";
