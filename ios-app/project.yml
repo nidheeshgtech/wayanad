@@ -9,7 +9,7 @@ options:
 settings:
   base:
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "2"
+    CURRENT_PROJECT_VERSION: "3"
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"          # iPhone only for now
     DEVELOPMENT_TEAM: "W65TSM5BAM"       # Nidheesh Kakkavayal Narayanan (Individual), enrolled 2026-11-21 — NOT the employer's team
@@ -23,6 +23,7 @@ targets:
       base:
         PRODUCT_NAME: DriveWayanad
         PRODUCT_BUNDLE_IDENTIFIER: com.drivewayanad.app
+        TARGETED_DEVICE_FAMILY: "1"      # iPhone only (XcodeGen's target default is "1,2", which overrode the project's)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         INFOPLIST_FILE: DriveWayanad/Info.plist
