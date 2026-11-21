@@ -1,6 +1,7 @@
 "use client";
 import { SUPPORT_URL } from "@/data/support";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { platform } from "@/lib/native";
 import { mark, markSupport } from "@/lib/stats";
 import styles from "./SupportButton.module.scss";
 
@@ -8,8 +9,13 @@ import styles from "./SupportButton.module.scss";
  * "Buy Me a Chaya": a small bevelled key (dark glass, gold edge — a step below the gold Start key) that opens the
  * support page (data/support.ts) in a new tab. A glass of chaya for an icon; its steam rises on hover. Only on the title
  * screen and the end-of-drive cards, never on the road. Enter on it opens the page without starting the drive.
+ * Not in the iPhone app: Apple doesn't allow a link out to pay inside an app (App Review 3.1.1); the website and the
+ * Android app keep it.
  */
+const useOutsideIosApp = () => { const [ok, setOk] = useState(false); useEffect(() => setOk(platform() !== "ios"), []); return ok; }; // (after hydration: the server can't tell)
+
 export default function SupportButton({ size = "small", where = "title" }: { size?: "small" | "large"; where?: "title" | "end" }) {
+  if (!useOutsideIosApp()) return null;
   return (
     <a className={styles.key} data-size={size} href={SUPPORT_URL} target="_blank" rel="noopener noreferrer"
       aria-label="Buy Me a Chaya: support Drive Wayanad (opens in a new tab)"
@@ -21,7 +27,9 @@ export default function SupportButton({ size = "small", where = "title" }: { siz
 
 /** The end-of-drive cards' support note: a line of thanks and the button, under the card's own buttons. */
 export function SupportNote() {
-  useEffect(() => mark("support-seen-end"), []); // (shown: so a card passed by without a press shows in the counts)
+  const show = useOutsideIosApp();
+  useEffect(() => { if (show) mark("support-seen-end"); }, [show]); // (shown: so a card passed by without a press shows in the counts)
+  if (!show) return null;
   return (
     <div className={styles.note}>
       <p>Enjoying Drive Wayanad? ☕ Support us with a Chaya and help us bring more cars, locations, and exciting features!</p>
