@@ -209,7 +209,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       {mode === "drive" && <StopCrowds curve={curve} small={small} />}
       {mode === "drive" && <Vista curve={curve} />}
       {mode === "drive" && <TyreSmoke />}
-      {mode === "drive" && <ImpactFx />}
+      {mode === "drive" && <ImpactFx blur={!small} />}
       {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />

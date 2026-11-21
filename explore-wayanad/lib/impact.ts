@@ -33,6 +33,19 @@ export function stepImpact(dt: number) {
 }
 
 let ctx: AudioContext | null = null, noise: AudioBuffer | null = null;
+/** At Start (a press, so audio is allowed): the thud's audio context and noise made now, not on the first hit, where
+ * making them was part of a stall on iPhones. */
+export function primeImpact() {
+  try {
+    ctx ??= new AudioContext();
+    if (ctx.state === "suspended") void ctx.resume();
+    if (!noise) {
+      noise = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
+    }
+  } catch {}
+}
 /** A body thump (falling sine) under a short crunch of filtered noise; both louder and lower the harder the hit. */
 function thud(s: number) {
   try {

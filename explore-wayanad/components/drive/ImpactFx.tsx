@@ -14,7 +14,10 @@ import type { InstancedMesh, Object3D } from "three";
  * (render priority 1): normally it just renders the scene as R3F would; while an impact shows it renders into a
  * multisampled target and draws it through the fringe/blur shader, tone-mapped as usual. Idle cost: none.
  */
-export default function ImpactFx() {
+/** `blur`: the radial blur and fringing pass (not on phones: it drew the whole world a second time into a texture, and
+ * the first hit compiled every material's variant for that texture — a second-long stall on an iPhone; the red flash and
+ * vignette, a DOM layer, still show the hit). */
+export default function ImpactFx({ blur = true }: { blur?: boolean }) {
   const { gl, scene, camera } = useThree();
   const fx = useMemo(() => {
     // half float keeps the light above white for the tone mapping, where the phone can draw into it; else 8-bit
@@ -44,7 +47,7 @@ export default function ImpactFx() {
     });
     const quad = new Scene(), ortho = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const mesh = new Mesh(new PlaneGeometry(2, 2), material); mesh.frustumCulled = false; quad.add(mesh);
-    return { target, material, quad, ortho, size: new Vector2(), warmed: false };
+    return { target, material, quad, ortho, size: new Vector2(), warmed: false, warmT: 0 };
   }, [gl]);
 
   // the red layer: a flash over everything and a vignette at the edges, both driven straight from impact each frame
@@ -62,14 +65,16 @@ export default function ImpactFx() {
   useEffect(() => {
     if (!overlay) return;
     document.body.appendChild(overlay.el);
-    gl.compile(fx.quad, fx.ortho); // compiled now, not on the first hit
+    if (blur) gl.compile(fx.quad, fx.ortho); // compiled now, not on the first hit
     return () => { overlay.el.remove(); fx.target.dispose(); fx.material.dispose(); };
-  }, [gl, fx, overlay]);
+  }, [gl, fx, overlay, blur]);
 
   useFrame((_, dt) => {
     // drawing into the target uses other variants of every material's shader (no tone mapping there): compile them
     // once everything has loaded, as components/scene/Warmup does for the screen, or the first hit would stall
-    if (!fx.warmed && loading.ready) {
+    // (after Start, a moment in: by then the forest, towns and traffic have all been built, so nothing is left to
+    // compile on the first hit)
+    if (blur && !fx.warmed && loading.ready && game.started && (fx.warmT += dt) > 1.5) {
       fx.warmed = true;
       // compiled for the target, not drawn: drawing the whole world unculled into it was one frame of seconds on a
       // phone, just as the start screen came up
@@ -92,7 +97,7 @@ export default function ImpactFx() {
       overlay.el.style.opacity = glow > 0.002 ? String(Math.min(1, glow * 0.9)) : "0";
       overlay.flash.style.opacity = String(impact.flash * 0.28);
     }
-    if (glow < 0.04) { gl.render(scene, camera); return; }
+    if (!blur || glow < 0.04) { gl.render(scene, camera); return; }
     gl.getDrawingBufferSize(fx.size);
     if (fx.target.width !== fx.size.x || fx.target.height !== fx.size.y) fx.target.setSize(fx.size.x, fx.size.y);
     fx.material.uniforms.uAmount.value = glow;

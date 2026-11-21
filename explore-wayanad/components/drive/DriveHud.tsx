@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } from "@/lib/game";
+import { primeImpact } from "@/lib/impact";
 import { FOREST_ROUTE, FOREST_STARTS, forestStart } from "@/lib/drive";
 import { beep, chime, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
@@ -414,6 +415,7 @@ export default function DriveHud() {
       const km = at === "end" ? game.kmTotal - 1 : Number(at);
       if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
     }
+    primeImpact(); // (the crash thud's audio, ready before the first hit)
     game.started = true; game.phase = "drive"; game.paused = false;
     begin(game.s); startRun();
     mark("started"); if (net.enabled && playMode === "open") mark("open");
