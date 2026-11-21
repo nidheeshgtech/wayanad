@@ -53,6 +53,11 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         web.scrollView.backgroundColor = .wayanadBackground
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.scrollView.bounces = false
+        // never zooms: two thumbs on the controls were read as a pinch and the game stayed zoomed with no way back
+        web.scrollView.minimumZoomScale = 1
+        web.scrollView.maximumZoomScale = 1
+        web.scrollView.pinchGestureRecognizer?.isEnabled = false
+        web.scrollView.delegate = self
         web.allowsBackForwardNavigationGestures = false
         web.allowsLinkPreview = false
         web.navigationDelegate = self
@@ -253,4 +258,11 @@ final class WeakHandler: NSObject, WKScriptMessageHandler {
     weak var target: WKScriptMessageHandler?
     init(_ target: WKScriptMessageHandler) { self.target = target }
     func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) { target?.userContentController(c, didReceive: m) }
+}
+
+
+// No zooming, ever (see loadView): nothing to zoom, and a stray zoom snaps back.
+extension GameViewController: UIScrollViewDelegate {
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { nil }
+    func scrollViewDidZoom(_ scrollView: UIScrollView) { if scrollView.zoomScale != 1 { scrollView.setZoomScale(1, animated: false) } }
 }

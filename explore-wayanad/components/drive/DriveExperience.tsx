@@ -5,6 +5,7 @@ import { useCapability } from "@/hooks/useCapability";
 import { game, resetCar } from "@/lib/game";
 import { setDriveWeather } from "@/lib/weather";
 import { scrollState } from "@/lib/scrollState";
+import { guardZoom } from "@/lib/noZoom";
 import DriveHud from "./DriveHud";
 import SwipeLook from "./SwipeLook";
 import Radar from "./Radar";
@@ -21,7 +22,8 @@ export default function DriveExperience() {
     scrollState.act = "churam"; scrollState.progress = 0;
     setDriveWeather();
     document.documentElement.classList.add(styles.locked);
-    return () => { game.active = false; document.documentElement.classList.remove(styles.locked); };
+    const unguard = guardZoom(); // (no pinch or double-tap zoom while driving: lib/noZoom)
+    return () => { game.active = false; document.documentElement.classList.remove(styles.locked); unguard(); };
   }, []);
   return (
     <div className={styles.page}>
