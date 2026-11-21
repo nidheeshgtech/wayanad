@@ -20,11 +20,10 @@ export default function SupportButton({ size = "small", where = "title" }: { siz
   );
 }
 
-/** "Pay by UPI": a sheet with the amounts (each opens the player's UPI app with it filled in; on a phone), and on a
- * computer the bank's QR when there is one, else a word to open the game on a phone. The UPI ID isn't printed on the
- * card (the owner's call): it's only inside the links. Not shown in the iPhone app (Apple's rules on payment links). */
+/** "Pay by UPI": a sheet with the amounts (each opens the player's UPI app with it filled in), the bank's QR on a
+ * computer when there is one, and the ID to copy. Not shown in the iPhone app (Apple's rules on payment links). */
 export function UpiButton({ size = "small" }: { size?: "small" | "large" }) {
-  const [open, setOpen] = useState(false), [show, setShow] = useState(false);
+  const [open, setOpen] = useState(false), [copied, setCopied] = useState(false), [show, setShow] = useState(false);
   useEffect(() => setShow(platform() !== "ios"), []); // (after hydration: the server can't tell)
   useEffect(() => {
     if (!open) return;
@@ -32,6 +31,7 @@ export function UpiButton({ size = "small" }: { size?: "small" | "large" }) {
     addEventListener("keydown", key, true); return () => removeEventListener("keydown", key, true);
   }, [open]);
   if (!show) return null;
+  const copy = async () => { try { await navigator.clipboard.writeText(UPI.id); setCopied(true); mark("upi-copy"); setTimeout(() => setCopied(false), 2000); } catch {} };
   return (
     <>
       <button type="button" className={styles.key} data-size={size} onClick={() => { setOpen(true); mark("upi-open"); }} onKeyDown={(e) => e.stopPropagation()}>
@@ -42,12 +42,14 @@ export function UpiButton({ size = "small" }: { size?: "small" | "large" }) {
           <div className={styles.card} onClick={(e) => e.stopPropagation()}>
             <button type="button" className={styles.close} onClick={() => setOpen(false)} aria-label="Close">✕</button>
             <b>Buy us a chaya ☕</b>
-            <p>The game stays free; this helps build it. <span className={styles.phone}>Pick an amount: it opens Google Pay, PhonePe, Paytm or your bank's UPI app.</span></p>
+            <p>Pick an amount: it opens Google Pay, PhonePe, Paytm or your bank's UPI app. The game stays free; this helps build it.</p>
             <div className={styles.amounts}>
               {UPI.amounts.map((a) => <a key={a} href={upiLink(a)} onClick={() => mark(`upi-${a}`)}>₹{a}</a>)}
             </div>
-            {UPI.qr && <img className={styles.qr} src={UPI.qr} alt="UPI QR code" width={180} height={180} />}
-            <small className={styles.desk}>{UPI.qr ? "On a computer? Scan this with your phone's UPI app." : "On a computer? Open drivewayanad.com on your phone to pay by UPI."}</small>
+            {UPI.qr && <img className={styles.qr} src={UPI.qr} alt={`UPI QR code for ${UPI.id}`} width={180} height={180} />}
+            {UPI.qr && <small className={styles.desk}>On a computer? Scan this with your phone's UPI app.</small>}
+            <div className={styles.id}><span>{UPI.id}</span><button type="button" onClick={copy}>{copied ? "Copied ✓" : "Copy UPI ID"}</button></div>
+            <small>Didn't open? Copy the ID and pay it in your UPI app.</small>
           </div>
         </div>
       )}
