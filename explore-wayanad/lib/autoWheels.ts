@@ -107,7 +107,7 @@ export function autoWheels(model: Object3D, { maxRadius = 0.25 }: { maxRadius?: 
       const at = set.map((p) => { cy(p.box); return Math.atan2(c.y - w.centre.y, c.z - w.centre.z); }).sort((a, b) => a - b);
       let gap = at[0] + 2 * Math.PI - at[at.length - 1];
       for (let i = 1; i < at.length; i++) gap = Math.max(gap, at[i] - at[i - 1]);
-      if (together || (set.length >= 3 && gap < Math.min(2.3, (3 * Math.PI) / set.length))) for (const p of set) owner.set(p, k);
+      if (set.length >= 3 && (together || gap < Math.min(2.3, (3 * Math.PI) / set.length))) for (const p of set) owner.set(p, k);
     }
   });
 
@@ -156,8 +156,11 @@ export function autoWheels(model: Object3D, { maxRadius = 0.25 }: { maxRadius?: 
     const inv = M.clone().invert(); let a = new Vector3(1, 0, 0);
     for (let t = 0; t < 40; t++) a = a.applyMatrix3(inv).normalize();
     if (a.x < 0) a.negate();
-    // (only a front wheel is ever steered; past ~25° it's a bad read — a wide tyre is nearly as thick as it is round)
-    return w.centre.z > 0 && a.dot(new Vector3(1, 0, 0)) > Math.cos(0.44) ? a : new Vector3(1, 0, 0);
+    // how sure: a wheel is a disc — much thinner along its axle than across. Its spread along the axle against its
+    // spread across (the mean of the other two): a wide, squat tyre reads near 1 and its axle can't be trusted.
+    const along = a.clone().applyMatrix3(M).dot(a), across = (C[0] + C[4] + C[8] - along) / 2, sure = along < 0.45 * across;
+    // (only a front wheel is steered — a model can come with them turned ~30° and more; a rear one stays square)
+    return w.centre.z > 0 && sure && a.dot(new Vector3(1, 0, 0)) > Math.cos(0.8) ? a : new Vector3(1, 0, 0);
   });
 
   // cut them out: each mesh keeps the rest; each wheel gets its parts, in the model's frame, under its pivot
