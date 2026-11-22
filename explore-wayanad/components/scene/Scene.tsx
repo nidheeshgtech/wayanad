@@ -62,6 +62,8 @@ import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
 import Vista from "../drive/Vista";
 import TyreSmoke from "@/components/drive/TyreSmoke";
+// filming only (?film=<car>): a new garage car in place of yours, for reels
+const FilmCar = lazy(() => import("@/components/drive/FilmCar"));
 import { net } from "@/lib/net";
 import { useBorrow, useChoice } from "@/lib/choice";
 
@@ -201,6 +203,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       {mode === "drive" && <Animals curve={curve} forest={forest?.curve ?? null} />}
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}:${choice.paintHex ?? ""}:${choice.passenger ?? ""}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}
+      {mode === "drive" && stage.film && <Suspense fallback={null}><FilmCar id={stage.film} /></Suspense>}
       {mode === "drive" && borrowed && <Suspense fallback={null}><ParkedCar choice={own} /></Suspense>}
       {mode === "drive" && <Coins curve={curve} />}
       {mode === "drive" && <Snapshot />}

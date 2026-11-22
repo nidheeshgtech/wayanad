@@ -12,6 +12,8 @@ export type StagePhase = "none" | "falling" | "blocked" | "clearing" | "open";
 export const stage = {
   /** the scene asked for in the address (?scene=rockfall), or "" */
   scene: typeof location !== "undefined" ? new URLSearchParams(location.search).get("scene") ?? "" : "",
+  /** filming only: a new garage car drawn in place of yours (?film=g-malibu: components/drive/FilmCar) */
+  film: typeof location !== "undefined" ? new URLSearchParams(location.search).get("film") ?? "" : "",
   phase: "none" as StagePhase,
   /** where the rocks come down (road units, as game.s) */
   s0: 0,
