@@ -1,6 +1,6 @@
 # New garage models (preview, app/cars/new)
 
-All from Sketchfab under Creative Commons Attribution (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/). Changed: converted to glTF metal-rough, textures resized to WebP, compressed (meshopt); g-gaz simplified. Maker badges still on some; they come off before a model goes into the game.
+All from Sketchfab under Creative Commons Attribution (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/). Changed: converted to glTF metal-rough, textures resized to WebP, compressed (meshopt); g-gaz simplified. Maker names, badges and registration lettering are taken off in the showroom (lib/debadge, data/newGarage `clean`). Maker badges still on some; they come off before a model goes into the game.
 
 - `g-930.glb`: **FREE 1975 Porsche 911 (930) Turbo** by Lionsharp Studios (https://sketchfab.com/lionsharp), CC Attribution. https://sketchfab.com/3d-models/free-1975-porsche-911-930-turbo-8568d9d14a994b9cae59499f0dbed21e
 - `g-e30.glb`: **[FREE] BMW M3 E30** by Martin Trafas (https://sketchfab.com/TinoD2), CC Attribution. https://sketchfab.com/3d-models/free-bmw-m3-e30-ac3c7013434e403e8faff87948caf422
@@ -22,8 +22,6 @@ All from Sketchfab under Creative Commons Attribution (CC BY 4.0, https://creati
 - `g-gaz.glb`: **GAZ-69 Soviet four-wheel off-road vehicle ver2** by Peter Gatchev (https://sketchfab.com/petar.gachev), CC Attribution. https://sketchfab.com/3d-models/gaz-69-soviet-four-wheel-off-road-vehicle-ver2-c64529995d1149ce8facd9979014a4dc
 - `g-king.glb`: **Karlmann King** by Lexyc16 (https://sketchfab.com/Lexyc16), CC Attribution. https://sketchfab.com/3d-models/karlmann-king-2fc7c5a5c3814663a0a75cd03a9a0bcf
 - `g-rancher.glb`: **Rancher '80 Lifted - Low Poly model** by Daniel Zhabotinsky (https://sketchfab.com/DanielZhabotinsky), CC Attribution. https://sketchfab.com/3d-models/rancher-80-lifted-low-poly-model-fbf1767c4c3a450caa59c6431af79263
-- `g-c10.glb`: **Low Poly Car - Chevrolet C10 Pickup 1963** by ROH3D (https://sketchfab.com/roh3d), CC Attribution. https://sketchfab.com/3d-models/low-poly-car-chevrolet-c10-pickup-1963-679354c151984747bb74310ec5af8995
-- `b-r1.glb`: **Yamaha R1** by ejsnowy (https://sketchfab.com/ejsnowy), CC Attribution. https://sketchfab.com/3d-models/yamaha-r1-7b3343ad0c0f4cbe94238c734e1b731a
 - `b-v4r.glb`: **DucatiV4R** by IrfanMuaz (https://sketchfab.com/IrfanMuaz), CC Attribution. https://sketchfab.com/3d-models/ducativ4r-3f1067a86c4c4c3bbfddf61ec0232446
 - `b-gsxr.glb`: **2010 Suzuki GSX-R 750** by Res1n (https://sketchfab.com/Res1n), CC Attribution. https://sketchfab.com/3d-models/2010-suzuki-gsx-r-750-4e89148cf5d24374afc4ef6fe4002af0
 - `b-triple.glb`: **Three Cylinder Naked Street Bike** by Jamie Hamel-Smith (https://sketchfab.com/jamie3d), CC Attribution. https://sketchfab.com/3d-models/three-cylinder-naked-street-bike-0897a975845647919728095d117a6255
@@ -34,3 +32,8 @@ All from Sketchfab under Creative Commons Attribution (CC BY 4.0, https://creati
 - `b-cruiser.glb`: **1990 Fatboy inspired Cruiser Motorcycle** by Alpha One (https://sketchfab.com/alpha_0816), CC Attribution. https://sketchfab.com/3d-models/1990-fatboy-inspired-cruiser-motorcycle-a38557914e324e418a407071eaedf6ec
 - `b-dualsport.glb`: **Akt Tt Ds 200** by e-restrepo1114 (https://sketchfab.com/EmanuelRestrepoVelez), CC Attribution. https://sketchfab.com/3d-models/akt-tt-ds-200-e9c1ff9a40494ea59c2263fd3d6ea477
 - `b-dirt.glb`: **2 stroke dirt-bike** by moto man 135 (https://sketchfab.com/csharp122705), CC Attribution. https://sketchfab.com/3d-models/2-stroke-dirt-bike-703c2391f70c47bea4f86412c8b4738b
+- `h-civil.glb`: **Helicopter** by irs1182 (https://sketchfab.com/irs1182), CC Attribution. https://sketchfab.com/3d-models/helicopter-91366449ce6842f784748a914e29d641
+- `h-huey.glb`: **Bell UH-1N Twin Huey** by helijah (https://sketchfab.com/helijah), CC Attribution. https://sketchfab.com/3d-models/bell-uh-1n-twin-huey-90bf99ba20f948a9838623311bd83da3
+- `h-ambulance.glb`: **London Air Ambulance** by Pukka Films (https://sketchfab.com/pukkafilms), CC Attribution. https://sketchfab.com/3d-models/london-air-ambulance-03e96878e63446a699021c7e5a3949c4
+- `h-police.glb`: **Eurocopter ec135 Politia - High-poly** by solid3DDD (https://sketchfab.com/solid3ddd), CC Attribution. https://sketchfab.com/3d-models/eurocopter-ec135-politia-high-poly-02373bff3f7f48bf8649805455fe4260
+- `h-private.glb`: **HELICOPTER** by pranav27 (https://sketchfab.com/pranav27), CC Attribution. https://sketchfab.com/3d-models/helicopter-c33f1be4708b422e8750d9b1db9894bf

@@ -1,4 +1,4 @@
-import { Box3, BufferAttribute, BufferGeometry, Group, Matrix4, Mesh, Vector3, type Object3D } from "three";
+import { Box3, BufferAttribute, BufferGeometry, Group, Matrix3, Matrix4, Mesh, Quaternion, Vector3, type Object3D } from "three";
 import { plainGeometry } from "@/lib/vehicleAssets";
 
 /**
@@ -9,7 +9,7 @@ import { plainGeometry } from "@/lib/vehicleAssets";
  * whose origin is the axle, so turning the group about x rolls the wheel. A tyre's roundness is measured too: how
  * many sides its tread has (a coarse low-poly tyre shows corners as it rolls).
  */
-export type Wheel = { pivot: Group; radius: number; sides: number; front: boolean };
+export type Wheel = { pivot: Group; radius: number; sides: number; front: boolean; /** how far its axle is off the car's side-to-side line, degrees */ tilt: number };
 
 type Piece = { mesh: Mesh; tris: number[]; box: Box3 };
 
@@ -43,16 +43,23 @@ export function autoWheels(model: Object3D, { maxRadius = 0.25 }: { maxRadius?: 
 
   // tyres: round from the side, on the ground, not wider than tall (a whole part, or a piece of one)
   const s = new Vector3(), c = new Vector3();
-  const tyres = [...whole, ...pieces].filter(({ box }) => {
+  const isTyre = ({ box }: Piece) => {
     box.getSize(s);
     return s.y > 0.06 * L && s.y < maxRadius * 2 * L && Math.abs(s.y - s.z) < 0.12 * s.y && s.x < 0.9 * s.y && box.min.y < ground + 0.05 * L;
-  });
+  };
+  // (single connected pieces first, biggest first; whole parts and their halves only where no piece makes a tyre — a
+  // part's corner can hold the tyre and the arch liner above it, round enough to pass for a bigger wheel)
+  const bySize = (a: Piece, b: Piece) => b.box.getSize(s).y - a.box.getSize(c).y;
+  const tyres = [...pieces.filter(isTyre).sort(bySize), ...whole.filter(isTyre).sort(bySize)];
   // one per wheel: pieces of the same tyre (split at seams, or tread and sidewall apart) share a centre
   const wheels: { centre: Vector3; r: number; x0: number; x1: number; box: Box3 }[] = [];
+  // (biggest first; a piece joins a wheel only if it shares its axle and isn't bigger than it — a round exhaust or
+  // lamp beside a tyre would drag its middle off otherwise)
   for (const t of tyres) {
     t.box.getCenter(c); t.box.getSize(s);
-    const w = wheels.find((w) => w.centre.distanceTo(c) < 0.8 * Math.max(w.r, s.y / 2));
+    const w = wheels.find((w) => w.centre.distanceTo(c) < 0.3 * w.r && s.y <= 2.1 * w.r);
     if (w) w.box.union(t.box);
+    else if (wheels.some((w) => w.centre.distanceTo(c) < 1.2 * w.r)) continue;
     else wheels.push({ centre: c.clone(), r: s.y / 2, x0: 0, x1: 0, box: t.box.clone() });
   }
   // each wheel's axle and size from all its tyre's pieces together (one piece may be only part of the ring)
@@ -65,31 +72,109 @@ export function autoWheels(model: Object3D, { maxRadius = 0.25 }: { maxRadius?: 
   for (let k = wheels.length - 1; k >= 0; k--) if (wheels[k].r < 0.7 * big || wheels[k].box.min.y > floor + 0.025 * L) wheels.splice(k, 1);
   if (!wheels.length) return [];
 
-  // everything inside a wheel's circle and between its tyre's sides (reaching in a little for the hub) turns with it
-  const owner = new Map<Piece, number>();
+  // what's inside a wheel: between its tyre's sides (reaching in for the hub) and within its circle — measured from
+  // each piece's middle, so a whole tyre ring counts (its box's corners stand out past the circle)
+  const inside = new Map<Piece, number>(), cy = (b: Box3) => b.getCenter(c), off = (b: Box3, w: (typeof wheels)[number]) => Math.hypot(cy(b).y - w.centre.y, c.z - w.centre.z);
   for (const p of pieces) {
-    p.box.getCenter(c); p.box.getSize(s);
+    p.box.getSize(s);
     const k = wheels.findIndex((w) => {
-      const inX = p.box.min.x >= Math.min(w.x0, w.x1) - 0.45 * w.r * (w.centre.x > 0 ? 1 : 0) - 0.02 * L && p.box.max.x <= Math.max(w.x0, w.x1) + 0.45 * w.r * (w.centre.x < 0 ? 1 : 0) + 0.02 * L;
-      const reach = Math.max(Math.hypot(p.box.max.y - w.centre.y, p.box.max.z - w.centre.z), Math.hypot(p.box.min.y - w.centre.y, p.box.min.z - w.centre.z),
-        Math.hypot(p.box.max.y - w.centre.y, p.box.min.z - w.centre.z), Math.hypot(p.box.min.y - w.centre.y, p.box.max.z - w.centre.z));
-      return inX && reach < w.r * 1.06 + 0.002 * L;
+      // (a car's wheel reaches in for its hub, not out; a bike's, in the middle, both ways: its hub is wider than its tyre)
+      // (and out past the tyre a little: a dished rim, a hub cap stands proud of it)
+      const mid = Math.abs(w.centre.x) < 0.02 * L, inner = 0.45 * w.r, outer = 0.3 * w.r;
+      const inX = p.box.min.x >= Math.min(w.x0, w.x1) - (mid || w.centre.x > 0 ? inner : outer) - 0.02 * L && p.box.max.x <= Math.max(w.x0, w.x1) + (mid || w.centre.x < 0 ? inner : outer) + 0.02 * L;
+      return inX && off(p.box, w) + Math.max(s.y, s.z) / 2 < w.r * 1.06 + 0.002 * L;
     });
-    if (k >= 0) owner.set(p, k);
+    if (k >= 0) inside.set(p, k);
   }
+  // of those, only what turns: what is round and centred on the axle (tyre, rim, disc, hub), and parts set evenly all
+  // the way round it (spokes, nuts, bolts). A brake caliper, a fork leg, a chain, a swing-arm sit to one side: they stay.
+  const owner = new Map<Piece, number>();
+  const centred = (b: Box3, w: (typeof wheels)[number]) => { b.getSize(s); return off(b, w) < 0.1 * w.r && Math.abs(s.y - s.z) < 0.15 * Math.max(s.y, s.z); };
+  for (const m of local.keys()) wheels.forEach((w, k) => {
+    const mine = pieces.filter((p) => p.mesh === m && inside.get(p) === k);
+    const round = mine.filter((p) => centred(p.box, w)), aside = mine.filter((p) => !centred(p.box, w));
+    for (const p of round) owner.set(p, k);
+    // the rest only as sets of the same part repeated round the axle (spokes, nuts, bolts, the halves of a rim): a
+    // caliper, a fork leg, a mudguard stay are one of a kind, to one side — they stay put
+    const size = (p: Piece) => p.box.getSize(s).length(), sets: Piece[][] = [];
+    for (const p of aside) {
+      const z = size(p), set = sets.find((q) => Math.abs(size(q[0]) - z) < 0.12 * z && Math.abs(q[0].tris.length - p.tris.length) <= Math.max(2, 0.1 * p.tris.length));
+      if (set) set.push(p); else sets.push([p]);
+    }
+    for (const set of sets) {
+      if (set.length < 2) continue;
+      const together = centred(set.reduce((b, p) => b.union(p.box), new Box3()), w);
+      const at = set.map((p) => { cy(p.box); return Math.atan2(c.y - w.centre.y, c.z - w.centre.z); }).sort((a, b) => a - b);
+      let gap = at[0] + 2 * Math.PI - at[at.length - 1];
+      for (let i = 1; i < at.length; i++) gap = Math.max(gap, at[i] - at[i - 1]);
+      if (together || (set.length >= 3 && gap < Math.min(2.3, (3 * Math.PI) / set.length))) for (const p of set) owner.set(p, k);
+    }
+  });
+
+  // a car's rim joined into a big part (the frame, the body): from that part, the triangles in the wheel's rim ring —
+  // between the hub and the tyre, within the tyre's width. (Not a bike's: its swing-arm runs through that ring.)
+  const extra = new Map<Mesh, Map<number, number[]>>(), tv = new Vector3();
+  // (only for a wheel that came out clearly short of its twin across the axle — the twin's rim is a part of its own)
+  const count = wheels.map((_, k) => [...owner].filter(([, o]) => o === k).reduce((n, [p]) => n + p.tris.length, 0));
+  wheels.forEach((w, k) => {
+    if (Math.abs(w.centre.x) < 0.02 * L) return;
+    const twin = wheels.findIndex((v, j) => j !== k && Math.abs(v.centre.z - w.centre.z) < 0.5 * w.r && Math.sign(v.centre.x) !== Math.sign(w.centre.x));
+    if (twin < 0 || count[k] > 0.75 * count[twin]) return;
+    const out = 0.3 * w.r;
+    for (const [m, g] of local) for (const p of pieces) {
+      if (p.mesh !== m || owner.has(p)) continue;
+      p.box.getSize(s); if (Math.max(s.y, s.z) < 1.5 * w.r || !p.box.intersectsBox(w.box)) continue;
+      const pos = g.getAttribute("position"), ix = g.index, got: number[] = [];
+      for (const t of p.tris) {
+        let all = true;
+        for (let q = 0; q < 3 && all; q++) {
+          tv.fromBufferAttribute(pos, ix ? ix.getX(t * 3 + q) : t * 3 + q);
+          const rad = Math.hypot(tv.y - w.centre.y, tv.z - w.centre.z);
+          all = rad > 0.12 * w.r && rad < 0.95 * w.r && tv.x > Math.min(w.x0, w.x1) - out && tv.x < Math.max(w.x0, w.x1) + out;
+        }
+        if (all) got.push(t);
+      }
+      if (got.length > 24) { const e = extra.get(m) ?? new Map<number, number[]>(); e.set(k, [...(e.get(k) ?? []), ...got]); extra.set(m, e); }
+    }
+  });
+
+  // each wheel's own axle: the direction its turning parts are thinnest in (a front wheel can be modelled steered or
+  // leaning — spun about the car's side-to-side line, it wobbles). Pointing to the car's left, so all roll forward.
+  const axles = wheels.map((w, k) => {
+    const v = new Vector3(), pts: Vector3[] = [], mean = new Vector3();
+    for (const [m, g] of local) for (const p of pieces) {
+      if (p.mesh !== m || owner.get(p) !== k || !centred(p.box, w)) continue;
+      const pos = g.getAttribute("position"), ix = g.index;
+      for (const t of p.tris) for (let q = 0; q < 3; q++) { v.fromBufferAttribute(pos, ix ? ix.getX(t * 3 + q) : t * 3 + q); pts.push(v.clone()); }
+    }
+    if (pts.length < 12) return new Vector3(1, 0, 0);
+    for (const q of pts) mean.add(q); mean.multiplyScalar(1 / pts.length);
+    const C = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (const q of pts) { const d = [q.x - mean.x, q.y - mean.y, q.z - mean.z]; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i * 3 + j] += d[i] * d[j]; }
+    const M = new Matrix3().fromArray(C).transpose();
+    if (Math.abs(M.determinant()) < 1e-12) return new Vector3(1, 0, 0);
+    const inv = M.clone().invert(); let a = new Vector3(1, 0, 0);
+    for (let t = 0; t < 40; t++) a = a.applyMatrix3(inv).normalize();
+    if (a.x < 0) a.negate();
+    // (only a front wheel is ever steered; past ~25° it's a bad read — a wide tyre is nearly as thick as it is round)
+    return w.centre.z > 0 && a.dot(new Vector3(1, 0, 0)) > Math.cos(0.44) ? a : new Vector3(1, 0, 0);
+  });
 
   // cut them out: each mesh keeps the rest; each wheel gets its parts, in the model's frame, under its pivot
-  const pivots = wheels.map((w) => { const g = new Group(); g.position.copy(w.centre); g.name = "wheel"; model.add(g); return g; });
+  // (each pivot turned so its x is the wheel's axle: spinning it about its own x rolls the wheel true)
+  const turns = axles.map((a) => new Quaternion().setFromUnitVectors(new Vector3(1, 0, 0), a));
+  const pivots = wheels.map((w, k) => { const g = new Group(); g.position.copy(w.centre); g.quaternion.copy(turns[k]); g.userData.base = turns[k].clone(); g.name = "wheel"; model.add(g); return g; });
   for (const [m, g] of local) {
     const mine = pieces.filter((p) => p.mesh === m && owner.has(p));
-    if (!mine.length) continue;
+    if (!mine.length && !extra.has(m)) continue;
     const taken = new Set<number>();
     wheels.forEach((w, k) => {
-      const tris = mine.filter((p) => owner.get(p) === k).flatMap((p) => p.tris);
+      const tris = [...mine.filter((p) => owner.get(p) === k).flatMap((p) => p.tris), ...(extra.get(m)?.get(k) ?? [])];
       if (!tris.length) return;
       tris.forEach((t) => taken.add(t));
       const part = new Mesh(pick(g, tris), m.material); part.name = m.name;
       part.geometry.translate(-w.centre.x, -w.centre.y, -w.centre.z);
+      part.geometry.applyQuaternion(turns[k].clone().invert());
       pivots[k].add(part);
     });
     // the rest stays where it was: back into the mesh's own frame
@@ -98,11 +183,11 @@ export function autoWheels(model: Object3D, { maxRadius = 0.25 }: { maxRadius?: 
     const back = new Matrix4().multiplyMatrices(toModel, m.matrixWorld).invert();
     if (rest.length) { const r = pick(g, rest); r.applyMatrix4(back); m.geometry = r; } else m.visible = false;
   }
-  return wheels.map((w, k) => ({ pivot: pivots[k], radius: w.r, sides: sidesOf(pivots[k], w.r), front: w.centre.z > 0 }));
+  return wheels.map((w, k) => ({ pivot: pivots[k], radius: w.r, sides: sidesOf(pivots[k], w.r), front: w.centre.z > 0, tilt: (Math.acos(Math.min(1, axles[k].x)) * 180) / Math.PI }));
 }
 
 /** The connected pieces of a geometry (vertices at the same place count as joined), as triangle lists with boxes. */
-function split(g: BufferGeometry, eps: number) {
+export function split(g: BufferGeometry, eps: number) {
   const p = g.getAttribute("position"), ix = g.index, n = ix ? ix.count : p.count, at = (i: number) => (ix ? ix.getX(i) : i);
   const id = new Int32Array(p.count), keys = new Map<string, number>();
   for (let v = 0; v < p.count; v++) {

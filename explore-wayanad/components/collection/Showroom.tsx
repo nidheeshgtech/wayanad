@@ -26,10 +26,10 @@ export default function Showroom() {
   const [cls, setCls] = useState<GarageClass | "all">("all");
   const [open, setOpen] = useState<NewRide | null>(null), [view, setView] = useState<View>("outside"), [rev, setRev] = useState(0);
   const [picks, setPicks] = useState<string[]>([]), [copied, setCopied] = useState(false), [qc, setQc] = useState(false);
-  const [wheels, setWheels] = useState<Wheel[] | null>(null), [still, setStill] = useState(false);
+  const [wheels, setWheels] = useState<Wheel[] | null>(null), [still, setStill] = useState(false), [spinTo, setSpinTo] = useState<number>();
   useEffect(() => {
     try { setPicks(JSON.parse(localStorage.getItem(KEY) ?? "[]")); } catch {}
-    const q = new URLSearchParams(location.search); setQc(q.has("qc")); setStill(q.has("still"));
+    const q = new URLSearchParams(location.search); setQc(q.has("qc")); setStill(q.has("still")); if (q.has("spin")) setSpinTo((+q.get("spin")! * Math.PI) / 180);
     const id = q.get("id"); if (id) setOpen(NEW_RIDES.find((r) => r.id === id) ?? null);
     const v = q.get("view") as View | null; if (v) setView(v);
   }, []);
@@ -46,7 +46,7 @@ export default function Showroom() {
     const text = picks.map((id) => NEW_RIDES.find((r) => r.id === id)).filter(Boolean).map((r) => `${r!.name} (${r!.type})`).join("\n");
     try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
   };
-  const cars = NEW_RIDES.filter((r) => r.cls !== "bike").length, bikes = NEW_RIDES.length - cars;
+  const bikes = NEW_RIDES.filter((r) => r.cls === "bike").length, helis = NEW_RIDES.filter((r) => r.cls === "heli").length, cars = NEW_RIDES.length - bikes - helis;
 
   return (
     <main className={styles.page}>
@@ -54,7 +54,7 @@ export default function Showroom() {
         <Link href="/cars" className={styles.back}>‹ Collection</Link>
         <p className={styles.kicker}>Preview · not in the game yet</p>
         <h1>The new garage</h1>
-        <p className={styles.sub}>{cars} cars and {bikes} bikes. Tap one to see it in 3D, sit inside, rev it. Tap ♥ on the ones you want in the game.</p>
+        <p className={styles.sub}>{cars} cars, {bikes} bikes and {helis} helicopters. Tap one to see it in 3D, sit inside, rev it. Tap ♥ on the ones you want in the game.</p>
       </header>
 
       <nav className={styles.chips} aria-label="Type">
@@ -95,20 +95,20 @@ export default function Showroom() {
           <div className={styles.sheet} role="dialog" aria-label={open.name} onClick={(e) => e.stopPropagation()}>
             <button type="button" className={styles.close} onClick={() => setOpen(null)} aria-label="Close">✕</button>
             <div className={styles.stage}>
-              <ShowroomView ride={open} view={view} rev={rev} qc={qc} still={still} onInfo={onInfo} />
+              <ShowroomView ride={open} view={view} rev={rev} qc={qc} still={still} spinTo={spinTo} onInfo={onInfo} />
               <div className={styles.views} role="group" aria-label="View">
-                {VIEWS.map((v) => <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.name}</button>)}
+                {VIEWS.map((v) => <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.id === "wheel" && open.cls === "heli" ? "Rotor" : v.name}</button>)}
               </div>
-              <button type="button" className={styles.rev} style={{ ["--smoke" as string]: open.smoke }} onClick={() => setRev((n) => n + 1)}>Rev it</button>
-              {qc && wheels && <p className={styles.qc}>{wheels.length} wheels · sides {wheels.map((w) => w.sides).join("/")}</p>}
+              <button type="button" className={styles.rev} style={{ ["--smoke" as string]: open.smoke }} onClick={() => setRev((n) => n + 1)}>{open.cls === "heli" ? "Spin up" : "Rev it"}</button>
+              {qc && wheels && <p className={styles.qc}>{wheels.length} wheels · tilt {wheels.map((w) => w.tilt.toFixed(1)).join("/")}</p>}
             </div>
             <div className={styles.info}>
               <small>{GARAGE_CLASSES.find((c) => c.id === open.cls)?.name} · {open.type}</small>
               <h2>{open.name}</h2>
-              <Bar label="Top speed" value={open.topSpeed} of={150} text={`${open.topSpeed} km/h`} />
+              <Bar label="Top speed" value={open.topSpeed} of={open.cls === "heli" ? 300 : 150} text={`${open.topSpeed} km/h`} />
               <Bar label="Pickup" value={open.pickup} />
               <Bar label="Handling" value={open.handling} />
-              <p className={styles.smokeLine}><i style={{ background: open.smoke }} />Exhaust smoke in its own colour</p>
+              <p className={styles.smokeLine}><i style={{ background: open.smoke }} />{open.cls === "heli" ? "Rotor dust in its own colour" : "Exhaust smoke in its own colour"}</p>
               <button type="button" className={styles.want} aria-pressed={picks.includes(open.id)} onClick={() => toggle(open.id)}>{picks.includes(open.id) ? "♥ In my list" : "♡ I want this one"}</button>
               <p className={styles.credit}>3D model by {open.by} · CC BY</p>
             </div>
