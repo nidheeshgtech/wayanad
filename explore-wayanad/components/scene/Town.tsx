@@ -2,13 +2,15 @@
 import { timed } from "@/lib/perf";
 import { freeze } from "@/lib/freeze";
 import { useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
+import { duskness, nightness } from "@/lib/theme";
 import {
-  BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
-  LineSegments, Mesh, MeshStandardMaterial, SRGBColorSpace, Vector3,
+  AdditiveBlending, BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
+  LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Vector3,
 } from "three";
 import { SECTION, archT, forestRoad, height, placesT, roadShapeAt } from "@/lib/terrain";
 import { townLots, type Lot } from "./realTowns";
-import { buildTown } from "./townKit";
+import { buildTown, townWallMaterials } from "./townKit";
 import { rubble } from "./stone";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
@@ -246,13 +248,29 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
     // electric poles on the left with three sagging wires
     // (all in one mesh: as one mesh each, the ~460 poles and their arms were ~920 draw calls)
     const poleMat = new MeshStandardMaterial({ color: 0x9a9890, roughness: 0.9 }), tops: Vector3[][] = [], parts: BufferGeometry[] = [];
+    // and on every other pole a street lamp over the road: a sodium-orange head on an arm, lit after dark, with the
+    // pool of light it throws on the road (one mesh of soft additive quads, shown only at dusk and night)
+    const heads: BufferGeometry[] = [], pools: BufferGeometry[] = [];
+    let n = 0;
     for (let s = gate - 1; road === "churam" && s < L - END_MARGIN; s += 3.5) { // (the drive from Adivaram: past the gate)
       const { p, tan, left } = frame(s), at = p.clone().addScaledVector(left, SECTION.half + 0.22), y = height(at.x, at.z);
+      const yaw = Math.atan2(tan.x, tan.z);
       parts.push(new BoxGeometry(0.02, 0.9, 0.02).translate(at.x, y + 0.45, at.z));
-      parts.push(new BoxGeometry(0.12, 0.012, 0.012).rotateY(Math.atan2(tan.x, tan.z) + Math.PI / 2).translate(at.x, y + 0.85, at.z));
+      parts.push(new BoxGeometry(0.12, 0.012, 0.012).rotateY(yaw + Math.PI / 2).translate(at.x, y + 0.85, at.z));
       tops.push([-0.05, 0, 0.05].map((k) => at.clone().addScaledVector(left, k).setY(y + 0.86)));
+      if (n++ % 2) continue;
+      const arm = at.clone().addScaledVector(left, -0.16);
+      parts.push(new BoxGeometry(0.18, 0.008, 0.008).rotateY(yaw + Math.PI / 2).translate(at.x - left.x * 0.09, y + 0.78, at.z - left.z * 0.09));
+      heads.push(new BoxGeometry(0.06, 0.012, 0.028).rotateY(yaw + Math.PI / 2).translate(arm.x, y + 0.772, arm.z));
+      const pool = p.clone().addScaledVector(left, SECTION.half * 0.35);
+      pools.push(new PlaneGeometry(1.1, 1.3).rotateX(-Math.PI / 2).rotateY(yaw).translate(pool.x, p.y + 0.012, pool.z));
     }
     if (parts.length) { const poles = new Mesh(mergeGeometries(parts, false), poleMat); poles.castShadow = true; g.add(poles); parts.forEach((x) => x.dispose()); }
+    if (heads.length) {
+      const lamps = new Mesh(mergeGeometries(heads, false), LAMP.head); lamps.name = "street-lamps"; g.add(lamps);
+      const light = new Mesh(mergeGeometries(pools, false), LAMP.pool); light.name = "street-light"; light.renderOrder = 2; light.visible = false; g.add(light);
+      heads.forEach((x) => x.dispose()); pools.forEach((x) => x.dispose());
+    }
     const wires: number[] = [];
     for (let i = 1; i < tops.length; i++) for (let w = 0; w < 3; w++) {
       const a = tops[i - 1][w], b = tops[i][w];
@@ -267,5 +285,28 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
     freeze(g, true); // (2000 buildings, wires and poles that never move: no matrix work per frame)
     return g;
   }), [curve]);
+  // after dark: the shops' signs and windows lit, the street lamps on and their light on the road
+  useFrame(() => {
+    const k = Math.max(nightness(), 0.45 * duskness());
+    for (const m of townWallMaterials) m.emissiveIntensity = 1.6 * k;
+    LAMP.head.emissiveIntensity = 0.2 + 7 * k;
+    LAMP.pool.opacity = 0.55 * k;
+    const pool = group.getObjectByName("street-light"); if (pool) pool.visible = k > 0.02;
+  });
   return <primitive object={group} />;
 }
+
+/** The street lamps' heads and the light they throw (shared by both roads' towns). */
+const LAMP = (() => {
+  const head = new MeshStandardMaterial({ color: 0x3a342c, emissive: 0xffa040, emissiveIntensity: 0.2, roughness: 0.6 });
+  let pool: MeshBasicMaterial;
+  if (typeof document !== "undefined") {
+    const c = document.createElement("canvas"); c.width = c.height = 64;
+    const x = c.getContext("2d")!, g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.45, "rgba(255,255,255,.45)"); g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace;
+    pool = new MeshBasicMaterial({ map: t, color: 0xff9a3c, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+  } else pool = new MeshBasicMaterial();
+  return { head, pool };
+})();

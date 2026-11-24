@@ -10,7 +10,7 @@ import { honk, honking } from '@/lib/horn';
 import { driveT, driveT2 } from '@/lib/drive';
 import { scrollState } from '@/lib/scrollState';
 import { weather } from '@/lib/weather';
-import { duskness } from '@/lib/theme';
+import { duskness, nightness } from '@/lib/theme';
 import { frameTimed, perfStats } from '@/lib/perf';
 import { quality } from '@/lib/quality';
 import { net } from '@/lib/net';
@@ -318,7 +318,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     if (st && viewer !== undefined) trafficControl.stagedInfo = `${st.id} ${st.mode} g=${(st.distance - viewer).toFixed(2)} sh=${(st.shift ?? 0).toFixed(2)} vis=${objects[fleet.indexOf(st)].root.visible}`;
     let visible = 0, aboard = 0, nearestSiren = Infinity, nearestChaser = Infinity;
     const crewing = { ...(small ? CREW.small : CREW.full) }; crewing.cap = Math.round(crewing.cap * quality.people); crewFrame(); // (fewer as the quality steps down)
-    const dusk = duskness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
+    const dusk = duskness(), night = nightness(), view = small ? 28 : 50, ease = 1 - Math.exp(-Math.min(dt, .1) / .12);
     const lit = weather.rain + weather.mist + weather.gloom + dusk > .08;
     for (let i = 0; i < fleet.length; i++) {
       const v = fleet[i], o = objects[i];
@@ -385,7 +385,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // lamps glow in mist and rain; LED route boards are lit all day, a little brighter in the murk
       // stopped after a hit: every lamp blinking, like hazards
       const hazard = (v.jolt ?? 0) > 0 && Math.floor((v.joltT ?? 0) * 2.6) % 2 === 0;
-      for (const light of o.lights) light.emissiveIntensity = light.userData.board ? .55 + (weather.rain + weather.mist + dusk) * .35 : hazard ? 3 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6;
+      for (const light of o.lights) light.emissiveIntensity = light.userData.board ? (.55 + (weather.rain + weather.mist + dusk) * .35) * (1 - .45 * night) : hazard ? 3 : .1 + weather.rain * 2 + weather.mist + dusk * 1.6 + (light.emissive.r > light.emissive.g * 2 ? night * 2 : 0); // (tail lamps brighter at night: the glow, components/drive/DriveFx)
       // the little lamp quads only when they're lit (rain, mist, a dark sky, hazards): in daylight they were two draw
       // calls a vehicle for a glow nobody could see
       for (const c of o.root.children) if (c.name === 'lamp') c.visible = lit || hazard;

@@ -2,8 +2,8 @@
  * Collision feedback for drive mode: a hit against traffic or the roadside edge (barrier posts, the bank) sets a
  * strength 0–1 from how hard it was, and three envelopes fade back from it — `flash` (the red flash, ~0.3 s), `glow`
  * (the red vignette, blur and colour fringing, ~0.6 s) and `shake` (the camera, ~0.4 s). Strong, fast impacts reach
- * full strength; a graze barely shows. Read each frame by components/drive/ImpactFx.tsx (the screen) and PlayerCar
- * (the camera); stepped once a frame by ImpactFx. The thud is WebAudio, no file; like the horn it always plays in
+ * full strength; a graze barely shows. Read each frame by components/drive/DriveFx.tsx (the screen) and PlayerCar
+ * (the camera); stepped once a frame by DriveFx. The thud is WebAudio, no file; like the horn it always plays in
  * drive mode (the drive started from a press, so audio is allowed). Physics is untouched: this only listens.
  */
 type ImpactState = { flash: number; glow: number; shake: number; time: number };

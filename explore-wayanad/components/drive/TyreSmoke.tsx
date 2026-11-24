@@ -10,6 +10,7 @@ import { bonus } from "@/lib/score";
 import { exhaust } from "@/lib/engine";
 import { getChoice } from "@/lib/choice";
 import { carOf } from "@/data/cars";
+import { duskness, nightness } from "@/lib/theme";
 
 /* Tyre smoke and drifting, exhaust smoke, and flames from the tailpipe. When the car slides at the edge of its grip in a bend (lib/carPhysics: sideways near
  * CAR.grip), or brakes hard at speed, the rear tyres smoke: soft grey puffs that swell, rise and fade. Hold a clean
@@ -45,11 +46,11 @@ function smokePool(size: number, tint: [number, number, number], name: string) {
     const geo = new PlaneGeometry(1, 1), fade = new InstancedBufferAttribute(new Float32Array(size), 1);
     geo.setAttribute("aFade", fade);
     const mat = new ShaderMaterial({
-      uniforms: { map: { value: puffTexture() }, tint: { value: new Color(...tint) } },
+      uniforms: { map: { value: puffTexture() }, tint: { value: new Color(...tint) }, uLight: { value: 1 } },
       vertexShader: /* glsl */ `attribute float aFade; varying vec2 vUv; varying float vFade;
         void main() { vUv = uv; vFade = aFade; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`,
-      fragmentShader: /* glsl */ `uniform sampler2D map; uniform vec3 tint; varying vec2 vUv; varying float vFade;
-        void main() { float a = texture2D(map, vUv).a * vFade; if (a < 0.01) discard; gl_FragColor = vec4(tint, a); }`,
+      fragmentShader: /* glsl */ `uniform sampler2D map; uniform vec3 tint; uniform float uLight; varying vec2 vUv; varying float vFade;
+        void main() { float a = texture2D(map, vUv).a * vFade; if (a < 0.01) discard; gl_FragColor = vec4(tint * uLight, a); }`,
       transparent: true, depthWrite: false, side: DoubleSide,
     });
     const mesh = new InstancedMesh(geo, mat, size); mesh.frustumCulled = false; mesh.count = 0; mesh.name = name;
@@ -70,6 +71,9 @@ export default function TyreSmoke() {
   const tmp = useMemo(() => ({ m: new Matrix4(), q: new Quaternion(), s: new Vector3(), w: new Vector3(), up: new Vector3(0, 1, 0), g: new Vector3(), at: new Vector3() }), []);
 
   useFrame(({ scene, camera }, dt) => {
+    // the smoke is unlit: after dark it takes the evening's light, or it would shine brighter than the lamps
+    const light = Math.max(0.12, 1 - 0.55 * duskness() - 0.33 * nightness());
+    for (const m of [tyre.mesh.material, exh.mesh.material] as ShaderMaterial[]) m.uniforms.uLight.value = light;
     dt = Math.min(dt, 0.1);
     // (found again when the car changes: the old one is taken out of the scene, and smoke from it came from nowhere)
     if (!car.current?.parent) car.current = scene.getObjectByName("player-car") ?? null;

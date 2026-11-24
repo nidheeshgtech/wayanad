@@ -42,7 +42,9 @@ const BOARDS: [string, string, string][] = [["SILKS & SAREES", "#7b1fa2", "#fff"
  *   row 6     side walls with a small window (8)       row 7  house fronts: door and window (8)
  *   row 8     plinth (col 0), civic fronts (cols 1–7) */
 const CW = 128, CH = 104, SW = 1024, SH = 1024;
-let sheet: CanvasTexture | null = null;
+let sheet: CanvasTexture | null = null, glow: CanvasTexture | null = null;
+/** The town's walls (one material per town): their lit signs and windows brighten after dark (components/scene/Town). */
+export const townWallMaterials: MeshStandardMaterial[] = [];
 
 function rngOf(seed: number) { return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
 
@@ -119,6 +121,45 @@ function paintSheet() {
   return t;
 }
 
+/** The same sheet after dark: what's lit, on black (the walls' emissive map). Shop and rooftop boards lit from the
+ * front (their own colours, brighter), open counters warm with bulbs, glass fronts cool white tube light, shutters
+ * down; some windows upstairs warm (tube light behind curtains) or blue (a television). */
+function paintGlow(day: HTMLCanvasElement) {
+  const c = document.createElement("canvas"); c.width = SW; c.height = SH;
+  const x = c.getContext("2d")!, r = rngOf(11);
+  x.fillStyle = "#000"; x.fillRect(0, 0, SW, SH);
+  const copy = (sx: number, sy: number, w: number, h: number, alpha = 1) => { x.globalAlpha = alpha; x.drawImage(day, sx, sy, w, h, sx, sy, w, h); x.globalAlpha = 1; };
+  const lamp = (bx: number, by: number, w: number, h: number, col: string, a: number) => {
+    const g = x.createLinearGradient(0, by, 0, by + h); g.addColorStop(0, col); g.addColorStop(1, "rgba(0,0,0,0)");
+    x.globalAlpha = a; x.fillStyle = g; x.fillRect(bx, by, w, h); x.globalAlpha = 1;
+  };
+  const front = (col: number, row: number, style: number) => {
+    const x0 = col * CW, y0 = row * CH, by = y0 + 40, h = CH - 42, bx = x0 + 6, w = CW - 12;
+    copy(x0 + 3, y0 + 4, CW - 6, 30);                                     // the signboard
+    if (style === 1) { copy(bx, by, w, h, 0.55); x.globalCompositeOperation = "lighter"; lamp(bx, by, w, h, "#ffb35c", 0.85); x.globalCompositeOperation = "source-over"; }
+    else if (style === 2) lamp(bx, by, w, h, "#e9f3ff", 0.8);
+  };
+  for (let sgn = 0; sgn < 16; sgn++) front(sgn % 8, Math.floor(sgn / 8), sgn % 3);
+  for (let sgn = 0; sgn < 8; sgn++) front(sgn, 2, (sgn + 1) % 3);
+  for (let i = 0; i < 8; i++) copy(i * CW, 3 * CH, CW, CH);                    // rooftop boards
+  const win = (wx: number, wy: number, w: number, h: number) => {
+    const k = r(); if (k > 0.4) return;
+    // a lit room seen through the glass: brighter toward the ceiling (the tube light), a curtain edge darker
+    const col = k < 0.05 ? "111,156,255" : k < 0.28 ? "255,196,130" : "236,240,255", a = 0.22 + r() * 0.22;
+    const g = x.createLinearGradient(0, wy, 0, wy + h); g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},${a * 0.35})`);
+    x.fillStyle = g; x.fillRect(wx, wy, w, h);
+    if (r() < 0.6) { x.fillStyle = "rgba(0,0,0,.6)"; x.fillRect(wx + (r() < 0.5 ? 0 : w * 0.6), wy, w * 0.4, h); }
+  };
+  for (let i = 0; i < 8; i++) {
+    for (const wx of [14, 70]) { win(i * CW + wx + 2, 4 * CH + 32, 40, 40); win(i * CW + wx - 2, 5 * CH + 28, 48, 48); }
+    for (const wx of [22, 78]) win(i * CW + wx + 1, 6 * CH + 39, 26, 30);
+    win(i * CW + 67, 7 * CH + 35, 44, 32);
+  }
+  for (let i = 1; i < 8; i++) for (const wx of [12, 48, 84]) win(i * CW + wx + 2, 8 * CH + 26, 26, 56);
+  const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
 /** One growing mesh: positions, normals, uvs, colours. */
 class Batch {
   p: number[] = []; n: number[] = []; uv: number[] = []; c: number[] = [];
@@ -159,6 +200,7 @@ const PAVE = hex("#a9a69e"), KERB = hex("#8d8b85"), TILE = hex("#b0533a"), TILE_
 /** All the lots of one town as two meshes: the walls (the sheet) and the rest (vertex colours). */
 export function buildTown(lots: Lot[], seed: number, ground: (x: number, z: number) => number) {
   sheet ??= paintSheet();
+  glow ??= paintGlow(sheet.image as HTMLCanvasElement);
   const walls = new Batch(), rest = new Batch();
   let s = seed;
   const r = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
@@ -216,7 +258,8 @@ export function buildTown(lots: Lot[], seed: number, ground: (x: number, z: numb
       if (lot.town === "Kalpetta" && longest >= 0 && lot.floors >= 3 && r() < 0.3) board(walls, rest, ring[longest], ring[(longest + 1) % n], top, Math.floor(r() * 8));
     }
   }
-  const wallMat = new MeshStandardMaterial({ map: sheet, roughness: 0.88 });
+  const wallMat = new MeshStandardMaterial({ map: sheet, roughness: 0.88, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0 });
+  townWallMaterials.push(wallMat);
   const restMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, side: DoubleSide });
   const a = new Mesh(walls.geometry(), wallMat), b = new Mesh(rest.geometry(), restMat);
   a.castShadow = a.receiveShadow = b.castShadow = b.receiveShadow = true;

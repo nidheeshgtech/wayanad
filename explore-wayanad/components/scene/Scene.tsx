@@ -52,7 +52,7 @@ import type { Tier } from "@/hooks/useCapability";
 import PlayerCar from "../drive/PlayerCar";
 import OnFoot from "@/components/drive/OnFoot";
 import ParkedCar from "@/components/drive/ParkedCar";
-import ImpactFx from "../drive/ImpactFx";
+import DriveFx from "../drive/DriveFx";
 import RearMirror from "../drive/RearMirror";
 import RemoteCars from "../drive/RemoteCars";
 import Coins from "../drive/Coins";
@@ -212,7 +212,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       {mode === "drive" && <StopCrowds curve={curve} small={small} />}
       {mode === "drive" && <Vista curve={curve} />}
       {mode === "drive" && <TyreSmoke />}
-      {mode === "drive" && <ImpactFx blur={!small} />}
+      {mode === "drive" && <DriveFx post={!small} />}
       {mode === "drive" && <RearMirror />}
       {mode === "drive" && net.enabled && <Suspense fallback={null}><RemoteCars curve={curve} small={small} /></Suspense>}
       <Director curve={curve} forest={forest?.curve ?? null} sunRef={sunRef} mistRef={mistRef} fliesRef={fliesRef} />

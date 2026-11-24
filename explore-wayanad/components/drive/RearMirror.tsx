@@ -8,7 +8,7 @@ const SCALE = 0.75; // the mirror's resolution, of its box's size in device pixe
 
 /**
  * The rear-view mirror while you reverse (lib/mirror holds its camera and how much it shows). After the frame is drawn
- * (render priority 2, after ImpactFx), the view behind the car is rendered small into a target and drawn, flipped as a
+ * (render priority 2, after DriveFx), the view behind the car is rendered small into a target and drawn, flipped as a
  * mirror is and faded with `amount`, into the box the HUD leaves for it ([data-mirror]). The scene is rendered every
  * other frame (the box redraws every frame), shadows not updated for it. Idle cost: none.
  */

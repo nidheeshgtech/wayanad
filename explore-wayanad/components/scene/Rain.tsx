@@ -2,6 +2,7 @@
 import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { InstancedBufferAttribute, InstancedBufferGeometry, BufferAttribute, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
+import { duskness, nightness } from '@/lib/theme';
 import { weather } from '@/lib/weather';
 import { game } from '@/lib/game';
 
@@ -25,7 +26,7 @@ export default function Rain({ count = 2500, opacity = .4 }: { count?: number; o
     geo.instanceCount = count;
     const material = new ShaderMaterial({
       transparent: true, depthWrite: false,
-      uniforms: { time: { value: 0 }, eye: { value: new Vector3() }, rain: { value: 0 }, opacity: { value: opacity }, res: { value: new Vector2(1, 1) }, px: { value: 1.6 } },
+      uniforms: { time: { value: 0 }, eye: { value: new Vector3() }, rain: { value: 0 }, opacity: { value: opacity }, light: { value: 1 }, res: { value: new Vector2(1, 1) }, px: { value: 1.6 } },
       vertexShader: /* glsl */ `
         attribute vec4 seed; uniform float time, rain, px; uniform vec3 eye; uniform vec2 res; varying float vFade, vAlong;
         void main() {
@@ -44,10 +45,10 @@ export default function Rain({ count = 2500, opacity = .4 }: { count?: number; o
           vAlong = position.y;
         }`,
       fragmentShader: /* glsl */ `
-        uniform float rain, opacity; varying float vFade, vAlong;
+        uniform float rain, opacity, light; varying float vFade, vAlong;
         void main() {
           // brightest at the drop, fading up the streak behind it
-          gl_FragColor = vec4(0.72, 0.79, 0.85, opacity * min(1.4, rain * 1.15) * vFade * (1.0 - 0.75 * vAlong));
+          gl_FragColor = vec4(vec3(0.72, 0.79, 0.85) * light, opacity * min(1.4, rain * 1.15) * vFade * (1.0 - 0.75 * vAlong));
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
@@ -60,6 +61,7 @@ export default function Rain({ count = 2500, opacity = .4 }: { count?: number; o
     const u = (mesh.material as ShaderMaterial).uniforms;
     if (!game.paused) u.time.value += Math.min(dt, .1);
     u.eye.value.copy(camera.position); u.rain.value = weather.rain;
+    u.light.value = 1 - 0.4 * duskness() - 0.55 * nightness(); // (unlit streaks: after dark they'd shine brighter than the lamps)
     gl.getDrawingBufferSize(u.res.value); u.px.value = 1.6 * Math.max(1, gl.getPixelRatio()); // total width in device pixels: ~1.6 CSS px
     mesh.visible = weather.rain > .02;
     (mesh.geometry as InstancedBufferGeometry).instanceCount = Math.floor(count * Math.min(1, weather.rain / 1.1));
