@@ -58,6 +58,7 @@ import RemoteCars from "../drive/RemoteCars";
 import Coins from "../drive/Coins";
 import Snapshot from "../drive/Snapshot";
 import TeaStall from "../drive/TeaStall";
+import Jobs from "../drive/Jobs";
 import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
 import Vista from "../drive/Vista";
@@ -208,6 +209,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       {mode === "drive" && <Coins curve={curve} />}
       {mode === "drive" && <Snapshot />}
       {mode === "drive" && <TeaStall curve={curve} />}
+      {mode === "drive" && <Jobs curve={curve} />}
       {mode === "drive" && <Stops curve={curve} />}
       {mode === "drive" && <StopCrowds curve={curve} small={small} />}
       {mode === "drive" && <Vista curve={curve} />}

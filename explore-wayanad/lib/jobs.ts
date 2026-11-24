@@ -1,0 +1,112 @@
+/**
+ * Churam Jobs (data/jobs): stop in a job's circle past the Lakkidi gate and the errand starts; drive to the drop and stop
+ * in its circle to finish, before the clock (and, with a passenger, without too many hits). Pay goes into the wallet,
+ * rupees kept across climbs (localStorage). Plain mutable state like lib/game: the scene (components/drive/Jobs) steps
+ * it, the HUD (components/drive/JobHud) and the radar read it. Solo and open rooms only: never in a private room (net.party),
+ * where everyone drives the same race.
+ */
+import { JOBS, type Job } from "@/data/jobs";
+import { game } from "@/lib/game";
+import { score, announce } from "@/lib/score";
+import { net } from "@/lib/net";
+import { chime } from "@/lib/horn";
+import { haptic } from "@/lib/native";
+
+const WALLET = "wayanad-rupees";
+export const STOP = { reach: 0.8, still: 0.04, hold: 1.0 }; // within 8 m along the road, stopped for a second
+
+type Result = { job: Job; ok: boolean; line: string; at: number };
+const fresh = () => ({
+  run: -1,                         // the climb (score.run) the job list belongs to: each job once a climb
+  done: new Set<string>(),         // finished or failed this climb
+  active: null as null | { job: Job; left: number; crashes: number }, // seconds left on the clock (game.clock stops when you do; this doesn't)
+  intro: 0,                        // performance.now() the active job's card went up
+  result: null as null | Result,   // the last job's end, for the HUD's card
+  wait: 0,                         // seconds stopped in a circle
+  near: null as null | Job,        // a job's circle you're in or coming up to (HUD prompt)
+  rupees: 0, loaded: false,
+  paid: 0,                         // bumped on every payment (the HUD's wallet animates)
+});
+export const jobs: ReturnType<typeof fresh> = ((globalThis as { __wayanadJobs?: ReturnType<typeof fresh> }).__wayanadJobs ??= fresh());
+
+function load() {
+  if (jobs.loaded || typeof window === "undefined") return;
+  jobs.loaded = true;
+  try { jobs.rupees = Math.max(0, Number(localStorage.getItem(WALLET)) || 0); } catch {}
+}
+export function wallet() { load(); return jobs.rupees; }
+function pay(n: number) {
+  load(); jobs.rupees += n; jobs.paid++;
+  try { localStorage.setItem(WALLET, String(jobs.rupees)); } catch {}
+}
+
+/** Jobs run here: driving the main road (leg 0), past the gate, not in a private room. */
+export function jobsOn() {
+  return game.started && game.phase === "drive" && game.leg === 0 && !net.party && !game.foot.on;
+}
+
+/** Seconds the clock gives a job: the road between at its pace, and half a minute to get going. */
+export const allowed = (j: Job) => Math.round(((j.drop - j.pick) * 10) / j.pace + 30);
+
+/** Where the next marker is (road units), for the radar: the drop of the job you're on, else the nearest job ahead. */
+export function target(): number {
+  if (jobs.active) return jobs.active.job.drop;
+  let best = -1;
+  for (const j of JOBS) if (!jobs.done.has(j.id) && j.pick > game.s - 5 && (best < 0 || j.pick < best)) best = j.pick;
+  return best;
+}
+/** The circles to draw: the active job's drop, or every pickup still open. */
+export function markers(): { s: number; drop: boolean; job: Job }[] {
+  if (jobs.active) return [{ s: jobs.active.job.drop, drop: true, job: jobs.active.job }];
+  return JOBS.filter((j) => !jobs.done.has(j.id)).map((j) => ({ s: j.pick, drop: false, job: j }));
+}
+
+function end(ok: boolean, line: string) {
+  const a = jobs.active!;
+  jobs.done.add(a.job.id); jobs.active = null;
+  jobs.result = { job: a.job, ok, line, at: performance.now() };
+  if (ok) { pay(a.job.pay); announce(`+₹${a.job.pay}`, "big"); chime(true); haptic("success"); }
+  else { chime(false); haptic("warning"); }
+}
+
+/** Give up on the job you're on (the HUD's ✕). */
+export function cancelJob() {
+  if (!jobs.active) return;
+  end(false, "Saramilla, pinne nokkaam.");
+}
+
+/** Each frame (components/drive/Jobs). */
+export function stepJobs(dt: number) {
+  load();
+  if (jobs.run !== score.run) { jobs.run = score.run; jobs.done.clear(); jobs.active = null; jobs.wait = 0; } // a new climb
+  if (!jobsOn()) { jobs.near = null; jobs.wait = 0; return; }
+  if (game.paused) return;
+  const still = Math.abs(game.speed) < STOP.still;
+  const a = jobs.active;
+  if (a) {
+    jobs.near = null;
+    a.left -= Math.min(dt, 0.1);
+    if (a.job.kind === "passenger" && score.crashes - a.crashes > (a.job.crashes ?? 0)) { end(false, a.job.crashed ?? a.job.fail); return; }
+    if (a.left <= 0) { end(false, a.job.fail); return; }
+    const inCircle = Math.abs(game.s - a.job.drop) < STOP.reach;
+    jobs.wait = inCircle && still ? jobs.wait + Math.min(dt, 0.1) : 0;
+    if (jobs.wait >= STOP.hold) { jobs.wait = 0; end(true, a.job.done); }
+    return;
+  }
+  // no job: the nearest open circle ahead, or the one you're in
+  let near: Job | null = null;
+  for (const j of JOBS) {
+    if (jobs.done.has(j.id)) continue;
+    const d = j.pick - game.s;
+    if (d > -STOP.reach && d < 30 && (!near || j.pick < near.pick)) near = j;
+  }
+  jobs.near = near;
+  const inCircle = !!near && Math.abs(game.s - near.pick) < STOP.reach;
+  jobs.wait = inCircle && still ? jobs.wait + Math.min(dt, 0.1) : 0;
+  if (near && jobs.wait >= STOP.hold) {
+    jobs.wait = 0;
+    jobs.active = { job: near, left: allowed(near), crashes: score.crashes };
+    jobs.intro = performance.now(); jobs.result = null;
+    chime(true); haptic("medium");
+  }
+}

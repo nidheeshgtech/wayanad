@@ -39,6 +39,7 @@ import Drivers, { SafetyLinks } from "./Drivers";
 import { chase } from "@/lib/chase";
 import { PedalArt, SteerArt } from "./TouchKeys";
 import Gauge from "./Gauge";
+import JobHud, { Wallet } from "./JobHud";
 import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
 import { shareView } from "@/lib/shareCard";
@@ -471,6 +472,8 @@ export default function DriveHud() {
       </div>
       <div ref={streaks} className={styles.streaks} aria-hidden />
       <Gauge />
+      <JobHud />
+      <Wallet />
       <div ref={viewTag} className={styles.viewTag} role="status" aria-live="polite"><span>Camera</span><b /></div>
       <button ref={viewShare} type="button" className={styles.viewShare} hidden onClick={() => { if (vista.blob) void shareView(vista.blob, game.driver); vista.ended = 0; }}>
         <span aria-hidden>📸</span> Share the view

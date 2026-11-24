@@ -30,6 +30,10 @@
 .stall { circle { fill: #fbf6e6; stroke: #8a6a3a; stroke-width: 1.4; } path { fill: none; stroke: #5a3a16; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; } }
 .gate { circle { fill: #D9A441; stroke: #0e1f1a; stroke-width: 1.6; }
   &[data-edge] circle { stroke: #EEF2EE; } }
+// a Churam Job (lib/jobs): amber with the person's initials; the drop of the job you're on pulses
+.job { circle { fill: #D9A441; stroke: #0e1f1a; stroke-width: 1.6; } text { fill: #0e1f1a; font-size: 6px; font-weight: 700; }
+  &[data-drop] circle { animation: jobBeat 1s ease-in-out infinite; } &[data-edge] circle { stroke: #EEF2EE; } }
+@keyframes jobBeat { 50% { fill: #ffe08a; stroke-width: 3; } }
 .flagWhite { fill: #EEF2EE; }
 .flagDark { fill: #0e1f1a; }
 .other { circle { fill: #EEF2EE; stroke: #0e1f1a; stroke-width: 1.6; } text { fill: #0e1f1a; font-size: 7px; }

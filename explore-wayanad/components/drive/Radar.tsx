@@ -6,6 +6,7 @@ import { scrollState } from "@/lib/scrollState";
 import { game } from "@/lib/game";
 import { score } from "@/lib/score";
 import { net, remoteState, type Snap } from "@/lib/net";
+import { jobs, jobsOn, markers } from "@/lib/jobs";
 import styles from "./Radar.module.scss";
 
 /* The drive's minimap as a game radar: a round window on the real road (OSM, components/ui/MiniMap's data) centred on
@@ -43,6 +44,7 @@ export default function Radar() {
   const root = useRef<HTMLDivElement>(null), world = useRef<SVGGElement>(null), done = useRef<SVGPathElement>(null);
   const ring = useRef<SVGCircleElement>(null), north = useRef<SVGGElement>(null), km = useRef<SVGTextElement>(null);
   const bends = useRef<SVGGElement>(null), stall = useRef<SVGGElement>(null), gate = useRef<SVGGElement>(null), others = useRef<SVGGElement>(null);
+  const job = useRef<SVGGElement>(null);
 
   useEffect(() => {
     loadRoad()
@@ -61,7 +63,8 @@ export default function Radar() {
     };
     const tick = () => {
       const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
-      const visible = game.leg === 0 && scrollState.act === "churam" && scrollState.progress < 0.97 && game.roadLength > 0;
+      // the churam, and on past the gate to Kalpetta (Churam Jobs live there: lib/jobs); not over the finish at the gate
+      const visible = game.leg === 0 && game.roadLength > 0 && (scrollState.act !== "churam" || scrollState.progress < 0.97);
       if (visible !== shown && root.current) { shown = visible; root.current.toggleAttribute("data-on", visible); }
       if (!visible) return;
       const [cx, cy] = at(game.s);
@@ -91,7 +94,17 @@ export default function Radar() {
       const teaDone = game.teaRun === score.run || game.stall <= 0;
       if (teaDone) stall.current?.setAttribute("visibility", "hidden");
       else { const [sx, sy] = at(game.stall); place(stall.current, sx, sy, false); }
-      place(gate.current, map.arch[0], map.arch[1], true);
+      if (game.s > scrollState.arch * game.roadLength + 5) gate.current?.setAttribute("visibility", "hidden"); // behind you now
+      else place(gate.current, map.arch[0], map.arch[1], true);
+      // the next job (lib/jobs): the drop of the one you're on, else the nearest open pickup ahead; pinned to the rim
+      const next = !jobsOn() ? null : jobs.active ? { s: jobs.active.job.drop, job: jobs.active.job, drop: true }
+        : markers().filter((m) => m.s > game.s - 5).sort((a, b) => a.s - b.s)[0] ?? null;
+      if (!next) job.current?.setAttribute("visibility", "hidden");
+      else {
+        const [jx, jy] = at(next.s); place(job.current, jx, jy, true);
+        job.current?.toggleAttribute("data-drop", next.drop);
+        const tx = job.current?.lastElementChild; if (tx && tx.textContent !== next.job.initials) tx.textContent = next.job.initials;
+      }
       // the others in your room, pinned to the rim when they're far up or down the road
       const os = others.current?.children;
       if (os) {
@@ -151,6 +164,7 @@ export default function Radar() {
         <g ref={others}>
           {Array.from({ length: OTHERS }, (_, i) => <g key={i} className={styles.other} visibility="hidden"><circle r={6} /><text y={0.4} /></g>)}
         </g>
+        <g ref={job} className={styles.job} visibility="hidden"><circle r={8} /><text y={0.4} /></g>
         <g ref={gate} className={styles.gate} visibility="hidden">
           <circle r={8.5} />
           <g transform="translate(-4.5 -3.4)">
