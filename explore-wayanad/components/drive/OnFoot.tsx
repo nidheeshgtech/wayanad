@@ -166,7 +166,7 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
           W.yaw += Math.atan2(Math.sin(W.away - W.yaw), Math.cos(W.away - W.yaw)) * Math.min(1, dt * 4);
           W.x += Math.sin(W.yaw) * 0.13 * dt; W.z += Math.cos(W.yaw) * 0.13 * dt;
           const here = place(W.x, W.z, W.s); W.s = here.s; W.y = here.y;
-          const act = a.play("walk", 0.25); if (act) act.timeScale = 0.13 / 0.115;
+          const act = a.play("walk", 0.25); if (act) act.timeScale = 0.13 / a.pace("walk");
         }
         a.root.position.set(W.x, W.y, W.z); a.root.rotation.set(0, W.yaw, 0);
         a.mixer.update(dt); settleHands(a);
@@ -254,7 +254,7 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
         const k = Math.min(1, (PACE.walk * dt) / d); F.x += dx * k; F.z += dz * k;
         const here = place(F.x, F.z, st.s); st.s = here.s; st.y = here.y;
       }
-      const act = A.play("walk", 0.15); if (act) act.timeScale = PACE.walk / 0.115;
+      const act = A.play("walk", 0.15); if (act) act.timeScale = PACE.walk / A.pace("walk");
       if (d <= 0.004 || P.t > 1.1) {
         st.step = null;
         if (P.into) { F.on = false; holder.visible = false; return; }
@@ -278,10 +278,10 @@ export default function OnFoot({ curve, driver }: { curve: CatmullRomCurve3; dri
         && !railing && !blocked(next.s, next.lat, F.s, F.lat);
       if (ok) { F.x = nx; F.z = nz; st.s = next.s; st.y = next.y; st.moved += Math.abs(v) * dt; }
     } else { const here = place(F.x, F.z, st.s); st.s = here.s; st.y = here.y; } // (standing: kept on the ground wherever they are)
-    // the step matched to the pace (the clips cover ~1.15 m/s walking, ~4.5 m/s running); backwards, the walk reversed
+    // the step matched to the pace (each person's own stride in the clips: lib/people pace); backwards, the walk reversed
     if (!stepping) { // (the automatic steps played and placed them already)
       const act = A.play(running ? "run" : v !== 0 ? "walk" : "idle", 0.2);
-      if (act) act.timeScale = running ? v / 0.45 : v !== 0 ? v / 0.115 : 1;
+      if (act) act.timeScale = running ? v / A.pace("run") : v !== 0 ? v / A.pace("walk") : 1;
       A.mixer.update(dt); settleHands(A);
       holder.position.set(F.x, st.y, F.z); holder.rotation.set(0, F.yaw, 0);
     }

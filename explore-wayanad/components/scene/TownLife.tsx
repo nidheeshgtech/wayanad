@@ -498,8 +498,11 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
         const u = light === "red" ? Math.min(1, Math.max(0, (redT - delay) / (9 - 2.2))) : 1;
         a.root.position.copy(from).lerp(to, u);
         const moving = light === "red" && u > 0 && u < 1, move: Move = moving ? "walk" : "idle";
-        a.root.rotation.y = light === "red" ? Math.atan2(to.x - from.x, to.z - from.z) : Math.atan2(from.x - to.x, from.z - to.z);
-        if (S.was.get(sp) !== move) { a.play(move, 0.25); S.was.set(sp, move); }
+        // facing the way across while it's red, back the way they came while they wait (turning, not snapped round)
+        const face = light === "red" ? Math.atan2(to.x - from.x, to.z - from.z) : Math.atan2(from.x - to.x, from.z - to.z);
+        a.root.rotation.y += Math.atan2(Math.sin(face - a.root.rotation.y), Math.cos(face - a.root.rotation.y)) * Math.min(1, dt * 4);
+        const act = a.play(move, 0.25); S.was.set(sp, move);
+        if (act && moving) act.timeScale = Math.min(1.8, from.distanceTo(to) / (9 - 2.2) / a.pace("walk")); else if (act) act.timeScale = 1;
       }
       if (wanted && d < NEAR.move) { a.mixer.update(dt); settleHands(a); }
     }

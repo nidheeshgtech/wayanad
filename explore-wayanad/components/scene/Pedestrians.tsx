@@ -82,9 +82,14 @@ type Person = {
   down?: number; fall?: number;
   /** startled by your horn: seconds left of the jump aside (they hop away from the road, arms up), and how far over */
   startle?: number; aside?: number;
+  /** at the end of their stretch (or blocked): seconds left standing there; they turn round partway through */
+  pause?: number;
   /** who they are up close (data/drivers.ts: the cast walks the road too), and the 3D body they have while near */
   cast: PersonId; actor?: Actor | null; lo?: boolean;
 };
+/** Turning round: standing at the end of the stretch this long (s, plus up to 1.5 more), turning when `at` s are left;
+ * stopped by the car in the way, this long. */
+const TURN = { end: 1.4, at: 0.8, blocked: 1.0 };
 /** The horn: people up to `ahead` units in front of the car (and a little behind) within `side` of it hop aside. */
 const STARTLE = { ahead: 3.2, behind: 0.4, side: 0.9, time: 0.7, hop: 0.012, step: 0.045 };
 
@@ -240,6 +245,9 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
         a = makeActor(p.cast, src[0], src[1], personHeight(p.cast) / 10); madeOne = true; C.group.add(a.root);
       }
       a.root.visible = true; a.root.userData.snap = true; a.play(p.speed > 0 ? "walk" : "idle", 0); a.mixer.setTime(p.phase % 4);
+      // a pace their legs can keep: near the walk's own speed for this person (a man's stride in the shared walk is a
+      // slower stroll than a woman's), so the steps match the ground going by
+      if (p.speed > 0) { const own = a.pace("walk") * p.scale; p.speed = Math.min(own * 1.25, Math.max(own * 0.85, p.speed)); }
       C.out.set(k, (C.out.get(k) ?? 0) + 1); p.actor = a; p.lo = lo;
       return a;
     };
@@ -268,13 +276,15 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       else if ((p.aside ?? 0) > 0) p.aside = Math.max(0, p.aside! - dt / 6);
       const jumping = p.startle! > 0, hop = jumping ? Math.sin(Math.PI * (1 - p.startle! / STARTLE.time)) : 0;
       // walk the stretch, turning round at either end
-      if (p.speed > 0 && dt > 0 && !over) {
+      if (p.speed > 0 && dt > 0 && !over && (p.pause ?? 0) > 0) { p.pause = Math.max(0, p.pause! - dt); p.phase += dt * 0.6; }
+      else if (p.speed > 0 && dt > 0 && !over) {
         p.s += p.dir * p.speed * dt; p.phase += p.speed * dt * 62;
-        // the car pulled onto the shoulder in their way: they turn round
+        // the car pulled onto the shoulder in their way: they stop, turn round, and go back
         if (game.started && game.leg === 0 && Math.abs(p.s - game.s) < CAR.halfL + BODY && Math.abs(latOf(p, built.length) - game.lat) < CAR.halfW + BODY) {
-          p.s -= p.dir * p.speed * dt; p.dir = p.dir === 1 ? -1 : 1;
+          p.s -= p.dir * p.speed * dt; p.dir = p.dir === 1 ? -1 : 1; p.pause = TURN.blocked;
         }
-        if (p.s > p.to) { p.s = p.to; p.dir = -1; } else if (p.s < p.from) { p.s = p.from; p.dir = 1; }
+        // the end of their stretch: a moment standing, then round and back (not spun round mid-stride)
+        if (p.s > p.to) { p.s = p.to; p.dir = -1; p.pause = TURN.end + (p.phase % 1) * 1.5; } else if (p.s < p.from) { p.s = p.from; p.dir = 1; p.pause = TURN.end + (p.phase % 1) * 1.5; }
       } else p.phase += dt * 0.6;
       // well out of view last time: look again only every dozen frames (they walk on meanwhile)
       if (p.skip > 0) { p.skip--; if (p.actor) letGo(p); continue; }
@@ -282,9 +292,11 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
       const d = p.lane + roadShapeAt(t).widen + STARTLE.step * (p.aside ?? 0), x = c.x + left.x * p.side * d, z = c.z + left.z * p.side * d;
       const far2 = (x - camera.position.x) ** 2 + (z - camera.position.z) ** 2;
       if (far2 > view * view) { if (p.actor) letGo(p); if (far2 > (view + 10) ** 2) p.skip = 12; continue; }
-      const walking = p.speed > 0 && !over && !jumping, step = Math.sin(p.phase);
-      // startled: they turn to face the road (the noise) as they hop back
-      const yaw = jumping ? Math.atan2(-left.x * p.side, -left.z * p.side) : walking ? Math.atan2(tan.x * p.dir, tan.z * p.dir) : p.yaw;
+      const paused = (p.pause ?? 0) > 0, walking = p.speed > 0 && !over && !jumping && !paused, step = Math.sin(p.phase);
+      // startled: they turn to face the road (the noise) as they hop back; stopped at an end, they face the way they
+      // came for a moment, then turn (standing) to go back
+      const facing = paused && p.pause! > TURN.at ? -p.dir : p.dir;
+      const yaw = jumping ? Math.atan2(-left.x * p.side, -left.z * p.side) : walking || (paused && p.speed > 0) ? Math.atan2(tan.x * facing, tan.z * facing) : p.yaw;
       T.pos.set(x, height(x, z) + (walking ? Math.abs(step) * 0.0025 : 0) + hop * STARTLE.hop, z);
       T.q.setFromAxisAngle(T.up, yaw);
       // over onto the shoulder, away from the road: tipped about the road's line at their feet
@@ -297,9 +309,9 @@ export default function Pedestrians({ curve, small }: { curve: CatmullRomCurve3;
         // turning round at the end of their stretch (or to face your horn) takes a moment, not a frame
         near.root.position.copy(T.pos); near.root.scale.setScalar(p.scale);
         if (near.root.userData.snap || dt === 0) { near.root.quaternion.copy(T.q); near.root.userData.snap = false; }
-        else near.root.quaternion.slerp(T.q, 1 - Math.exp(-dt / (over ? 0.05 : 0.22)));
+        else near.root.quaternion.slerp(T.q, 1 - Math.exp(-dt / (over ? 0.05 : paused ? 0.3 : 0.22)));
         const act = near.play(walking ? "walk" : "idle");
-        if (act) act.timeScale = walking ? p.speed / 0.115 : 1;
+        if (act) act.timeScale = walking ? p.speed / (near.pace("walk") * p.scale) : 1;
         near.mixer.update(dt); settleHands(near);
         continue;
       }

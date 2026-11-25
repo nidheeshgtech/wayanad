@@ -8,7 +8,7 @@
  *    all the people share the same rig (bone names), so a clip made on one plays on any. Only rotations are kept, and the
  *    hips' height is carried across in proportion, so a short person doesn't float or sink in someone else's walk.
  */
-import { AnimationClip, AnimationMixer, Box3, Group, Matrix4, Quaternion, Vector3, VectorKeyframeTrack, type AnimationAction, type Bone, type Object3D, type SkinnedMesh, type Sphere } from "three";
+import { AnimationClip, AnimationMixer, Box3, Group, Matrix4, Quaternion, QuaternionKeyframeTrack, Vector3, VectorKeyframeTrack, type AnimationAction, type Bone, type KeyframeTrack, type Object3D, type SkinnedMesh, type Sphere } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
@@ -34,8 +34,84 @@ export function loadDriver(id: PersonId, lo = false) {
   return p;
 }
 export function loadMoves() {
-  return (moves ??= loader.loadAsync("/models/drivers/moves.glb").then((g) => new Map(g.animations.map((a) => [a.name, a]))));
+  return (moves ??= loader.loadAsync("/models/drivers/moves.glb").then((g) => {
+    const map = new Map(g.animations.map((a) => [a.name, a]));
+    sourceRest.set(map, restPose(g.scene)); // (the rig the clips were made on, at rest: see retarget)
+    return map;
+  }));
 }
+
+/* Retargeting. Every person was rigged on their own, so the same bone can rest at a different angle in each (most
+ * within a few degrees of the rig the moves were made on; a few far off: the grandmother's and the student's heads are
+ * turned right round in their rest, the mechanic's neck tipped, the feet anywhere from flat to steeply pointed). Copying
+ * a clip's rotations bone for bone then bends those parts wrong: heads thrown back or facing behind, feet twisted. So
+ * each clip is carried across in the rig's own space instead: every bone turned, from its rest, by the same rotation
+ * the clip turns the source rig's bone from its rest. A person whose bones rest like the source's gets the clip as it
+ * was; one whose rest differs gets the same movement. */
+type Rest = { order: string[]; parent: Map<string, string | null>; local: Map<string, Quaternion>; world: Map<string, Quaternion>; at: Map<string, Vector3> };
+const sourceRest = new WeakMap<Map<string, AnimationClip>, Rest>();
+const isBone = (o: Object3D) => (o as { isBone?: boolean }).isBone === true || /^(Hips|Spine|neck|Head|Left|Right)/.test(o.name);
+/** A rig's bones at rest: parents first, each one's local and rig-space rotation (the armature's own turn left out). */
+function restPose(scene: Object3D): Rest {
+  const order: string[] = [], parent = new Map<string, string | null>(), local = new Map<string, Quaternion>(), world = new Map<string, Quaternion>(), at = new Map<string, Vector3>();
+  const walk = (o: Object3D, up: string | null, upW: Quaternion, upP: Vector3) => {
+    let next = up, nextW = upW, nextP = upP;
+    if (isBone(o) && o.name && !parent.has(o.name)) {
+      const q = o.quaternion.clone(), w = upW.clone().multiply(q), p = up ? o.position.clone().applyQuaternion(upW).add(upP) : new Vector3();
+      order.push(o.name); parent.set(o.name, up); local.set(o.name, q); world.set(o.name, w); at.set(o.name, p);
+      next = o.name; nextW = w; nextP = p;
+    }
+    for (const c of o.children) walk(c, next, nextW, nextP);
+  };
+  walk(scene, null, new Quaternion(), new Vector3());
+  return { order, parent, local, world, at };
+}
+/** `clip` (made on the `from` rig) re-expressed for the `to` rig (see above). Hips' position track is passed through. */
+function retarget(clip: AnimationClip, from: Rest, to: Rest, keep: (t: KeyframeTrack) => boolean): KeyframeTrack[] {
+  const rotOf = new Map<string, KeyframeTrack>(), others: KeyframeTrack[] = [];
+  for (const t of clip.tracks) { const m = /^(.*)\.quaternion$/.exec(t.name); if (m) rotOf.set(m[1], t); else others.push(t); }
+  const times = [...new Set([...rotOf.values()].flatMap((t) => Array.from(t.times)))].sort((a, b) => a - b);
+  const sample = new Map<string, { at: (t: number) => Float32Array | number[] }>();
+  for (const [name, t] of rotOf) { const ip = t.createInterpolant(); sample.set(name, { at: (x) => ip.evaluate(x) as Float32Array }); }
+  const bones = to.order.filter((n) => from.parent.has(n)), out = new Map<string, number[]>();
+  // the target's rest, each bone first turned to point where the source's does at rest (a T-posed arm brought down to
+  // the source's A-pose, a pointed foot flattened like the source's), keeping its own roll about its length
+  const aim = new Map<string, Quaternion>();
+  for (const n of bones) {
+    const kids = from.order.filter((c) => from.parent.get(c) === n && to.parent.get(c) === n);
+    const kid = n === "Hips" ? null : kids.find((c) => c === "neck") ?? (kids.length === 1 ? kids[0] : null);
+    const T = to.world.get(n)!;
+    if (!kid) { aim.set(n, T); continue; }
+    const dS = from.at.get(kid)!.clone().sub(from.at.get(n)!).normalize(), dT = to.at.get(kid)!.clone().sub(to.at.get(n)!).normalize();
+    aim.set(n, new Quaternion().setFromUnitVectors(dT, dS).multiply(T));
+  }
+  bones.forEach((n) => out.set(n, []));
+  const A = new Map<string, Quaternion>(), B = new Map<string, Quaternion>(), q = new Quaternion(), inv = new Quaternion(), prev = new Map<string, Quaternion>();
+  for (const x of times) {
+    // the source rig posed at x (rig space), then each target bone given the same turn from its rest
+    for (const n of from.order) {
+      const s = sample.get(n), lq = s ? q.fromArray(s.at(x) as number[]).normalize() : from.local.get(n)!;
+      const up = from.parent.get(n), Aw = (up ? A.get(up)!.clone() : new Quaternion()).multiply(lq);
+      A.set(n, Aw);
+    }
+    for (const n of to.order) {
+      const up = to.parent.get(n), Bup = up ? B.get(up)! : new Quaternion();
+      let Bw: Quaternion;
+      if (from.parent.has(n)) { inv.copy(from.world.get(n)!).invert(); Bw = A.get(n)!.clone().multiply(inv).multiply(aim.get(n)!); }
+      else Bw = Bup.clone().multiply(to.local.get(n)!);
+      B.set(n, Bw);
+      if (!out.has(n)) continue;
+      const l = Bup.clone().invert().multiply(Bw).normalize(), p = prev.get(n);
+      if (p && p.dot(l) < 0) l.set(-l.x, -l.y, -l.z, -l.w); // (the short way round, for smooth interpolation)
+      prev.set(n, l); out.get(n)!.push(l.x, l.y, l.z, l.w);
+    }
+  }
+  const tracks: KeyframeTrack[] = [];
+  for (const [n, v] of out) { const t = new QuaternionKeyframeTrack(`${n}.quaternion`, times, v); if (keep(t)) tracks.push(t); }
+  return [...tracks, ...others.filter(keep)];
+}
+/** Each model's clips, fitted once (per model file and clip). */
+const fittedBy = new WeakMap<Object3D, Map<string, AnimationClip>>();
 /** Both, ready to make actors from (the same promise each time, so React's `use` can wait on it). */
 const casts = new Map<string, Promise<[{ scene: Object3D; clips: AnimationClip[] }, Map<string, AnimationClip>]>>();
 export function loadCast(id: PersonId, lo = false) {
@@ -55,7 +131,12 @@ export type Actor = {
   /** the hips' place in `root`'s frame in the current pose, after a mixer update */ hips: () => Vector3;
   /** each hand's shape, measured from the model (see handShape): null if the model has no skinned hands */
   palms: { left: HandShape; right: HandShape } | null;
+  /** how fast this person goes over the ground walking or running at the clip's own speed (units/s, at root scale 1):
+   * set the action's timeScale to (speed / pace) and the feet stay planted instead of sliding */
+  pace: (move: "walk" | "run") => number;
 };
+/** Ground speed per unit of height, per model file and move (see Actor.pace). */
+const paces = new WeakMap<Object3D, Map<string, number>>();
 
 const fits = new WeakMap<Object3D, { yaw: number; box: Box3; spheres: Sphere[] }>();
 /** A hand as modelled, in its bone's own frame: `dir` wrist → middle of the hand (where the fingers point), `palm` the
@@ -155,29 +236,38 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   // the shared clips, fitted to this person: rotations as they are; the hips' track moved to their own hips' rest
   const hipsBone = bones.get("Hips"), rest = hipsBone ? hipsBone.position.clone() : new Vector3();
   const woman = isWomanPerson(id), fitted = new Map<Move, AnimationClip>();
+  const source = sourceRest.get(clips), target = restPose(src.scene);
+  let byModel = fittedBy.get(src.scene); if (!byModel) { byModel = new Map(); fittedBy.set(src.scene, byModel); }
   const fitClip = (name: string, sex: "m" | "f") => {
+    const key = `${name}:${sex}`, hit = byModel!.get(key); if (hit) return hit;
     const clip = clips.get(name); if (!clip) return null;
     const from = SOURCE_HIPS[sex], s = rest.y / from.y;
     // (not the hands: each person was rigged on their own, so their hand bones rest at different angles, 5–33° apart,
     // and another rig's wrist rotations bent theirs back like pushing on a wall. Left out, a hand stays in line with its
     // forearm as modelled.)
-    const tracks = clip.tracks.filter((t) => !/(Left|Right)Hand\.quaternion$/.test(t.name)).map((t) => {
+    const keep = (t: KeyframeTrack) => !/(Left|Right)Hand\.quaternion$/.test(t.name);
+    const tracks = (source ? retarget(clip, source, target, keep) : clip.tracks.filter(keep)).map((t) => {
       if (!t.name.endsWith("Hips.position")) return t;
       const v = t.values.slice();
       for (let i = 0; i < v.length; i += 3) { v[i] = rest.x + (v[i] - from.x) * s; v[i + 1] = rest.y + (v[i + 1] - from.y) * s; v[i + 2] = rest.z + (v[i + 2] - from.z) * s; }
       return new VectorKeyframeTrack(t.name, t.times, v);
     });
-    return new AnimationClip(`${name}:${id}`, clip.duration, tracks);
+    const made = new AnimationClip(`${name}:${id}`, clip.duration, tracks);
+    byModel!.set(key, made); return made;
   };
   const own = src.clips[0];
   if (own) fitted.set("idle", own);
-  const walk = fitClip(woman ? "walk_f" : "walk_m", woman ? "f" : "m"), sit = fitClip(woman ? "sit_f" : "sit_m", woman ? "f" : "m");
-  const run = fitClip(woman ? "run_f" : "run_m", woman ? "f" : "m");
-  if (walk) fitted.set("walk", walk); if (sit) fitted.set("sit", sit); if (run) fitted.set("run", run);
-  for (const g of GESTURES) { const c = fitClip(g, "m"); if (c) fitted.set(g, c); }
+  // each move fitted the first time it's wanted (a few milliseconds each, once per model file: not all at once)
+  const sexed = woman ? "f" : "m";
+  const clipFor = (move: Move): AnimationClip | null => {
+    if (fitted.has(move)) return fitted.get(move)!;
+    const made = move === "walk" || move === "sit" || move === "run" ? fitClip(`${move}_${sexed}`, sexed) : move === "idle" ? null : fitClip(move, "m");
+    if (made) fitted.set(move, made);
+    return made;
+  };
   let current: AnimationAction | null = null;
   const play = (move: Move, fade = 0.25) => {
-    const clip = fitted.get(move); if (!clip) return null;
+    const clip = clipFor(move); if (!clip) return null;
     const next = mixer.clipAction(clip);
     if (next === current) { if (!next.isRunning()) next.reset().play(); return next; } // (stopped, e.g. by stopAllAction: start again)
     next.reset().play();
@@ -186,7 +276,32 @@ export function makeActor(id: PersonId, src: { scene: Object3D; clips: Animation
   };
   play("idle", 0);
   const hips = () => { root.updateMatrixWorld(true); return hipsBone ? root.worldToLocal(hipsBone.getWorldPosition(new Vector3())) : new Vector3(0, height * 0.5, 0); };
-  return { root, mixer, bones, play, hips, palms };
+  // the clip's own ground speed: whichever foot is lower is the planted one, and it goes back under the body at the
+  // speed the body goes forward (measured once per model, on a mixer of its own, then the pose put back)
+  let byPace = paces.get(src.scene); if (!byPace) { byPace = new Map(); paces.set(src.scene, byPace); }
+  const pace = (move: "walk" | "run") => {
+    const hit = byPace!.get(move); if (hit !== undefined) return hit * height;
+    const clip = clipFor(move), L = bones.get("LeftFoot"), R = bones.get("RightFoot");
+    let k = (move === "run" ? 0.45 : 0.115) / height; // (the old guess, if it can't be measured)
+    if (clip && L && R) {
+      const tmp = new AnimationMixer(body), act = tmp.clipAction(clip); act.play();
+      const save = { p: root.position.clone(), q: root.quaternion.clone(), s: root.scale.clone() }; root.position.set(0, 0, 0); root.quaternion.identity(); root.scale.setScalar(1);
+      const n = 60, sp: number[] = [], a = new Vector3(), b = new Vector3(); let last: [number, number, number, number] | null = null;
+      for (let i = 0; i <= n; i++) {
+        const t = (i / n) * clip.duration; tmp.setTime(t); root.updateMatrixWorld(true);
+        L.getWorldPosition(a); R.getWorldPosition(b);
+        const now: [number, number, number, number] = [a.y, a.z, b.y, b.z];
+        if (last) { const left = now[0] < now[2], dz = left ? now[1] - last[1] : now[3] - last[3]; sp.push(-dz / (clip.duration / n)); }
+        last = now;
+      }
+      tmp.stopAllAction(); tmp.uncacheRoot(body);
+      root.position.copy(save.p); root.quaternion.copy(save.q); root.scale.copy(save.s); mixer.update(0);
+      sp.sort((x, y) => x - y); const med = sp[Math.floor(sp.length / 2)];
+      if (med > 0.01 * height) k = med / height;
+    }
+    byPace!.set(move, k); return k * height;
+  };
+  return { root, mixer, bones, play, hips, palms, pace };
 }
 
 const qa = new Quaternion(), qb = new Quaternion(), va = new Vector3(), vb = new Vector3(), vc = new Vector3(), vd = new Vector3();
