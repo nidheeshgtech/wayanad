@@ -44,6 +44,19 @@ function strip(curve: CatmullRomCurve3, a: number, b: number, lift: number, uvAl
   if ((g.attributes.normal.getY(0) ?? 1) < 0) { idx.reverse(); g.setIndex(idx); g.computeVertexNormals(); }
   return g;
 }
+/** A patch of the street's surface from s0 to s1 along and `a` to `b` across, `lift` over it (it follows the street's rise
+ * and fall, so a lamp's pool doesn't dip under the asphalt on a slope), uv 0–1 each way. */
+function patch(curve: CatmullRomCurve3, s0: number, s1: number, a: number, b: number, lift: number, steps = 6) {
+  const L = curve.getLength(), pos: number[] = [], uv: number[] = [], idx: number[] = [], p = new Vector3(), t = new Vector3();
+  for (let i = 0; i <= steps; i++) {
+    const u = Math.min(1, Math.max(0, (s0 + ((s1 - s0) * i) / steps) / L)); curve.getPointAt(u, p); curve.getTangentAt(u, t); t.setY(0).normalize();
+    const lx = t.z, lz = -t.x, y = p.y - 0.588 + lift;
+    pos.push(p.x + lx * a, y, p.z + lz * a, p.x + lx * b, y, p.z + lz * b); uv.push(0, i / steps, 1, i / steps);
+    if (i) { const k = (i - 1) * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+  }
+  const g = new BufferGeometry(); g.setAttribute("position", new Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+  return g;
+}
 /** A vertical face along the street at `a` across, from `top` (over the surface) down `drop`. */
 function wall(curve: CatmullRomCurve3, a: number, top: number, drop: number, step = 0.25) {
   const L = curve.getLength(), n = Math.ceil(L / step), pos: number[] = [], idx: number[] = [], p = new Vector3(), t = new Vector3();
@@ -102,7 +115,7 @@ export default function Streets({ curve }: { curve: CatmullRomCurve3 }) {
     const poles: BufferGeometry[] = [], heads: BufferGeometry[] = [], pools: BufferGeometry[] = [];
     const tint = (g: BufferGeometry, c: Color) => { const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute("color", new Float32BufferAttribute(a, 3)); return g; };
     let n = 0;
-    for (const st of list) for (let s = 1.5; s < st.length - 1; s += 2.4) {
+    for (const st of list) for (let s = 5; s < st.length - 4.5; s += 2.4) { // (none at the mouths: their glow in the highway's wet asphalt would end in a hard edge at the street)
       const side = n % 2 ? 1 : -1, c = LAMP_COLOURS[(n + 1) % LAMP_COLOURS.length]; n++;
       const p = st.curve.getPointAt(s / st.length), t = st.curve.getTangentAt(s / st.length).setY(0).normalize(), lx = t.z, lz = -t.x, y = p.y - 0.588 + K, yaw = Math.atan2(t.x, t.z);
       const at = new Vector3(p.x + lx * side * (P - 0.05), y, p.z + lz * side * (P - 0.05));
@@ -110,7 +123,7 @@ export default function Streets({ curve }: { curve: CatmullRomCurve3 }) {
       const arm = new Vector3(p.x + lx * side * (P - 0.2), y, p.z + lz * side * (P - 0.2));
       poles.push(new BoxGeometry(0.15, 0.008, 0.008).rotateY(yaw + Math.PI / 2).translate((at.x + arm.x) / 2, y + 0.68, (at.z + arm.z) / 2));
       heads.push(tint(new BoxGeometry(0.06, 0.012, 0.028).rotateY(yaw + Math.PI / 2).translate(arm.x, y + 0.672, arm.z), c));
-      pools.push(tint(new PlaneGeometry(0.9, 1.1).rotateX(-Math.PI / 2).rotateY(yaw).translate(p.x + lx * side * 0.1, p.y - 0.588 + 0.006, p.z + lz * side * 0.1), c));
+      pools.push(tint(patch(st.curve, s - 0.55, s + 0.55, side * 0.1 - 0.45, side * 0.1 + 0.45, 0.006), c));
       lights.push({ x: arm.x, y: y + 0.672, z: arm.z, color: c, power: 1 });
     }
     root.add(new Mesh(mergeGeometries(poles), new MeshStandardMaterial({ color: 0x8e8c86, roughness: 0.7 })));

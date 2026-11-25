@@ -134,7 +134,7 @@ function paint(st: Station) {
   for (const s of [-1, 1]) box(g, 0.02, h, 0.6, wall, s * w * 0.45, h / 2, z);
   box(g, w * 0.92, 0.03, 0.65, M(0x8a8f94, { metal: 0.4, rough: 0.5 }), 0, h + 0.015, z);
   box(g, 0.5, 0.3, 0.35, M(0xd6d9dc, { rough: 0.4 }), -w * 0.2, 0.15, z + 0.05);
-  box(g, 0.48, 0.2, 0.005, M(0x223038, { glow: 0xffffff }), -w * 0.2, 0.18, z - 0.125);
+  box(g, 0.48, 0.2, 0.005, M(0x223038, { glow: 0x5a6878 }), -w * 0.2, 0.18, z - 0.125); // (the booth's window, softly lit: white glared into a blob at night)
   const sw = board("swatches", 256, 128, (x) => { ["#ff2d95", "#2f6bff", "#a8ff3e", "#2af0ff", "#9a4dff", "#b3191f", "#141518", "#f1f1ec", "#2e6b3f"].forEach((c, i) => { x.fillStyle = c; x.fillRect(8 + (i % 5) * 50, 8 + Math.floor(i / 5) * 60, 42, 52); }); });
   sign(g, 0.3, 0.15, sw, w * 0.25, 0.2, z + 0.28);
   const b = board("paint", 512, 96, (x, W, H) => {
