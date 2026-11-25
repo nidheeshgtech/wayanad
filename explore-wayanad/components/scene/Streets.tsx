@@ -6,7 +6,7 @@ import {
   MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Vector3,
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { STREET, streets } from "@/lib/streets";
+import { STREET, roadOf, streets } from "@/lib/streets";
 import { height } from "@/lib/terrain";
 import { LAMP_COLOURS, setLights } from "@/lib/neon";
 import { duskness, nightness } from "@/lib/theme";
@@ -151,7 +151,7 @@ export default function Streets({ curve }: { curve: CatmullRomCurve3 }) {
     return { root, lights, asphalt, head, pool };
   }, [curve]);
 
-  useEffect(() => { setLights("streets", built.lights); return () => setLights("streets", []); }, [built]);
+  useEffect(() => { const key = `streets-${roadOf(curve)}`; setLights(key, built.lights); return () => setLights(key, []); }, [built, curve]);
   useFrame(() => {
     const k = Math.max(nightness(), 0.45 * duskness());
     if (built.head) built.head.emissiveIntensity = 0.2 + 7 * k;

@@ -9,7 +9,7 @@ import { useFrame } from "@react-three/fiber";
 import { Box3, BoxGeometry, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, Vector3, type Object3D } from "three";
 import { loadVehicle } from "@/lib/vehicleAssets";
 import { VEHICLES, vehiclePose } from "@/lib/traffic";
-import { streets, STREET } from "@/lib/streets";
+import { legRoad, roadOf, streets, STREET } from "@/lib/streets";
 import { SECTION, roadShapeAt } from "@/lib/terrain";
 import { addRider } from "@/lib/carModel";
 import { hasOccupants, occupantMaterial, occupantsFor } from "@/lib/occupants";
@@ -22,7 +22,7 @@ const PILLION = ["#c2185b", "#e0a526", "#6a3d9a", "#1f8a70"]; // (a saree or a c
 const SEE = 30; // units: drawn within this of the camera
 const lamp = new BoxGeometry(0.03, 0.02, 0.006);
 const streetWiden = () => STREET.half - SECTION.half;
-const mainWiden = (t: number) => roadShapeAt(t).widen;
+const mainWiden = (t: number) => roadShapeAt(t).widen, flat = () => 0; // (the forest road: no widening)
 const crateMat = new MeshStandardMaterial({ color: 0x1f6fd1, roughness: 0.55 });
 const fishMat = new MeshStandardMaterial({ color: 0xb9c4cc, roughness: 0.3, metalness: 0.4 });
 
@@ -41,7 +41,7 @@ function riders(model: Object3D, v: StreetCar) {
 
 export default function StreetTraffic({ curve, small }: { curve: CatmullRomCurve3; small: boolean }) {
   const built = useMemo(() => {
-    const list = streets(curve), fleets = makeStreetFleets(list, small), root = new Group(); root.name = "street-traffic";
+    const road = roadOf(curve), list = streets(curve), fleets = makeStreetFleets(list, small, road), root = new Group(); root.name = "street-traffic";
     const bulb = new MeshStandardMaterial({ color: 0xffefce, emissive: 0xffdca0, emissiveIntensity: 0 });
     const objs = fleets.map((fleet) => fleet.map((v) => {
       const g = new Group(), tilt = new Group(); g.add(tilt); g.visible = false; root.add(g);
@@ -57,13 +57,13 @@ export default function StreetTraffic({ curve, small }: { curve: CatmullRomCurve
     // where they come from and go to on the highway (for "is anyone looking")
     const L = curve.getLength(), at = (s: number) => curve.getPointAt(Math.min(1, Math.max(0, s / L)));
     const ends = list.map((st) => [at(st.from - RUN), at(st.to + RUN)] as const);
-    return { list, fleets, root, objs, bulb, ends };
+    return { list, fleets, root, objs, bulb, ends, road };
   }, [curve, small]);
 
   // the models (the traffic's own, sized to their spec as Traffic sizes them)
   useEffect(() => {
     let gone = false;
-    Object.assign(streetTraffic, { built: built.list, fleets: built.fleets });
+    streetTraffic.by[built.road] = { built: built.list, fleets: built.fleets };
     built.fleets.forEach((fleet, i) => fleet.forEach((v, j) => {
       const spec = VEHICLES[v.kind];
       void loadVehicle(`/models/traffic/${spec.name}.glb`, { merged: true }).then((src) => {
@@ -78,21 +78,21 @@ export default function StreetTraffic({ curve, small }: { curve: CatmullRomCurve
         built.objs[i][j].tilt.add(model);
       }, () => {});
     }));
-    return () => { gone = true; streetTraffic.built = null; streetTraffic.fleets = []; };
+    return () => { gone = true; streetTraffic.by[built.road] = { built: null, fleets: [] }; };
   }, [built, small]);
 
   useFrame(({ camera }, dt) => {
     const cam = camera.position;
-    if (!game.paused) stepStreetTraffic(dt, (i, end) => built.ends[i][end].distanceTo(cam) > 8);
+    if (!game.paused) stepStreetTraffic(dt, (i, end) => built.ends[i][end].distanceTo(cam) > 8, built.road);
     built.bulb.emissiveIntensity = duskness() * 0.8 + nightness() * 1.6;
     built.fleets.forEach((fleet, i) => {
       const st = built.list[i];
       fleet.forEach((v, j) => {
         const { g, tilt } = built.objs[i][j];
-        if (v.off || game.leg !== 0) { g.visible = false; return; }
+        if (v.off || legRoad() !== built.road) { g.visible = false; return; }
         // on the street, or on the highway before or after it
         const off = v.distance < 0 || v.distance > st.length;
-        const pose = off ? vehiclePose(curve, { ...v, distance: mainOf(st, v.distance) }, mainWiden) : vehiclePose(st.curve, v, streetWiden);
+        const pose = off ? vehiclePose(curve, { ...v, distance: mainOf(st, v.distance) }, built.road === "forest" ? flat : mainWiden) : vehiclePose(st.curve, v, streetWiden);
         g.visible = pose.position.distanceTo(cam) < SEE;
         if (!g.visible) return;
         g.position.copy(pose.position); g.quaternion.copy(pose.rotation);

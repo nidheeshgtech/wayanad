@@ -8,7 +8,7 @@
  * or service. Pure and deterministic; cached per road curve. Scene units (1 = 10 m).
  */
 import { CatmullRomCurve3, Vector3 } from "three";
-import { SECTION, height, latLonToWorld, placesT, roadDistance, roadShapeAt } from "@/lib/terrain";
+import { SECTION, forestRoad, height, latLonToWorld, placesT, roadDistance, roadShapeAt } from "@/lib/terrain";
 import { townData } from "@/lib/towns";
 import { STREET, streetDistance, streets } from "@/lib/streets";
 import { townClear } from "@/lib/townLife";
@@ -59,8 +59,8 @@ export function townLots(curve: CatmullRomCurve3, road: "churam" | "forest", pla
     return false;
   };
   // kept clear: the side streets (lib/streets) and the town's places (lib/townLife: the pumps, the bus stand…)
-  const keep = road === "churam" ? townClear(curve) : [];
-  const blocked = (c: Vector3, rad: number) => road === "churam" && (streetDistance(curve, c.x, c.z) < STREET.path + rad * 0.85 + 0.05 || keep.some((k) => Math.hypot(k.at.x - c.x, k.at.z - c.z) < k.radius + rad * 0.7));
+  const keep = townClear(curve);
+  const blocked = (c: Vector3, rad: number) => (streetDistance(curve, c.x, c.z) < STREET.path + rad * 0.85 + 0.05 || keep.some((k) => Math.hypot(k.at.x - c.x, k.at.z - c.z) < k.radius + rad * 0.7));
   const add = (lot: Lot) => { if (blocked(lot.centre, lot.radius)) return; lots.push(lot); const k = key(lot.centre.x, lot.centre.z); (grid.get(k) ?? grid.set(k, []).get(k)!).push(lot); };
   const pois: { x: number; z: number; use: string }[] = [];
   const finish = (ring: { x: number; z: number }[], floors: number, kind: Lot["kind"], use: string, colour: number, town: string) => {
@@ -130,14 +130,15 @@ export function townLots(curve: CatmullRomCurve3, road: "churam" | "forest", pla
 const streetCache = new WeakMap<CatmullRomCurve3, Lot[]>();
 export function streetLots(main: CatmullRomCurve3): Lot[] {
   const hit = streetCache.get(main); if (hit) return hit;
-  const out: Lot[] = [], r = rng(2024), others = townLots(main, "churam", placesOf(main)), keep = townClear(main);
+  const f = forestRoad(), forest = f?.curve === main;
+  const out: Lot[] = [], r = rng(2024), others = forest ? townLots(main, "forest", f!.places) : townLots(main, "churam", placesOf(main)), keep = townClear(main);
   const free = (c: Vector3, rad: number) => roadDistance(c.x, c.z) > SECTION.shoulder + rad * 0.9 + 0.1
     && !others.some((o) => Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.8)
     && !out.some((o) => Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.75)
     && !keep.some((k) => Math.hypot(k.at.x - c.x, k.at.z - c.z) < k.radius + rad * 0.7);
   for (const st of streets(main)) {
     // each in its own town's build: Kalpetta's packed concrete blocks, Vythiri's and Chundale's lower and more spaced
-    const town = st.id === "vythiri" ? "Vythiri" : st.id === "chundale" ? "Chundale" : "Kalpetta", f = FILL[town], small = town !== "Kalpetta";
+    const town = st.id === "vythiri" ? "Vythiri" : st.id === "chundale" ? "Chundale" : st.id === "bathery" ? "Sulthan Bathery" : "Kalpetta", fill = FILL[town], small = town === "Vythiri" || town === "Chundale";
     const L = st.length;
     for (const side of [1, -1] as const) {
       for (let s = 1.2; s < L - 1.2;) {
@@ -153,7 +154,7 @@ export function streetLots(main: CatmullRomCurve3): Lot[] {
         if (area(ring) < 0) ring.reverse();
         const floors = small ? [1, 2, 2, 2, 3][Math.floor(r() * 5)] : [2, 2, 3, 3, 3, 4][Math.floor(r() * 6)];
         c.y = Math.min(height(front.x, front.z), p.y - 0.588);
-        out.push({ ring, y: c.y, floors, kind: floors === 2 && r() < 0.2 ? "house" : "shop", use: "", colour: f.walls[Math.floor(r() * f.walls.length)], toRoad: { x: -fwd.x, z: -fwd.z }, centre: c, radius, town, street: true });
+        out.push({ ring, y: c.y, floors, kind: floors === 2 && r() < 0.2 ? "house" : "shop", use: "", colour: fill.walls[Math.floor(r() * fill.walls.length)], toRoad: { x: -fwd.x, z: -fwd.z }, centre: c, radius, town, street: true });
       }
     }
   }

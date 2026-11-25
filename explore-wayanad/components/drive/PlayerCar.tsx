@@ -8,8 +8,8 @@ import {
 import { CAR, game, setVehicle, type View } from "@/lib/game";
 import { collideRemotes, net } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
-import { mainRoom, projectMain, street, streets, switchRoads } from "@/lib/streets";
-import { collideOnMain, streetTraffic } from "@/lib/streetTraffic";
+import { legRoad, mainRoom, projectMain, street, streets, switchRoads } from "@/lib/streets";
+import { collideOnMain, fleetsOf } from "@/lib/streetTraffic";
 import { stationRoom, town } from "@/lib/townLife";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
 import { collidePeople } from "@/components/scene/Pedestrians";
@@ -155,9 +155,10 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   const roads = useMemo<RoadInfo[]>(() => [
     // (opening at the side streets' mouths and the petrol pumps' forecourts: lib/streets, lib/townLife)
     { curve, length: curve.getLength(), widen: (t: number) => roadShapeAt(t).widen, room: (s: number, side: number) => Math.max(mainRoom(curve, s, side), stationRoom(s, side)) },
-    ...(forest ? [{ curve: forest, length: forest.getLength(), widen: () => 0 }] : []),
+    ...(forest ? [{ curve: forest, length: forest.getLength(), widen: () => 0, room: (s: number, side: number) => Math.max(mainRoom(forest, s, side), stationRoom(s, side, "forest")) }] : []),
   ], [curve, forest]);
-  const streetRoads = useMemo(() => streets(curve).map((st) => st.info), [curve]);
+  // each leg's side streets as roads (lib/streets), by game.street
+  const streetRoads = useMemo(() => [streets(curve).map((st) => st.info), forest ? streets(forest).map((st) => st.info) : []], [curve, forest]);
 
   const [respray, setRespray] = useState<string | null>(town.paint); // the paint garage's colour this drive (lib/townLife)
   const rig = useMemo(() => {
@@ -384,25 +385,27 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && !!net.party && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
       // on a side street (lib/streets): the physics runs in the street's own coordinates, then back to the main road's
-      const SR = game.leg === 0 && game.street >= 0 ? streetRoads[game.street] : null;
+      const legCurve = game.leg === 1 && forest ? forest : curve, legStreets = streetRoads[game.leg] ?? [];
+      const SR = game.street >= 0 ? legStreets[game.street] ?? null : null;
       if (SR) { Object.assign(game, { s: street.s, lat: street.lat, psi: street.psi }); game.prev = { ...street.prev }; }
       alpha = simulate(SR ?? road, dt);
       if (SR) { Object.assign(street, { s: game.s, lat: game.lat, psi: game.psi }); street.prev = { ...game.prev }; }
-      if (game.leg === 0 && switchRoads(curve)) settle();
+      if ((game.leg === 0 || forest) && switchRoads(legCurve)) settle();
       if (game.leg === 0) { scoreDrive(dt, game.s, game.speed); tickBadges(dt, weather.rain, nightness(), game.speed); } // points for new road, the clean-driving streak, time in rain / dark
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
       // on a side street its own traffic (lib/streetTraffic), in the street's coordinates; else the highway's
-      const onSt = game.leg === 0 && game.street >= 0 && !!streetTraffic.fleets[game.street];
-      if (game.leg === 0 && (onSt || (game.street < 0 && trafficControl.curve === curve))) {
+      const fleets = fleetsOf(legRoad()), onSt = game.street >= 0 && !!fleets[game.street] && !!SR;
+      if (onSt || (game.street < 0 && (game.leg === 1 ? !!forest : trafficControl.curve === curve))) {
         const at = onSt ? street : game;
         const p = { s: at.s, lat: at.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: at.psi };
-        const knock = onSt ? collidePlayer(streetTraffic.fleets[game.street], streets(curve)[game.street].curve, streetRoads[game.street].widen, p)
-          : Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p), collideOnMain(curve, road.widen, p));
+        const knock = onSt ? collidePlayer(fleets[game.street], SR!.curve, SR!.widen, p)
+          : game.leg === 1 ? collideOnMain(legCurve, road.widen, p, "forest")
+          : Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p), collideOnMain(curve, road.widen, p, "churam"));
         // someone knocked over on the shoulder: a jolt, the streak lost and points off, and a word
-        if (!onSt && collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }
+        if (!onSt && game.leg === 0 && collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }
         if (p.s !== at.s) { at.s = p.s; at.prev.s = p.s; }
         if (p.lat !== at.lat) { at.lat = p.lat; at.prev.lat = p.lat; at.psi = p.psi; }
-        if (onSt) projectMain(curve);
+        if (onSt) projectMain(legCurve);
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
         // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
         // round a vehicle you're touching stays quiet), again only if it gets clearly harder
@@ -441,7 +444,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
 
     // drawn between the last two physics steps
     // (on a street the car is drawn on it, in its coordinates; the act, the places and the km stay the main road's)
-    const onSt = game.leg === 0 && game.street >= 0 && !!streetRoads[game.street], R = onSt ? streetRoads[game.street] : road, at = onSt ? street : game;
+    const legSt = streetRoads[game.leg]?.[game.street], onSt = game.street >= 0 && !!legSt, R = onSt ? legSt! : road, at = onSt ? street : game;
     const s = at.prev.s + (at.s - at.prev.s) * alpha, lat = at.prev.lat + (at.lat - at.prev.lat) * alpha, psi = at.prev.psi + (at.psi - at.prev.psi) * alpha;
     const ms = onSt ? game.s : s, L = road.length, t = Math.min(1, ms / L), RL = R.length, rt = Math.min(1, s / RL);
     game.roadLength = L;

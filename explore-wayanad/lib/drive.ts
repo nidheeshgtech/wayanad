@@ -85,6 +85,8 @@ export const FOREST_ROUTE = { muthanga: 0.68, stop: 0.99, length: 0 }; // (lengt
  * that road: Bathery town, just short of Muthanga town (12.9 km of 20.3), 1 km before the border gate. Only with one of
  * these does drive mode fetch the forest road at all. */
 export const FOREST_STARTS = { bathery: 0.002, muthanga: 0.6, border: 0.94 } as const;
+/** Drive mode asks for the forest road (DriveHud: at Kalpetta, driving on to Sulthan Bathery); Scene loads it. */
+export const forestAsk = { want: false };
 export function forestStart(): keyof typeof FOREST_STARTS | null {
   if (typeof location === "undefined") return null;
   const at = new URLSearchParams(location.search).get("at");

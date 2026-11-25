@@ -147,7 +147,7 @@ export function townPlan(curve: CatmullRomCurve3) {
     place(gate + b.at * 0.1 + w / 2, b.side, w, b.kind, b.kind === "temple" ? SECTION.half + 0.45 : SETBACK[0] + ((i * 0.37) % 1) * (SETBACK[1] - SETBACK[0]));
   });
   for (const lot of townLots(curve, road, places)) out.push({ side: 1, w: lot.radius * 2, kind: lot.kind === "house" ? "house" : "shop", at: lot.centre, y: lot.y, rotation: 0, radius: lot.radius + 0.25, floors: lot.floors });
-  if (road === "churam") {
+  {
     // the side streets' buildings, the streets themselves and the town's places (lib/streets, lib/townLife): no trees
     // or rocks on them (only for keeping clear: these entries aren't drawn from here)
     for (const lot of streetLots(curve)) out.push({ side: 1, w: lot.radius * 2, kind: "shop", at: lot.centre, y: lot.y, rotation: 0, radius: lot.radius + 0.25, floors: lot.floors });
@@ -249,7 +249,7 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
     // the towns: per town, walls and the rest as two merged meshes (townKit)
     const byTown = new Map<string, Lot[]>(); for (const lot of lots) (byTown.get(lot.town) ?? byTown.set(lot.town, []).get(lot.town)!).push(lot);
     let seed = 17; for (const [, list] of byTown) for (const m of buildTown(list, seed++ * 7919, height)) g.add(m);
-    if (road === "churam") { const along = streetLots(curve); if (along.length) for (const m of buildTown(along, 4242, height)) g.add(m); } // (the side streets')
+    { const along = streetLots(curve); if (along.length) for (const m of buildTown(along, 4242, height)) g.add(m); } // (the side streets')
     for (const b of townPlan(curve).slice(0, road === "churam" ? PLAN.length : 0)) { // Lakkidi's few, each its own
       const obj = b.kind === "temple" ? temple(b.w) : b.kind === "shed" ? shed(b.w) : b.kind === "teal" ? teal(b.w) : building(r, b.w, b.kind === "shop", b.floors);
       obj.position.set(b.at.x, b.y, b.at.z);

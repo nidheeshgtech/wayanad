@@ -12,17 +12,26 @@
 import { CatmullRomCurve3, Vector3 } from "three";
 import { MathUtils } from "three";
 import { game } from "@/lib/game";
-import { SECTION, buildRoadCurve, height, placesT, setGroundHook } from "@/lib/terrain";
+import { SECTION, buildRoadCurve, forestRoad, height, placesT, setGroundHook } from "@/lib/terrain";
 import type { RoadInfo } from "@/lib/carPhysics";
 
-export type StreetDef = { id: string; name: string; ml: string; side: 1 | -1; from: number; to: number; offset: number; R: number };
+/** Which road: the drive from Adivaram (leg 0), or the forest road from Sulthan Bathery to the border (leg 1). */
+export type Road = "churam" | "forest";
+export const roadOf = (curve: CatmullRomCurve3): Road => (curve === forestRoad()?.curve ? "forest" : "churam");
+/** The road you're driving. */
+export const legRoad = (): Road => (game.leg === 1 ? "forest" : "churam");
+export type StreetDef = { id: string; road?: Road; name: string; ml: string; side: 1 | -1; from: number; to: number; offset: number; R: number };
 /* (Vythiri's and Chundale's on straight runs of the road through the town, s from public/terrain/churam-road.json's
  * places: Vythiri 1822, Chundale 2196) */
 export const STREETS: StreetDef[] = [
   { id: "vythiri", name: "Vythiri Market Road", ml: "മാർക്കറ്റ് റോഡ്", side: -1, from: 1798, to: 1828, offset: 4.5, R: 7 },
   { id: "chundale", name: "Chundale Junction Road", ml: "ജംഗ്ഷൻ റോഡ്", side: -1, from: 2170, to: 2198, offset: 4.5, R: 7 },
   { id: "bazaar", name: "Kalpetta Bazaar Road", ml: "ബസാർ റോഡ്", side: -1, from: 2740, to: 2782, offset: 5.5, R: 9 },
+  // Sulthan Bathery, on the forest road (its s from 0 at the town's west end; a straight run past the bus stand)
+  { id: "bathery", road: "forest", name: "Bathery Market Road", ml: "മാർക്കറ്റ് റോഡ്", side: -1, from: 40, to: 60, offset: 4, R: 6 },
 ];
+/** The streets off one road, in the order its street indexes (game.street) count them. */
+export const streetDefs = (road: Road) => STREETS.filter((d) => (d.road ?? "churam") === road);
 /** The street's asphalt half-width (6.4 m: narrower than the highway), and its footpaths' outer edge. */
 export const STREET = { half: 0.32, path: 0.5, lift: 0.035 };
 
@@ -51,7 +60,7 @@ export function streets(main: CatmullRomCurve3): Street[] {
 }
 function build(main: CatmullRomCurve3): Street[] {
   const L = main.getLength(), out: Street[] = [];
-  for (const d of STREETS) {
+  for (const d of streetDefs(roadOf(main))) {
     if (d.to > L - 1) continue;
     const pts: Vector3[] = [], ms: number[] = [], offs: number[] = [];
     const raw: { p: Vector3; ground: number; bed: number; o: number; s: number }[] = [];
@@ -145,7 +154,7 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
  * the car changed roads (the caller settles the physics and the camera follows on).
  */
 export function switchRoads(main: CatmullRomCurve3): boolean {
-  if (game.leg !== 0) { if (game.street >= 0) game.street = -1; return false; }
+  if (roadOf(main) !== legRoad()) return false; // (this road isn't the one you're on)
   const L = main.getLength(), list = streets(main);
   if (game.street < 0) {
     for (let i = 0; i < list.length; i++) {
@@ -207,7 +216,7 @@ function nearestStreet(list: Street[], x: number, z: number) {
  * the natural ground over a few metres: the terrain, the road band, the buildings and the plants all see it. */
 setGroundHook((x, z, y) => {
   if (building || !placesT().length) return y; // (only on the real road)
-  const list = streets(buildRoadCurve()); if (!list.length) return y;
+  const f = forestRoad(), list = f ? [...streets(buildRoadCurve()), ...streets(f.curve)] : streets(buildRoadCurve()); if (!list.length) return y;
   const near = nearestStreet(list, x, z); if (near.d > STREET.path + 0.8) return y;
   const k = 1 - MathUtils.smoothstep(near.d, STREET.path + 0.05, STREET.path + 0.8);
   return y + (near.y - 0.008 - y) * k;

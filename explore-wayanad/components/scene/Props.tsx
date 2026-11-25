@@ -70,7 +70,7 @@ export default function Props({ curve, density = 1, towns = true }: { curve: Cat
           const d = k.zone[0] + (k.zone[1] - k.zone[0]) * random() ** 1.5;
           const x = p.x + side.x * d, z = p.z + side.z * d;
           if (roadDistance(x, z) < k.zone[0]) continue;
-          if (towns && onStreetGround(curve, x, z, 0.2)) continue; // a side street (lib/streets)
+          if (onStreetGround(curve, x, z, 0.2)) continue; // a side street (lib/streets)
           if (towns && t > townFrom && inTown(x, z, plan)) continue; // no boulders on Lakkidi's buildings
           // `size` is the scale applied to the scan (in metres), in scene units: e.g. 0.2 → the 30 cm stone becomes 60 cm
           const s = k.size[0] + (k.size[1] - k.size[0]) * random() ** 2;

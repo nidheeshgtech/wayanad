@@ -15,23 +15,33 @@ import { announce } from "@/lib/score";
 import { chime } from "@/lib/horn";
 import { haptic } from "@/lib/native";
 import { chaseOn, chase, wanted } from "@/lib/chase";
-import { STREETS, onStreet, street } from "@/lib/streets";
+import { onStreet, legRoad, roadOf, street, streetDefs, type Road } from "@/lib/streets";
 
 export type StationKind = "pump" | "wash" | "paint";
-export type Station = { id: string; kind: StationKind; s: number; side: 1 | -1; town: string; name: string; price: number };
+export type Station = { id: string; kind: StationKind; s: number; side: 1 | -1; town: string; name: string; price: number; road?: Road };
 /** The places you can pull into. `s` is the bay's middle. */
 export const STATIONS: Station[] = [
   { id: "pump-vythiri", kind: "pump", s: 1850, side: 1, town: "Vythiri", name: "Vythiri Fuels", price: 50 },
   { id: "paint-chundale", kind: "paint", s: 2215, side: 1, town: "Chundale", name: "Colour Garage", price: 150 },
   { id: "wash-kalpetta", kind: "wash", s: 2730, side: 1, town: "Kalpetta", name: "Splash Car Wash", price: 40 },
   { id: "pump-kalpetta", kind: "pump", s: 2744, side: 1, town: "Kalpetta", name: "Kalpetta Fuels", price: 50 },
+  { id: "pump-bathery", kind: "pump", s: 9.5, side: 1, town: "Sulthan Bathery", name: "Bathery Fuels", price: 50, road: "forest" },
 ];
+/** The places on one road. */
+export const stationsOn = (road: Road) => STATIONS.filter((st) => (st.road ?? "churam") === road);
 export const STATION_ICON: Record<StationKind, string> = { pump: "⛽", wash: "🚿", paint: "🎨" };
 /** The bay: this far either way along the road (units), on its side of the centre line past `lat`. */
 export const BAY = { reach: 0.7, lat: 0.12, still: 0.04, hold: 0.8, size: { w: 1.6, d: 1.3 } };
 
-/** Kalpetta's town centre (units along the road). */
-export const KALPETTA = {
+/** A town centre (units along its road): the signal and crossing, the bus stand and the shelter across, the autos, the
+ * traffic police, the carts. */
+export type Centre = {
+  name: string; road: Road; signal: number; busStand: { s: number; side: 1; w: number; d: number }; shelter: { s: number; side: -1 };
+  autoStand: { s: number; side: -1 }; police: { s: number; side: -1 }; carts: { s: number; side: 1 | -1 }[];
+};
+/** Kalpetta's town centre. */
+export const KALPETTA: Centre = {
+  name: "Kalpetta", road: "churam",
   signal: 2758,                      // the pedestrian crossing in front of the bus stand, with its signal
   busStand: { s: 2768, side: 1 as const, w: 1.5, d: 1.25 },
   shelter: { s: 2768, side: -1 as const }, // the bus shelter across the road, for the buses coming down
@@ -39,6 +49,17 @@ export const KALPETTA = {
   police: { s: 2738.5, side: -1 as const }, // the traffic police on his podium at the junction (lib/streets: the bazaar street)
   carts: [{ s: 2735, side: -1 as const }, { s: 2762, side: -1 as const }, { s: 2779, side: 1 as const }],
 };
+/** Sulthan Bathery's, where the forest road starts (s from the town's west end; the drive on starts at s ≈ 4). */
+export const BATHERY: Centre = {
+  name: "Sulthan Bathery", road: "forest",
+  signal: 16,
+  busStand: { s: 25, side: 1, w: 1.5, d: 1.25 },
+  shelter: { s: 25, side: -1 },
+  autoStand: { s: 20.5, side: -1 },
+  police: { s: 14.2, side: -1 },
+  carts: [{ s: 12, side: 1 }, { s: 30, side: -1 }, { s: 35, side: 1 }],
+};
+export const centreOf = (road: Road) => (road === "forest" ? BATHERY : KALPETTA);
 /** The signal's cycle (s): green for the road, amber, then red while the people cross. */
 export const CYCLE = { green: 16, amber: 3, red: 9 };
 
@@ -46,7 +67,7 @@ export const CYCLE = { green: 16, amber: 3, red: 9 };
  * `from` and `to` along the street, and the thattukada, open day and night, where you pull up for a chaya and pazham
  * pori and your nitro's topped up. s along the street (its own coordinates); `side` +1 is the street's left. */
 export const MARKET = { street: "bazaar", from: 12, to: 33, chaya: { s: 22, side: 1 as const, price: 30, nitro: 0.4, reach: 0.7 } };
-const marketStreet = () => STREETS.findIndex((d) => d.id === MARKET.street);
+const marketStreet = () => (legRoad() === "churam" ? streetDefs("churam").findIndex((d) => d.id === MARKET.street) : -2);
 
 const fresh = () => ({
   stall: 0, stallUsed: false,             // seconds stopped at the thattukada; served this stop
@@ -65,14 +86,14 @@ const fresh = () => ({
 export const town: ReturnType<typeof fresh> = ((globalThis as { __wayanadTown?: ReturnType<typeof fresh> }).__wayanadTown ??= fresh());
 
 /** The forecourts: the main road's edge opens this much (units) on a place's side, easing in and out along it. */
-export function stationRoom(s: number, side: number) {
+export function stationRoom(s: number, side: number, road: Road = "churam") {
   let room = 0;
-  for (const st of STATIONS) if (side === st.side) room = Math.max(room, 0.3 * Math.min(1, Math.max(0, (1.2 - Math.abs(s - st.s)) / 0.5)));
+  for (const st of stationsOn(road)) if (side === st.side) room = Math.max(room, 0.3 * Math.min(1, Math.max(0, (1.2 - Math.abs(s - st.s)) / 0.5)));
   return room;
 }
 
-/** The places run here: driving the main road (leg 0), not in a private room's race. */
-export const townOn = () => game.started && game.phase === "drive" && game.leg === 0 && !net.party && !game.foot.on && !onStreet();
+/** The places run here: driving a main road (either leg), not in a private room's race. */
+export const townOn = () => game.started && game.phase === "drive" && !net.party && !game.foot.on && !onStreet();
 
 /** Each frame (TownLife): the signal, and the places. */
 export function stepTown(dt: number) {
@@ -83,17 +104,18 @@ export function stepTown(dt: number) {
   town.light = town.t < CYCLE.green ? "green" : town.t < CYCLE.green + CYCLE.amber ? "amber" : "red";
   // through the crossing on red, going up the road: the police take note
   const s = game.s, last = town.lastS; town.lastS = s;
-  if (game.leg === 0 && game.started && game.phase === "drive" && !onStreet() && last > 0 && s - last < 2 && game.speed > 0.25) {
-    const line = KALPETTA.signal - 0.35;
+  const C = centreOf(legRoad());
+  if (game.started && game.phase === "drive" && !onStreet() && last > 0 && s - last < 2 && game.speed > 0.25) {
+    const line = C.signal - 0.35;
     if (last < line && s >= line && town.light === "red") {
-      if (chaseOn()) wanted("Red light, Kalpetta", { stars: 1, add: chase.stars > 0 ? 1 : 0 });
+      if (chaseOn() && game.leg === 0) wanted(`Red light, ${C.name}`, { stars: 1, add: chase.stars > 0 ? 1 : 0 });
       else announce("🚦 Red light!", "loss");
     }
   }
   stepStall(dt);
   if (!townOn()) { town.near = null; town.wait = 0; return; }
   let near: Station | null = null;
-  for (const st of STATIONS) { const d = st.s - s; if (d > -BAY.reach && d < 25 && (!near || st.s < near.s)) near = st; }
+  for (const st of stationsOn(legRoad())) { const d = st.s - s; if (d > -BAY.reach && d < 25 && (!near || st.s < near.s)) near = st; }
   town.near = near;
   const inBay = !!near && Math.abs(s - near.s) < BAY.reach && game.lat * near.side > BAY.lat;
   if (!inBay) { town.used.clear(); town.wait = 0; if (town.painting && !near) town.painting = false; return; }
@@ -175,31 +197,32 @@ export function frameAt(curve: CatmullRomCurve3, s: number) {
 /** Ground kept clear of the towns' buildings and trees for the places (Town's lots, Vegetation via townPlan): centre
  * and radius (units). */
 export function townClear(curve: CatmullRomCurve3): { at: Vector3; radius: number }[] {
-  const out: { at: Vector3; radius: number }[] = [];
+  const out: { at: Vector3; radius: number }[] = [], road = roadOf(curve), K = centreOf(road);
   const add = (s: number, side: 1 | -1, off: number, radius: number) => { const f = frameAt(curve, s); out.push({ at: f.p.clone().addScaledVector(f.left, side * off), radius }); };
-  for (const st of STATIONS) add(st.s, st.side, 0.4 + 0.15 + BAY.size.d / 2, 0.95);
-  add(KALPETTA.busStand.s, 1, 0.55 + KALPETTA.busStand.d / 2, 0.95);
-  add(KALPETTA.busStand.s - 0.55, 1, 0.55 + KALPETTA.busStand.d / 2, 0.7);
-  add(KALPETTA.busStand.s + 0.55, 1, 0.55 + KALPETTA.busStand.d / 2, 0.7);
-  add(KALPETTA.shelter.s, -1, 0.62, 0.3);
-  add(KALPETTA.autoStand.s, -1, 0.7, 0.45);
-  for (const c of KALPETTA.carts) add(c.s, c.side, 0.58, 0.15);
+  for (const st of stationsOn(road)) add(st.s, st.side, 0.4 + 0.15 + BAY.size.d / 2, 0.95);
+  add(K.busStand.s, 1, 0.55 + K.busStand.d / 2, 0.95);
+  add(K.busStand.s - 0.55, 1, 0.55 + K.busStand.d / 2, 0.7);
+  add(K.busStand.s + 0.55, 1, 0.55 + K.busStand.d / 2, 0.7);
+  add(K.shelter.s, -1, 0.62, 0.3);
+  add(K.autoStand.s, -1, 0.7, 0.45);
+  for (const c of K.carts) add(c.s, c.side, 0.58, 0.15);
   return out;
 }
 
 /** The HUD's word (DriveHud's note line): a place coming up, the signal on red, a side street's mouth, or on one. */
 export function townNote(): string {
-  if (!game.started || game.phase !== "drive" || game.leg !== 0) return "";
+  if (!game.started || game.phase !== "drive") return "";
+  const defs = streetDefs(legRoad()), C = centreOf(legRoad());
   if (onStreet()) {
     if (chase.stars > 0) return "🚓 They can't follow you down here · keep going!";
     const toStall = MARKET.chaya.s - street.s;
     if (game.street === marketStreet() && toStall > -MARKET.chaya.reach && toStall < 8) return town.stallUsed ? "☕ Chaya kudichu! Nitro topped up" : `☕ Thattukada on the left · stop for a chaya + pazham pori · nitro +${Math.round(MARKET.chaya.nitro * 100)}% · ₹${MARKET.chaya.price}`;
-    return `${STREETS[game.street]?.name ?? "Side street"} · one way`;
+    return `${defs[game.street]?.name ?? "Side street"} · one way`;
   }
   const s = game.s, n = town.near;
   if (n && n.s - s < 12 && townOn()) return `${STATION_ICON[n.kind]} ${n.name} · stop in the bay for ${n.kind === "pump" ? "a full nitro" : n.kind === "wash" ? "a wash, dents out" : "a new colour"} · ₹${n.price}`;
-  const toSignal = KALPETTA.signal - 0.4 - s;
+  const toSignal = C.signal - 0.4 - s;
   if (toSignal > 0 && toSignal < 10 && town.light !== "green") return town.light === "red" ? "🚦 Red light · stop at the line" : "🚦 Amber · slow down";
-  for (const st of STREETS) if (s > st.from - 10 && s < st.from + 2) return `↘ ${st.name} on the ${st.side > 0 ? "left" : "right"} · one way${chase.stars > 0 ? " · lose the police there!" : ""}`;
+  for (const st of defs) if (s > st.from - 10 && s < st.from + 2) return `↘ ${st.name} on the ${st.side > 0 ? "left" : "right"} · one way${chase.stars > 0 ? " · lose the police there!" : ""}`;
   return "";
 }

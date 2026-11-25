@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } from "@/lib/game";
 import { primeImpact } from "@/lib/impact";
-import { FOREST_ROUTE, FOREST_STARTS, forestStart } from "@/lib/drive";
+import { FOREST_ROUTE, FOREST_STARTS, forestAsk, forestStart } from "@/lib/drive";
 import { beep, chime, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
@@ -104,7 +104,7 @@ function cycleView() {
 }
 /** Back to Adivaram: the whole drive from the start. */
 function restart() {
-  Object.assign(game, { leg: 0, phase: "drive", odometer: 0, clock: 0, paused: false, jumped: false });
+  Object.assign(game, { leg: 0, street: -1, phase: "drive", odometer: 0, clock: 0, paused: false, jumped: false });
   resetCar(3);
   begin(game.s); startRun();
 }
@@ -455,6 +455,17 @@ export default function DriveHud() {
     if (nav.share) { try { await nav.share({ title: "Explore Wayanad", text: "Drive the Thamarassery Churam with me:", url }); return; } catch (e) { if ((e as DOMException).name === "AbortError") return; } }
     try { await navigator.clipboard.writeText(url); setInvited("Link copied"); setTimeout(() => setInvited(""), 2500); } catch {}
   };
+  // at Kalpetta: on to Sulthan Bathery and the forest road (it loads now, if it hasn't; a few seconds)
+  const [onward, setOnward] = useState("");
+  const driveOn = () => {
+    forestAsk.want = true; setOnward("Loading the road…"); mark("drive-on");
+    const go = (tries: number) => {
+      if (!FOREST_ROUTE.length) { if (tries > 0) setTimeout(() => go(tries - 1), 250); else setOnward(""); return; }
+      game.street = -1; game.leg = 1; resetCar(FOREST_STARTS.bathery * FOREST_ROUTE.length);
+      game.phase = "drive"; game.paused = false; setOnward("");
+    };
+    go(240);
+  };
   // the share card (lib/shareCard): your climb as a picture for WhatsApp or a story
   const [sharing, setSharing] = useState("");
   const shareScore = async () => {
@@ -709,9 +720,10 @@ export default function DriveHud() {
             <div><span>Distance</span><b>{((game.odometer * 10) / 1000).toFixed(1)} km</b></div>
           </div>
           {game.climbed === score.run && summary.current.recorded && <p className={styles.tally}>Churam climb {clock(summary.current.sec)} · {summary.current.points.toLocaleString("en-IN")} at the gate</p>}
-          <p>Adivaram to Kalpetta, 28 km. The road on to Sulthan Bathery and the forest to the border opens in a coming update: follow us on Instagram to see it first.</p>
+          <p>Adivaram to Kalpetta, 28 km. Drive on from Sulthan Bathery, through the Muthanga forest to the Karnataka border.</p>
           <div className={styles.row}>
-            <button type="button" className={styles.go} onClick={() => void shareScore()} disabled={sharing === "Making your card…"} autoFocus>{sharing || "Share my score"}</button>
+            <button type="button" className={styles.go} onClick={driveOn} disabled={!!onward} autoFocus>{onward || "Drive on to Sulthan Bathery →"}</button>
+            <button type="button" className={styles.ghostButton} onClick={() => void shareScore()} disabled={sharing === "Making your card…"}>{sharing || "Share my score"}</button>
             <a className={styles.ghostButton} href={INSTAGRAM.url} target="_blank" rel="noopener noreferrer">Follow @{INSTAGRAM.handle}</a>
             <button type="button" className={styles.ghostButton} onClick={restart}>Climb again</button>
           </div>

@@ -6,7 +6,7 @@ import { addForest, archT, bendTs, buildRoadCurve, churamEndT, forestRoad, place
 import { loading } from "@/lib/loading";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
-import { DRIVER_LINE, ROUTE, forestStart, setForestPace, setPace } from "@/lib/drive";
+import { DRIVER_LINE, ROUTE, forestAsk, forestStart, setForestPace, setPace } from "@/lib/drive";
 import { estateUniforms, setEstateFrame } from "@/lib/estates";
 import { patchAtmosphere } from "@/lib/atmosphere";
 import Terrain from "./Terrain";
@@ -141,11 +141,12 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
   // etc.: lib/drive forestStart): then it mounts like everything else
   const [forestIn, setForestIn] = useState(false);
   useEffect(() => {
-    if (mode !== "story" && !forestStart()) return;
-    let raf = 0, live = true;
+    // (drive mode otherwise once you ask to drive on from Kalpetta: lib/drive forestAsk)
+    let raf = 0, live = true, poll = 0;
     const wait = () => { if (loading.ready) void loadForest().then((ok) => { if (live && ok) setForestIn(true); }); else raf = requestAnimationFrame(wait); };
-    wait();
-    return () => { live = false; cancelAnimationFrame(raf); };
+    if (mode === "story" || forestStart()) wait();
+    else poll = window.setInterval(() => { if (forestAsk.want) { clearInterval(poll); wait(); } }, 300);
+    return () => { live = false; cancelAnimationFrame(raf); clearInterval(poll); };
   }, [mode]);
   const forest = useMemo(() => {
     if (!forestIn) return null;
@@ -201,6 +202,9 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
           <Vegetation curve={forest.curve} density={small ? (weak ? 0.3 : 0.45) : 1} alphaToCoverage={!small} kind="forest" tile={small ? 320 : undefined} />
           <Suspense fallback={null}><Props curve={forest.curve} density={small ? 0.4 : 1} towns={false} /></Suspense>
           <Town curve={forest.curve} />
+          <Streets curve={forest.curve} />
+          <TownLife curve={forest.curve} small={small} />
+          <StreetTraffic curve={forest.curve} small={small} />
           <Shafts curve={forest.curve} count={small ? 40 : 90} />
           <Elephant curve={forest.curve} />
           <Checkpost curve={forest.curve} />

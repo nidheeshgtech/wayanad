@@ -6,8 +6,8 @@ import {
   BufferGeometry, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, SphereGeometry, Vector3, type Material,
 } from "three";
 import { SECTION, height } from "@/lib/terrain";
-import { BAY, KALPETTA, MARKET, STATIONS, STATION_ICON, frameAt, stepTown, town, type Station } from "@/lib/townLife";
-import { STREET, street as onSt, streets } from "@/lib/streets";
+import { BAY, MARKET, STATION_ICON, centreOf, frameAt, stationsOn, stepTown, town, type Centre, type Station } from "@/lib/townLife";
+import { STREET, legRoad, roadOf, street as onSt, streets } from "@/lib/streets";
 import { game } from "@/lib/game";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { NEON, setLights } from "@/lib/neon";
@@ -148,8 +148,13 @@ function paint(st: Station) {
   return { g, lights: [{ x: 0, y: h, z: z - 0.3, color: NEON.pink.clone(), power: 0.7 }] };
 }
 
-function busStand() {
-  const g = new Group(), { w, d } = KALPETTA.busStand, green = M(0x1f6b45, { rough: 0.6 }), steel = M(0x9aa1a7, { metal: 0.5, rough: 0.45 });
+/** The towns' bus stands' boards: Malayalam over English, and where the buses go. */
+const STAND: Record<string, { ml: string; en: string; to: [string, string][] }> = {
+  Kalpetta: { ml: "കൽപ്പറ്റ ബസ് സ്റ്റാൻഡ്", en: "KALPETTA BUS STAND", to: [["Kozhikode", "06:40"], ["Mananthavady", "07:15"], ["Bathery", "07:30"], ["Mysuru", "08:05"], ["Vythiri", "08:20"], ["Thamarassery", "08:45"]] },
+  "Sulthan Bathery": { ml: "ബത്തേരി ബസ് സ്റ്റാൻഡ്", en: "SULTHAN BATHERY BUS STAND", to: [["Mysuru", "06:20"], ["Kalpetta", "06:50"], ["Pulpally", "07:10"], ["Gundlupet", "07:40"], ["Ooty", "08:00"], ["Kozhikode", "08:30"]] },
+};
+function busStand(C: Centre) {
+  const g = new Group(), { w, d } = C.busStand, words = STAND[C.name] ?? STAND.Kalpetta, green = M(0x1f6b45, { rough: 0.6 }), steel = M(0x9aa1a7, { metal: 0.5, rough: 0.45 });
   slab(g, w + 0.3, d, 0, 0x5f5c57);
   // bay lines on the apron
   for (let i = -2; i <= 2; i++) box(g, 0.012, 0.002, 0.5, M(0xf2f0e6), i * 0.3, 0.008, 0.45);
@@ -159,17 +164,17 @@ function busStand() {
   for (let x = -w / 2 + 0.08; x <= w / 2 - 0.07; x += 0.34) cyl(g, 0.012, h, steel, x, h / 2, z - 0.15, 6);
   box(g, w, h, 0.02, M(0xe8e2d2), 0, h / 2, z + 0.17);
   for (let x = -w / 2 + 0.2; x < w / 2 - 0.1; x += 0.36) { box(g, 0.24, 0.012, 0.06, steel, x, 0.045, z + 0.08); box(g, 0.24, 0.05, 0.01, steel, x, 0.07, z + 0.11); }
-  const b = board("busstand", 1024, 128, (x, W, H) => {
+  const b = board(`busstand-${C.name}`, 1024, 128, (x, W, H) => {
     x.fillStyle = "#14532d"; x.fillRect(0, 0, W, H); x.strokeStyle = "#f6d34a"; x.lineWidth = 6; x.strokeRect(6, 6, W - 12, H - 12);
-    x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "middle"; x.font = `700 44px ${ML}`; x.fillText("കൽപ്പറ്റ ബസ് സ്റ്റാൻഡ്", W / 2, 42);
-    x.font = "800 40px Arial,sans-serif"; x.fillStyle = "#f6d34a"; x.fillText("KALPETTA BUS STAND", W / 2, 94);
+    x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "middle"; x.font = `700 44px ${ML}`; x.fillText(words.ml, W / 2, 42, W - 30);
+    x.font = "800 40px Arial,sans-serif"; x.fillStyle = "#f6d34a"; x.fillText(words.en, W / 2, 94, W - 30);
   });
   sign(g, w * 0.8, 0.1, b, 0, h + 0.075, z - 0.17);
   // the timetable board and a tea counter at one end
-  const tt = board("timetable", 256, 256, (x, W, H) => {
+  const tt = board(`timetable-${C.name}`, 256, 256, (x, W, H) => {
     x.fillStyle = "#101820"; x.fillRect(0, 0, W, H); x.fillStyle = "#f6d34a"; x.font = "700 20px Arial,sans-serif"; x.textAlign = "left";
     x.fillText("DEPARTURES", 14, 30); x.fillStyle = "#e8f0f0"; x.font = "500 17px Arial,sans-serif";
-    [["Kozhikode", "06:40"], ["Mananthavady", "07:15"], ["Bathery", "07:30"], ["Mysuru", "08:05"], ["Vythiri", "08:20"], ["Thamarassery", "08:45"]].forEach(([a, b], i) => { x.textAlign = "left"; x.fillText(a, 14, 66 + i * 30); x.textAlign = "right"; x.fillText(b, W - 14, 66 + i * 30); });
+    words.to.forEach(([a, b], i) => { x.textAlign = "left"; x.fillText(a, 14, 66 + i * 30); x.textAlign = "right"; x.fillText(b, W - 14, 66 + i * 30); });
   });
   sign(g, 0.16, 0.16, tt, w / 2 - 0.15, 0.17, z + 0.155);
   return { g, lights: [{ x: -w * 0.3, y: h, z, color: NEON.blue.clone(), power: 0.5 }, { x: w * 0.3, y: h, z, color: NEON.violet.clone(), power: 0.5 }] };
@@ -277,7 +282,8 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
     const root = new Group(); root.name = "town-life";
     const lights: { x: number; y: number; z: number; color: Color; power: number }[] = [];
     const L = curve.getLength(), spots: Spot[] = [];
-    if (KALPETTA.busStand.s > L - 2) return { root, lights, heads: [], bays: [], spots, parked: [] as { kind: string; pos: Vector3; yaw: number }[], market: null as Group | null, stallBay: null as MeshBasicMaterial | null };
+    const road = roadOf(curve), C = centreOf(road);
+    if (C.busStand.s > L - 2) return { root, lights, heads: [], bays: [], spots, parked: [] as { kind: string; pos: Vector3; yaw: number }[], market: null as Group | null, stallBay: null as MeshBasicMaterial | null, road };
     /** Put `g` at s on `side`, `off` from the centre line (its +z away from the road); returns the frame. */
     const put = (g: Group, s: number, side: 1 | -1, off = EDGE) => {
       const f = frameAt(curve, s), out = f.left.clone().multiplyScalar(side);
@@ -291,7 +297,7 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
     };
     // the places you pull into
     const bays: { st: Station; m: MeshBasicMaterial }[] = [];
-    for (const st of STATIONS) {
+    for (const st of stationsOn(road)) {
       if (st.s > L - 2) continue;
       const made = st.kind === "pump" ? pump(st) : st.kind === "wash" ? wash(st) : paint(st);
       const holder = new Group(); put(holder, st.s, st.side); const baked = bake(made.g); holder.add(baked); holder.updateMatrixWorld(true);
@@ -303,8 +309,8 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
       spots.push({ id: who, pos: local(holder, -0.15, 0, 0.55), yaw: holder.rotation.y + Math.PI, move: "idle", small: true });
     }
     // Kalpetta's bus stand, the shelter across, the auto stand, the podium, the carts
-    const K = KALPETTA;
-    const stand = new Group(); put(stand, K.busStand.s, 1); const made = busStand(); stand.add(bake(made.g)); stand.updateMatrixWorld(true); keepLights(stand, made.lights); root.add(stand);
+    const K = C;
+    const stand = new Group(); put(stand, K.busStand.s, 1); const made = busStand(C); stand.add(bake(made.g)); stand.updateMatrixWorld(true); keepLights(stand, made.lights); root.add(stand);
     const parked: { kind: string; pos: Vector3; yaw: number }[] = [];
     for (const [x, kind] of [[-0.42, "ksrtc-real"], [0.35, "privatebus-real"]] as const) {
       parked.push({ kind, pos: local(stand, x, 0.006, 0.55), yaw: stand.rotation.y + Math.PI / 2 + 0.35 });
@@ -416,10 +422,10 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
       mk.position.set(at.x, f.y - 0.016 + 0.005, at.z); mk.rotation.y = Math.atan2(f.left.x, f.left.z) + Math.PI / 2; root.add(mk);
       stallBay = m;
     }
-    return { root, lights, heads, bays, spots, parked, market, stallBay };
+    return { root, lights, heads, bays, spots, parked, market, stallBay, road };
   }, [curve]);
 
-  useEffect(() => { setLights("town-life", built.lights); return () => setLights("town-life", []); }, [built]);
+  useEffect(() => { const key = `town-life-${built.road}`; setLights(key, built.lights); return () => setLights(key, []); }, [built]);
 
   // the parked buses and autos (the traffic's own models, sized as the traffic sizes them)
   useEffect(() => {
@@ -449,7 +455,7 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
   }, [built]);
 
   useFrame(({ camera, clock }, dt) => {
-    stepTown(dt);
+    if (built.road === legRoad()) stepTown(dt); // (once a frame: the TownLife on the road you're driving)
     // the signal
     const light = town.light, blink = clock.elapsedTime % 1 < 0.5;
     for (const h of built.heads) for (const l of h.lamps) l.m.color.copy(LIGHT[l.k]).multiplyScalar(l.k === light ? 1.5 : 0.12);

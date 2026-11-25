@@ -28,7 +28,7 @@ import { pageview } from "@vercel/analytics";
 import { platform } from "@/lib/native";
 import { device } from "@/lib/device";
 
-export type Step = "loaded" | "started" | "finished" | "support" | "support-title" | "support-end" | "support-seen-end" | `support-back-${string}` | `sticker-${string}` | "stickers-all" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
+export type Step = "loaded" | "started" | "finished" | "drive-on" | "support" | "support-title" | "support-end" | "support-seen-end" | `support-back-${string}` | `sticker-${string}` | "stickers-all" | "open" | "friends" | "walked" | "took" | "left-loading" | "jank" | `load-${string}` | `left-at-${string}` | `${number}min` | `fps-${string}`;
 const sent = new Set<string>();
 
 export function mark(step: Step) {
