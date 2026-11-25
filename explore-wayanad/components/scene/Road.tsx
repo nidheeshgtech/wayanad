@@ -8,6 +8,7 @@ import {
 } from "three";
 import { SECTION, archT, height, roadShapeAt } from "@/lib/terrain";
 import { CLOUD_SHADOW_GLSL, cloudShadowUniforms, wetUniform } from "@/lib/weather";
+import { NEON_ROAD_APPLY, NEON_ROAD_GLSL, neonUniforms } from "@/lib/neon";
 import { DAPPLE_GLSL, dappleUniforms } from "@/lib/dapple";
 
 /* True scale, 1 unit = 10 m. Curve points sit 0.6 above the road bed (a convention from the prototype). */
@@ -46,14 +47,14 @@ function asphalt() {
   };
   const m = new MeshStandardMaterial({ color: 0x86867f, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2 });
   const color = load("asphalt-color", true), normal = load("asphalt-normal", false);
-  m.customProgramCacheKey = () => "explore-wayanad-asphalt-5";
+  m.customProgramCacheKey = () => "explore-wayanad-asphalt-6";
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform, ...cloudShadowUniforms, ...dappleUniforms });
+    Object.assign(shader.uniforms, { tAsphalt: { value: color }, tAsphaltN: { value: normal }, uTile: { value: 1 / TILE }, uWidth: { value: SECTION.half * 2 }, uWet: wetUniform, ...cloudShadowUniforms, ...dappleUniforms, ...neonUniforms });
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRoad = aRoad;\nvRoadXZ = (modelMatrix * vec4(transformed, 1.0)).xz;");
+      .replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;\nvarying vec3 vNeonW;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRoad = aRoad;\nvNeonW = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvRoadXZ = vNeonW.xz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;\n${CLOUD_SHADOW_GLSL}\n${DAPPLE_GLSL}`)
+      .replace("#include <common>", `#include <common>\nvarying vec2 vRoad;\nvarying vec2 vRoadXZ;\nuniform sampler2D tAsphalt, tAsphaltN;\nuniform float uTile, uWidth, uWet;\nvarying vec3 vNeonW;\n${NEON_ROAD_GLSL}\n${CLOUD_SHADOW_GLSL}\n${DAPPLE_GLSL}`)
       .replace("#include <map_fragment>", `
         vec2 aUv = vec2(vRoad.x * uWidth, vRoad.y) * uTile;
         diffuseColor.rgb *= texture2D(tAsphalt, aUv).rgb;
@@ -80,6 +81,7 @@ function asphalt() {
         float paint = max(edge * step(0.02, min(vRoad.x, 1.0 - vRoad.x)), centre);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.82, 0.78), paint * 0.9);`)
       .replace("#include <roughnessmap_fragment>", "diffuseColor.rgb *= mix(1.0, 0.68, uWet);\nfloat roughnessFactor = mix(mix(0.9 - 0.05 * track + 0.05 * patchMask, 0.42, uWet), 0.62, paint);") // wet (lib/weather): darker, with a sheen
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${NEON_ROAD_APPLY}`) // the neon night (lib/neon)
       .replace("#include <normal_fragment_maps>", `
         vec3 an = texture2D(tAsphaltN, aUv).xyz * 2.0 - 1.0;
         normal = normalize(normal + (viewMatrix * vec4(an.x, 0.0, an.y, 0.0)).xyz * 0.5);`);

@@ -124,6 +124,7 @@ function paintSheet() {
 /** The same sheet after dark: what's lit, on black (the walls' emissive map). Shop and rooftop boards lit from the
  * front (their own colours, brighter), open counters warm with bulbs, glass fronts cool white tube light, shutters
  * down; some windows upstairs warm (tube light behind curtains) or blue (a television). */
+const NEON_SHOP = ["#ff2d95", "#9a4dff", "#ffb35c", "#ff2d95", "#2af0ff"];
 function paintGlow(day: HTMLCanvasElement) {
   const c = document.createElement("canvas"); c.width = SW; c.height = SH;
   const x = c.getContext("2d")!, r = rngOf(11);
@@ -136,8 +137,10 @@ function paintGlow(day: HTMLCanvasElement) {
   const front = (col: number, row: number, style: number) => {
     const x0 = col * CW, y0 = row * CH, by = y0 + 40, h = CH - 42, bx = x0 + 6, w = CW - 12;
     copy(x0 + 3, y0 + 4, CW - 6, 30);                                     // the signboard
-    if (style === 1) { copy(bx, by, w, h, 0.55); x.globalCompositeOperation = "lighter"; lamp(bx, by, w, h, "#ffb35c", 0.85); x.globalCompositeOperation = "source-over"; }
-    else if (style === 2) lamp(bx, by, w, h, "#e9f3ff", 0.8);
+    // the night is neon (lib/neon): open counters in hot pink, violet or warm; glass fronts electric blue or cyan
+    const hue = NEON_SHOP[(col + row * 3) % NEON_SHOP.length];
+    if (style === 1) { copy(bx, by, w, h, 0.55); x.globalCompositeOperation = "lighter"; lamp(bx, by, w, h, hue, 0.85); x.globalCompositeOperation = "source-over"; }
+    else if (style === 2) lamp(bx, by, w, h, (col + row) % 2 ? "#2f6bff" : "#2af0ff", 0.8);
   };
   for (let sgn = 0; sgn < 16; sgn++) front(sgn % 8, Math.floor(sgn / 8), sgn % 3);
   for (let sgn = 0; sgn < 8; sgn++) front(sgn, 2, (sgn + 1) % 3);
@@ -145,7 +148,8 @@ function paintGlow(day: HTMLCanvasElement) {
   const win = (wx: number, wy: number, w: number, h: number) => {
     const k = r(); if (k > 0.4) return;
     // a lit room seen through the glass: brighter toward the ceiling (the tube light), a curtain edge darker
-    const col = k < 0.05 ? "111,156,255" : k < 0.28 ? "255,196,130" : "236,240,255", a = 0.22 + r() * 0.22;
+    // rooms lit in the neon night's colours: electric blue, violet, hot pink, cyan, a little lime, some plain white
+    const col = k < 0.08 ? "47,107,255" : k < 0.15 ? "154,77,255" : k < 0.22 ? "255,45,149" : k < 0.29 ? "42,240,255" : k < 0.32 ? "168,255,62" : "236,240,255", a = 0.22 + r() * 0.22;
     const g = x.createLinearGradient(0, wy, 0, wy + h); g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},${a * 0.35})`);
     x.fillStyle = g; x.fillRect(wx, wy, w, h);
     if (r() < 0.6) { x.fillStyle = "rgba(0,0,0,.6)"; x.fillRect(wx + (r() < 0.5 ? 0 : w * 0.6), wy, w * 0.4, h); }

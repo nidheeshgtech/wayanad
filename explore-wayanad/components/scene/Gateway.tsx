@@ -10,6 +10,7 @@ import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometr
 import { archT } from "@/lib/terrain";
 import { duskness, nightness } from "@/lib/theme";
 import { weather } from "@/lib/weather";
+import { NEON, setLights } from "@/lib/neon";
 import { rubble } from "./stone";
 
 /* The gateway into Wayanad at Lakkidi: our own, not the real arch. Two tall moss-grown standing stones on low rubble
@@ -24,6 +25,7 @@ const G = {
   plinth: { r: 2.2, h: 0.8, below: 2.5 },
   beam: { y: 6.0, h: 1.3, d: 0.72 }, // its underside, height and thickness
 };
+const WARM = new Color(1, 0.45, 0.14), WARM_CUT = new Color(0xffb466), WARM_SIGN = new Color(0xffe2b0), COOL_SIGN = new Color(0xd8f6ff);
 const CX = G.clear / 2 + G.plinth.r + 0.05; // each stone's centre, either side
 const FRONT = -G.rock.rz * 0.62;           // the flat face toward oncoming traffic (−z), where the carving is
 
@@ -108,19 +110,19 @@ function grit() {
 
 /** The lamps at a stone's feet, lighting it from below: warm light falling off with distance from each lamp (stone
  * space), on the stone's own colour, scaled by `uLamp` each frame (dark by day). */
-function uplit(mat: MeshStandardMaterial, lamps: Vector3[], uLamp: { value: number }, key: string) {
+function uplit(mat: MeshStandardMaterial, lamps: Vector3[], uLamp: { value: number }, key: string, uCol: { value: Color }) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uLamp = uLamp;
+    sh.uniforms.uLamp = uLamp; sh.uniforms.uLampCol = uCol;
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vStone;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvStone = position;");
     const sum = lamps.map((l) => `lit += exp(-0.55 * length(vStone - vec3(${l.x.toFixed(2)}, ${l.y.toFixed(2)}, ${l.z.toFixed(2)})));`).join("\n");
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vStone;\nuniform float uLamp;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vStone;\nuniform float uLamp;\nuniform vec3 uLampCol;")
       .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
         float lit = 0.0;
         ${sum}
-        totalEmissiveRadiance += uLamp * vec3(1.0, 0.45, 0.14) * diffuseColor.rgb * lit;`);
+        totalEmissiveRadiance += uLamp * uLampCol * diffuseColor.rgb * lit;`);
   };
   mat.customProgramCacheKey = () => "gate-stone-uplit-" + key;
 }
@@ -275,12 +277,13 @@ function glowDisc() {
   return new CanvasTexture(c);
 }
 
-type Night = { lamp: { value: number }; glowing: MeshStandardMaterial[]; halos: MeshBasicMaterial; stone: MeshStandardMaterial; beam: MeshStandardMaterial };
+type Night = { lamp: { value: number }; cols: { value: Color }[]; glowing: MeshStandardMaterial[]; halos: MeshBasicMaterial; stone: MeshStandardMaterial; beam: MeshStandardMaterial; lampsAt: { x: number; y: number; z: number; side: number }[] };
 
 function build(): { group: Group; night: Night } {
   const g = new Group();
   const add = (m: Mesh, shadow = true) => { m.castShadow = m.receiveShadow = shadow; g.add(m); return m; };
   const lamp = { value: 0 };
+  const cols = [{ value: new Color(1, 0.45, 0.14) }, { value: new Color(1, 0.45, 0.14) }]; // each stone's lamplight (warm at dusk, neon at night)
 
   // the stones, each on its plinth, with two lamps at its feet (on the road side and in front)
   const stoneMat = new MeshStandardMaterial({ vertexColors: true, map: grit(), roughness: 0.92, metalness: 0 });
@@ -290,7 +293,7 @@ function build(): { group: Group; night: Night } {
   for (const side of [1, -1]) {
     const geo = standingStone(side > 0 ? 3 : 8, side > 0, side); // each leans a little away from the road
     const mat = side > 0 ? stoneMat : stoneMat.clone();
-    uplit(mat, lamps.map((l) => new Vector3(l.x * side, l.y - G.plinth.h, l.z)), lamp, side > 0 ? "l" : "r");
+    uplit(mat, lamps.map((l) => new Vector3(l.x * side, l.y - G.plinth.h, l.z)), lamp, side > 0 ? "l" : "r", cols[side > 0 ? 0 : 1]);
     const rock = add(new Mesh(geo, mat));
     rock.position.set(side * CX, G.plinth.h, 0);
     rock.scale.setScalar(side > 0 ? 1 : 0.94);
@@ -372,7 +375,8 @@ function build(): { group: Group; night: Night } {
   const post = new MeshStandardMaterial({ color: 0x1f3a2d, roughness: 0.6 });
   for (const dx of [-0.8, 0.8]) add(new Mesh(new BoxGeometry(0.08, 2.4 + G.plinth.below, 0.08), post)).position.set(bx + dx, (2.4 - G.plinth.below) / 2, -14.95);
 
-  return { group: g, night: { lamp, glowing: [cut, signMat, glass], halos, stone: stones[0], beam: beamMat } };
+  const lampsAt = [1, -1].flatMap((side) => lamps.map((l) => ({ x: side * (CX + l.x), y: 0.3, z: l.z, side })));
+  return { group: g, night: { lamp, cols, glowing: [cut, signMat, glass], halos, stone: stones[0], beam: beamMat, lampsAt } };
 }
 
 export default function Gateway({ curve }: { curve: CatmullRomCurve3 }) {
@@ -382,6 +386,10 @@ export default function Gateway({ curve }: { curve: CatmullRomCurve3 }) {
     b.group.rotation.y = Math.atan2(tan.x, tan.z);
     b.group.scale.setScalar(0.1); // metres → scene units
     b.group.name = "gateway";
+    // the ground lamps, mirrored in the wet road at night (lib/neon): blue on the carved stone's side, pink on the other
+    b.group.updateMatrixWorld(true);
+    const v = new Vector3();
+    setLights("gate", b.night.lampsAt.map((l) => { v.set(l.x, l.y, l.z).applyMatrix4(b.group.matrixWorld); return { x: v.x, y: v.y, z: v.z, color: l.side > 0 ? NEON.cyan : NEON.pink, power: 0.8 }; }));
     return b;
   }, [curve]);
 
@@ -393,6 +401,12 @@ export default function Gateway({ curve }: { curve: CatmullRomCurve3 }) {
     const [cut, sign, glass] = night.glowing;
     cut.emissiveIntensity = 0.9 * k; sign.emissiveIntensity = 0.55 * k; glass.emissiveIntensity = 0.1 + 6 * k;
     night.halos.opacity = 0.5 * k;
+    // warm lamplight at dusk turning neon with the night (lib/neon): the carved stone electric blue, the other hot pink,
+    // the carving's edges cyan, the lettering a cool white
+    const n = nightness();
+    night.cols[0].value.copy(WARM).lerp(NEON.blue, n); night.cols[1].value.copy(WARM).lerp(NEON.pink, n);
+    cut.emissive.copy(WARM_CUT).lerp(NEON.cyan, n); sign.emissive.copy(WARM_SIGN).lerp(COOL_SIGN, n);
+    glass.emissive.copy(WARM_CUT).lerp(NEON.violet, n); night.halos.color.copy(WARM_CUT).lerp(NEON.violet, n);
     const wet = weather.wet;
     for (const m of [night.stone, night.stone.userData.twin as MeshStandardMaterial]) {
       m.roughness = 0.92 - 0.45 * wet; m.color.setScalar(1 - 0.25 * wet);

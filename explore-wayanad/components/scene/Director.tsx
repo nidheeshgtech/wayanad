@@ -11,6 +11,7 @@ import { game } from "@/lib/game";
 import { frameTimed } from "@/lib/perf";
 import { thunder } from "@/lib/water";
 import { duskness, nightness } from "@/lib/theme";
+import { NEON } from "@/lib/neon";
 
 /**
  * Reads scrollState every frame and places the camera, fog, light and particles.
@@ -190,8 +191,9 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     // dusk: the same blends, toward the evening colours (the acts after the drive keep most of their own palette)
     const e = duskness(), n = nightness();
     if (e > 0 && driving) {
-      sky = tmpSky.current.copy(sky).lerp(tmpSun.copy(SKY_DUSK).lerp(SKY_DUSK_CLOUD, weather.cloud * 0.7), e).lerp(SKY_NIGHT, n);
-      fogTint = tmpFog.current.copy(fogTint).lerp(tmpSun.copy(FOG_DUSK).lerp(FOG_DUSK_MIST, weather.mist).multiplyScalar(1 - 0.35 * weather.gloom), e).lerp(FOG_NIGHT, n);
+      // (drive mode's night is the neon one: midnight indigo, lib/neon)
+      sky = tmpSky.current.copy(sky).lerp(tmpSun.copy(SKY_DUSK).lerp(SKY_DUSK_CLOUD, weather.cloud * 0.7), e).lerp(game.active ? NEON.indigo : SKY_NIGHT, n);
+      fogTint = tmpFog.current.copy(fogTint).lerp(tmpSun.copy(FOG_DUSK).lerp(FOG_DUSK_MIST, weather.mist).multiplyScalar(1 - 0.35 * weather.gloom), e).lerp(game.active ? NEON.indigoFog : FOG_NIGHT, n);
     }
     // fireflies come out through Stay, peak at Night, and fade over Plan
     const flies = Math.max(act === "stay" ? P.flies * p : act === "plan" ? 0.9 * (1 - p) : P.flies, n * 0.7);
@@ -214,7 +216,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
     const terrain = terrainRef.current;
     // the ground's colour comes from its textures now; the act only tints it, so lift the palette's ground toward white
     if (terrain) (terrain.material as MeshStandardMaterial).color.lerp(tint.current.set(P.ground).lerp(WHITE, 0.8), 0.05);
-    if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e).lerp(MOON_LIGHT, n), 0.05);
+    if (sunRef.current) sunRef.current.color.lerp(tmpSun.set(P.light).lerp(SUN_DUSK, e).lerp(game.active ? NEON.moon : MOON_LIGHT, n), 0.05);
     // the mist puffs take the evening light (white puffs glowed against a dusk sky)
     const beamOn = beam && driving ? Math.max(0, e - 0.4) / 0.6 : 0;
     if (beam) beam.light.intensity = beamOn * 7;
@@ -223,7 +225,7 @@ export default function Director({ curve, forest, sunRef, mistRef, fliesRef }: {
       beam.target.position.copy(camera.position).addScaledVector(heading.current, 4).y -= 0.55; beam.target.updateMatrixWorld();
     }
     const mm = mistRef.current?.material as { opacity: number; color: Color } | undefined;
-    if (mm) { mm.opacity += (mist * (1 - 0.4 * e) - mm.opacity) * 0.06; mm.color.setRGB(1, 1, 1).lerp(MIST_DUSK, e).lerp(MIST_NIGHT, n); }
+    if (mm) { mm.opacity += (mist * (1 - 0.4 * e) - mm.opacity) * 0.06; mm.color.setRGB(1, 1, 1).lerp(MIST_DUSK, e).lerp(game.active ? NEON.indigoMist : MIST_NIGHT, n); }
     const fm = fliesRef.current?.material as { opacity: number } | undefined; if (fm) fm.opacity += (flies - fm.opacity) * 0.04;
   }));
   return null;

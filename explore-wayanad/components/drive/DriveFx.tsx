@@ -7,6 +7,7 @@ import { game } from "@/lib/game";
 import { loading } from "@/lib/loading";
 import { duskness, nightness } from "@/lib/theme";
 import { weather } from "@/lib/weather";
+import { neon, stepNeon } from "@/lib/neon";
 import type { InstancedMesh, Object3D } from "three";
 
 /**
@@ -102,8 +103,8 @@ export default function DriveFx({ post = true }: { post?: boolean }) {
             // lamplight: strongly orange pixels (sodium lamps, a lit stone, a shop's warm counter) keep their warmth even
             // when dim; plain night violet over them reads pink. Soil and wood are too weakly orange to count.
             lit = max(lit, 0.85 * smoothstep(0.7, 0.9, (c.r - c.b) / max(c.r, 1e-4)) * smoothstep(0.004, 0.03, c.r));
-            vec3 cool = vec3(l) * vec3(0.6, 0.52, 1.2) + (c - vec3(l)) * 0.8;  // tinted indigo, a little desaturated
-            vec3 g = mix(cool * 0.78, c * 1.1, lit);
+            vec3 cool = vec3(l) * vec3(0.5, 0.44, 1.3) + (c - vec3(l)) * 0.9;  // midnight indigo (lib/neon)
+            vec3 g = mix(cool * 0.78, mix(vec3(l), c, 1.25) * 1.1, lit); // what's lit: its own colour, a touch more saturated (neon)
             g = g * (0.75 + 0.25 * smoothstep(0.0, 0.06, l)); // the deepest shadows a little deeper
             g += vec3(0.005, 0.0015, 0.013) * (1.0 - lit); // a faint violet floor in the blacks
             g *= 1.0 + uLift * (1.0 - lit);               // rain: the murk is darker still, lift it back so the road reads
@@ -132,6 +133,10 @@ export default function DriveFx({ post = true }: { post?: boolean }) {
     el.appendChild(flash);
     return { el, flash };
   }, []);
+  // the neon night (lib/neon): on while drive mode is up; phones mirror fewer lights in the road
+  useEffect(() => { neon.on = true; neon.limit = post ? 16 : 6; return () => { neon.on = false; }; }, [post]);
+  const carRef = useMemo(() => ({ car: null as Object3D | null }), []);
+
   useEffect(() => {
     if (!overlay) return;
     document.body.appendChild(overlay.el);
@@ -147,6 +152,8 @@ export default function DriveFx({ post = true }: { post?: boolean }) {
   };
 
   useFrame((_, dt) => {
+    if (!carRef.car?.parent) carRef.car = scene.getObjectByName("player-car") ?? null;
+    stepNeon(camera, game.started && !game.foot.on ? carRef.car : null);
     // drawing into the target uses other variants of every material's shader (no tone mapping there): compile them
     // once everything has loaded, as components/scene/Warmup does for the screen, or the first night frame or hit
     // would stall (after Start, a moment in: by then the forest, towns and traffic have all been built)

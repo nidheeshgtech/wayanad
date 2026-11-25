@@ -4,8 +4,9 @@ import { freeze } from "@/lib/freeze";
 import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { duskness, nightness } from "@/lib/theme";
+import { LAMP_COLOURS, setLights } from "@/lib/neon";
 import {
-  AdditiveBlending, BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
+  AdditiveBlending, BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, Color, ConeGeometry, Float32BufferAttribute, Group, LineBasicMaterial,
   LineSegments, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Vector3,
 } from "three";
 import { SECTION, archT, forestRoad, height, placesT, roadShapeAt } from "@/lib/terrain";
@@ -250,7 +251,7 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
     const poleMat = new MeshStandardMaterial({ color: 0x9a9890, roughness: 0.9 }), tops: Vector3[][] = [], parts: BufferGeometry[] = [];
     // and on every other pole a street lamp over the road: a sodium-orange head on an arm, lit after dark, with the
     // pool of light it throws on the road (one mesh of soft additive quads, shown only at dusk and night)
-    const heads: BufferGeometry[] = [], pools: BufferGeometry[] = [];
+    const heads: BufferGeometry[] = [], pools: BufferGeometry[] = [], lit: { x: number; y: number; z: number; color: Color; power: number }[] = [];
     let n = 0;
     for (let s = gate - 1; road === "churam" && s < L - END_MARGIN; s += 3.5) { // (the drive from Adivaram: past the gate)
       const { p, tan, left } = frame(s), at = p.clone().addScaledVector(left, SECTION.half + 0.22), y = height(at.x, at.z);
@@ -261,15 +262,19 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
       if (n++ % 2) continue;
       const arm = at.clone().addScaledVector(left, -0.16);
       parts.push(new BoxGeometry(0.18, 0.008, 0.008).rotateY(yaw + Math.PI / 2).translate(at.x - left.x * 0.09, y + 0.78, at.z - left.z * 0.09));
-      heads.push(new BoxGeometry(0.06, 0.012, 0.028).rotateY(yaw + Math.PI / 2).translate(arm.x, y + 0.772, arm.z));
+      // neon at night (lib/neon): each lamp its own colour, in turn along the road, on its head and its pool of light
+      const colour = LAMP_COLOURS[(n >> 1) % LAMP_COLOURS.length];
+      heads.push(tint(new BoxGeometry(0.06, 0.012, 0.028).rotateY(yaw + Math.PI / 2).translate(arm.x, y + 0.772, arm.z), colour));
       const pool = p.clone().addScaledVector(left, SECTION.half * 0.35);
-      pools.push(new PlaneGeometry(1.1, 1.3).rotateX(-Math.PI / 2).rotateY(yaw).translate(pool.x, p.y + 0.012, pool.z));
+      pools.push(tint(new PlaneGeometry(1.1, 1.3).rotateX(-Math.PI / 2).rotateY(yaw).translate(pool.x, p.y + 0.012, pool.z), colour));
+      lit.push({ x: arm.x, y: y + 0.772, z: arm.z, color: colour, power: 1 });
     }
     if (parts.length) { const poles = new Mesh(mergeGeometries(parts, false), poleMat); poles.castShadow = true; g.add(poles); parts.forEach((x) => x.dispose()); }
     if (heads.length) {
       const lamps = new Mesh(mergeGeometries(heads, false), LAMP.head); lamps.name = "street-lamps"; g.add(lamps);
       const light = new Mesh(mergeGeometries(pools, false), LAMP.pool); light.name = "street-light"; light.renderOrder = 2; light.visible = false; g.add(light);
       heads.forEach((x) => x.dispose()); pools.forEach((x) => x.dispose());
+      setLights("street-lamps-" + road, lit); // mirrored in the wet road (lib/neon)
     }
     const wires: number[] = [];
     for (let i = 1; i < tops.length; i++) for (let w = 0; w < 3; w++) {
@@ -296,9 +301,19 @@ export default function Town({ curve }: { curve: CatmullRomCurve3 }) {
   return <primitive object={group} />;
 }
 
+/** A geometry in one colour (vertex colours), for merging with others in theirs. */
+function tint<T extends BufferGeometry>(g: T, c: Color): T {
+  const n = g.attributes.position.count, a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
+  g.setAttribute("color", new Float32BufferAttribute(a, 3)); return g;
+}
+
 /** The street lamps' heads and the light they throw (shared by both roads' towns). */
 const LAMP = (() => {
-  const head = new MeshStandardMaterial({ color: 0x3a342c, emissive: 0xffa040, emissiveIntensity: 0.2, roughness: 0.6 });
+  // each head carries its neon colour as vertex colours: the glow takes it (the dark body takes a little)
+  const head = new MeshStandardMaterial({ color: 0x3a342c, emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.6, vertexColors: true });
+  head.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance *= vColor.rgb;"); };
+  head.customProgramCacheKey = () => "street-lamp-neon";
   let pool: MeshBasicMaterial;
   if (typeof document !== "undefined") {
     const c = document.createElement("canvas"); c.width = c.height = 64;
@@ -306,7 +321,7 @@ const LAMP = (() => {
     g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.45, "rgba(255,255,255,.45)"); g.addColorStop(1, "rgba(255,255,255,0)");
     x.fillStyle = g; x.fillRect(0, 0, 64, 64);
     const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace;
-    pool = new MeshBasicMaterial({ map: t, color: 0xff9a3c, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+    pool = new MeshBasicMaterial({ map: t, color: 0xffffff, vertexColors: true, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
   } else pool = new MeshBasicMaterial();
   return { head, pool };
 })();
