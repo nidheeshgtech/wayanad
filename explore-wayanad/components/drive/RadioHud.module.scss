@@ -1,0 +1,11 @@
+// The radio's word on screen (RadioHud): a slim glass strip, left, under the score and the job strip.
+.radio { position: fixed; z-index: 6; left: 18px; top: 152px; display: grid; gap: 3px; max-width: min(380px, calc(100vw - 36px));
+  padding: 8px 14px 9px; border-radius: 12px; background: rgba(11, 8, 38, .78); border: 1px solid rgba(154, 77, 255, .55);
+  box-shadow: 0 0 18px rgba(154, 77, 255, .25); pointer-events: none; opacity: 0; transform: translateX(-10px); transition: opacity .35s, transform .35s;
+  &[data-on] { opacity: 1; transform: none; }
+  b { font: 600 13px/1.2 var(--font-sans), sans-serif; letter-spacing: .02em; color: #e8ddff; }
+  span { font: 400 13px/1.35 var(--font-sans), sans-serif; color: var(--mute); }
+  &[data-rj] { border-color: rgba(42, 240, 255, .55); box-shadow: 0 0 18px rgba(42, 240, 255, .2);
+    span { font: italic 300 15px/1.35 var(--font-serif), Georgia, serif; color: var(--ink); } } }
+@media (pointer: coarse) { .radio { left: 50%; top: calc(112px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -8px); &[data-on] { transform: translate(-50%, 0); } } }
+@media (prefers-reduced-motion: reduce) { .radio { transition: opacity .3s; } }

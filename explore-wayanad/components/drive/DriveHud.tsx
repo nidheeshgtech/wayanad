@@ -42,6 +42,8 @@ import Gauge from "./Gauge";
 import JobHud, { Wallet } from "./JobHud";
 import Shop from "./Shop";
 import BigMap from "./BigMap";
+import RadioHud from "./RadioHud";
+import { nextStation, radioTick } from "@/lib/radio";
 import { checkNote } from "@/lib/checkposts";
 import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
@@ -351,6 +353,7 @@ export default function DriveHud() {
       if (tea.current) tea.current.toggleAttribute("data-on", served);
       mix.duck = anyoneTalking() ? 0.3 : 1; // the game's sound dips while a friend talks
       engine(horn.sound && game.started && game.phase === "drive" && !game.paused, game.speed, game.input.throttle, game.boosting, game.supercar);
+      radioTick(game.started && game.phase === "drive" && !game.paused && !game.foot.on); // the car radio (lib/radio)
       ambience({ on: horn.sound && game.started && game.phase === "drive" && !game.paused, rain: weather.rain, night: nightness(), hood: game.view === "hood", speed: game.speed });
       const roomScreen = !!P && (P.phase === "lobby" || (P.phase !== "free" && !racer));
       const want = roomScreen ? "room" : !game.started ? "start" : game.phase !== "drive" ? game.phase : game.paused ? "paused" : "drive";
@@ -364,10 +367,12 @@ export default function DriveHud() {
       // under it, and you keep driving to Kalpetta. Its time and score stay in the pause menu.
       if (!P && game.started && game.leg === 0 && game.phase === "drive" && game.finishS > 0 && game.s >= game.finishS && game.climbed !== score.run) {
         game.climbed = score.run;
-        const S = summary.current;
-        Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
-        recordFinish(S, P, racer); chime(true);
-        setCheer({ sec: S.sec, points: S.points, best: S.best, isNew: score.isNew, race: S.race, next: game.next || "Vythiri", km: Math.max(0, game.kmTotal - game.km) });
+        if (!(game.jumped && game.clock < 3)) { // (started past the gate with ?at=: there was no climb to cheer)
+          const S = summary.current;
+          Object.assign(S, { km: (game.odometer * 10) / 1000, min: game.clock / 60, sec: game.clock });
+          recordFinish(S, P, racer); chime(true);
+          setCheer({ sec: S.sec, points: S.points, best: S.best, isNew: score.isNew, race: S.race, next: game.next || "Vythiri", km: Math.max(0, game.kmTotal - game.km) });
+        }
       }
       if (loading.ready && !readySent.current) { readySent.current = true; markLoaded(); nativeReady(earned()); }
       setScreen((s) => (s === want ? s : want));
@@ -488,6 +493,7 @@ export default function DriveHud() {
       <div ref={streaks} className={styles.streaks} aria-hidden />
       <Gauge />
       <JobHud />
+      <RadioHud />
       <Wallet />
       <div ref={viewTag} className={styles.viewTag} role="status" aria-live="polite"><span>Camera</span><b /></div>
       <button ref={viewShare} type="button" className={styles.viewShare} hidden onClick={() => { if (vista.blob) void shareView(vista.blob, game.driver); vista.ended = 0; }}>
@@ -522,6 +528,7 @@ export default function DriveHud() {
         <button type="button" ref={ref("reset")} className={styles.deskKey} onClick={() => { backOnRoad(); flash("reset"); }} title="Back on the road (R)" aria-label="Back on the road"><Icon name="reset" /></button>
         <button type="button" ref={ref("pause")} className={styles.deskKey} onClick={() => togglePause()} title="Pause (Space)" aria-label="Pause"><Icon name="pause" /></button>
         {canFull && <button type="button" className={styles.deskKey} onClick={() => goFull(!isFull)} title={isFull ? "Exit full screen" : "Full screen"} aria-label={isFull ? "Exit full screen" : "Full screen"}><Icon name={isFull ? "shrink" : "expand"} /></button>}
+        <button type="button" className={styles.deskKey} onClick={() => nextStation()} title="Radio: next station (Q)" aria-label="Radio: next station"><b aria-hidden style={{ font: "600 14px/1 var(--font-sans)" }}>📻</b></button>
         <Sound icon className={styles.deskKey} />
         <ThemeToggle className={styles.themeKey} />
       </div>
@@ -535,6 +542,7 @@ export default function DriveHud() {
           <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); togglePause(true); }} aria-label="Pause"><Icon name="pause" /></button><small>Pause</small><kbd>Space</kbd></div>
           <div className={styles.tile} data-desk><button type="button" onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button><small>Horn</small><kbd>H</kbd></div>
           <div className={styles.tile}><Sound icon /><small>Sound</small></div>
+          <div className={styles.tile}><button type="button" onClick={() => nextStation()} aria-label="Radio: next station"><b aria-hidden style={{ font: "600 16px/1 var(--font-sans)" }}>📻</b></button><small>Radio</small><kbd>Q</kbd></div>
           <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); setBigMap(true); }} aria-label="Map"><b aria-hidden style={{ font: "600 15px/1 var(--font-sans)" }}>⌖</b></button><small>Map</small><kbd>M</kbd></div>
           <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); setKada(true); }} aria-label="Kada: the rupee shop"><b aria-hidden style={{ font: "600 17px/1 var(--font-sans)" }}>₹</b></button><small>Kada</small></div>
           {fsOk && <div className={styles.tile}><button type="button" aria-pressed={isFull} onClick={() => goFull(!isFull)} aria-label="Full screen"><Icon name={isFull ? "shrink" : "expand"} /></button><small>Full screen</small></div>}
