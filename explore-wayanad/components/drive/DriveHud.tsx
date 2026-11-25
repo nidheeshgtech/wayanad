@@ -426,8 +426,11 @@ export default function DriveHud() {
       jump(120);
     }
     else if (at && game.kmTotal) {
-      const km = at === "end" ? game.kmTotal - 1 : Number(at);
-      if (km > 0) { resetCar(Math.min(game.kmTotal - 0.05, km) * 100); game.jumped = true; }
+      // past the gate by name (?at=gate, pookode, vythiri, chundale, kalpetta: lib/checkposts' road), or any km up to
+      // just short of Kalpetta's end of the drive
+      const PAST: Record<string, number> = { gate: 12.6, lakkidi: 12.6, pookode: 14.7, vythiri: 17.9, chundale: 21.6, kalpetta: 27.2 };
+      const km = at === "end" ? game.kmTotal - 1 : PAST[at] ?? Number(at);
+      if (km > 0) { resetCar(Math.min(game.roadLength ? (game.roadLength * 0.99) / 100 : game.kmTotal - 0.05, km) * 100); game.jumped = true; }
     }
     primeImpact(); // (the crash thud's audio, ready before the first hit)
     game.started = true; game.phase = "drive"; game.paused = false;
