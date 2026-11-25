@@ -238,7 +238,7 @@ export function buildTown(lots: Lot[], seed: number, ground: (x: number, z: numb
         rest.quad([a.x + nx * out, yb, a.z + nz * out], [b.x + nx * out, yb, b.z + nz * out], [b.x, ya, b.z], [a.x, ya, a.z], [nx * 0.5, 0.87, nz * 0.5], undefined, r() < 0.75 ? TILE : TILE_DARK);
       }
       // the forecourt: concrete from the shop front out toward the road, at the ground's level (a kerb's height up)
-      if (facing && lot.kind !== "house") {
+      if (facing && lot.kind !== "house" && !lot.street) { // (a side street's shops open onto its footpath)
         // (its outer edge on the ground there, which rises toward the road bank: never under the grass)
         const out = 0.34, ox = nx * out, oz = nz * out, ya = Math.max(yg, ground(a.x + ox, a.z + oz)) + 0.012, yb = Math.max(yg, ground(b.x + ox, b.z + oz)) + 0.012, yi = yg + 0.012;
         const pave = PAVE.map((v) => v * (0.92 + r() * 0.12)) as [number, number, number];

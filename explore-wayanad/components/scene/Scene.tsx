@@ -63,6 +63,8 @@ import Checkposts from "../drive/Checkposts";
 import Underglow from "../drive/Underglow";
 import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
+import Streets from "./Streets";
+import TownLife from "./TownLife";
 import Vista from "../drive/Vista";
 import TyreSmoke from "@/components/drive/TyreSmoke";
 // filming only (?film=<car>): a new garage car in place of yours, for reels
@@ -182,6 +184,8 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       <Suspense fallback={null}><Props curve={curve} density={small ? (weak ? 0.25 : 0.4) : 1} /></Suspense>
       <Gateway curve={curve} />
       <Town curve={curve} />
+      <Streets curve={curve} />
+      <TownLife curve={curve} small={small} />
       <TeaHedges curve={curve} density={small ? (weak ? 0.3 : 0.5) : 1} />
       <BendSigns curve={curve} />
       <Billboards curve={curve} />

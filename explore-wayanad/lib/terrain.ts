@@ -332,10 +332,15 @@ function noise(x: number, z: number) {
   );
 }
 
+/** Ground shaped by something else (lib/streets: levelled under the side streets), given the height it would have. */
+let groundHook: ((x: number, z: number, y: number) => number) | null = null;
+export function setGroundHook(f: typeof groundHook) { groundHook = f; }
+
 export function height(x: number, z: number): number {
   if (field) {
     const near = nearestAny(x, z);
-    return near ? crossSection(near.d, near.bed, natural(field, x, z), near.wall, x, z) : groundHeight(field, x, z);
+    const y = near ? crossSection(near.d, near.bed, natural(field, x, z), near.wall, x, z) : groundHeight(field, x, z);
+    return groundHook ? groundHook(x, z, y) : y;
   }
   const valley = Math.max(0, 1 - Math.abs(x) / 90);
   return ramp(z) + noise(x, z) * (0.6 + valley * 0.8) - valley * 2;

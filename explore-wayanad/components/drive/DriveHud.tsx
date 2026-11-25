@@ -45,6 +45,8 @@ import BigMap from "./BigMap";
 import RadioHud from "./RadioHud";
 import { nextStation, radioTick } from "@/lib/radio";
 import { checkNote } from "@/lib/checkposts";
+import { townNote } from "@/lib/townLife";
+import PaintCard from "./PaintCard";
 import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
 import { shareView } from "@/lib/shareCard";
@@ -347,7 +349,7 @@ export default function DriveHud() {
       // the tea stall below Lakkidi: a word as you come up to it, until you've had your tea this climb
       const toStall = game.stall - game.s, teaDue = game.stall > 0 && game.teaRun !== score.run && game.phase === "drive";
       const teaNote = !teaDue ? "" : Math.abs(toStall) < 0.45 ? (Math.abs(game.speed) < 0.03 ? "☕ Ordering a chaya…" : "☕ Stop here for a chai break") : toStall > 0 && toStall < 10 ? `☕ Tea stall in ${Math.round(toStall * 10)} m — stop for a chai break` : "";
-      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote();
+      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote() || townNote();
       // the tea itself, for a few seconds after it's served
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);
@@ -533,6 +535,7 @@ export default function DriveHud() {
         <ThemeToggle className={styles.themeKey} />
       </div>
       {kada && <Shop onClose={() => setKada(false)} />}
+      <PaintCard />
       {bigMap && <BigMap onClose={() => setBigMap(false)} />}
       {menu && (<>
         <div className={styles.menuVeil} onClick={() => setMenu(false)} aria-hidden />

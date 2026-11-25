@@ -1,5 +1,5 @@
 "use client";
-import { use, useEffect, useMemo, useRef } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
   AdditiveBlending, Box3, BufferAttribute, BufferGeometry, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, Color, Group, Material, Matrix4, Mesh, MeshStandardMaterial,
@@ -8,6 +8,8 @@ import {
 import { CAR, game, setVehicle, type View } from "@/lib/game";
 import { collideRemotes, net } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
+import { mainRoom, street, streets, switchRoads } from "@/lib/streets";
+import { stationRoom, town } from "@/lib/townLife";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
 import { collidePeople } from "@/components/scene/Pedestrians";
 import { loadVehicle, mergeInto } from "@/lib/vehicleAssets";
@@ -150,13 +152,16 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   const source = use(loadVehicle(car.file));
   const camera = useThree((s) => s.camera);
   const roads = useMemo<RoadInfo[]>(() => [
-    { curve, length: curve.getLength(), widen: (t: number) => roadShapeAt(t).widen },
+    // (opening at the side streets' mouths and the petrol pumps' forecourts: lib/streets, lib/townLife)
+    { curve, length: curve.getLength(), widen: (t: number) => roadShapeAt(t).widen, room: (s: number, side: number) => Math.max(mainRoom(curve, s, side), stationRoom(s, side)) },
     ...(forest ? [{ curve: forest, length: forest.getLength(), widen: () => 0 }] : []),
   ], [curve, forest]);
+  const streetRoads = useMemo(() => streets(curve).map((st) => st.info), [curve]);
 
+  const [respray, setRespray] = useState<string | null>(town.paint); // the paint garage's colour this drive (lib/townLife)
   const rig = useMemo(() => {
     // scale the model to 4.0 m, wheels on the ground, centred
-    const wrap = new Group(), model = prepareVehicle(source.clone(true), car, choice.paintHex ?? colourOf(choice.colour).hex); wrap.add(model);
+    const wrap = new Group(), model = prepareVehicle(source.clone(true), car, respray ?? choice.paintHex ?? colourOf(choice.colour).hex); wrap.add(model);
     const box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), k = LENGTH / size.z;
     model.scale.setScalar(k); model.updateMatrixWorld(true);
     const b2 = new Box3().setFromObject(model), c2 = b2.getCenter(new Vector3());
@@ -281,7 +286,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     let flash: ((t: number, on?: boolean) => void) | null = null;
     if (car.siren) { const lb = lightBar(0.11, 0.24); lb.bar.position.set(0, new Box3().setFromObject(body).max.y + 0.002, 0); body.add(lb.bar); flash = lb.flash; }
     return { root, body, wheels, wheelSet, steering, lamps, spot, brakeGlow, reverseGlow, plate, panels, dims, flash, blur };
-  }, [source, LENGTH, choice.colour, choice.paintHex, car.plate, car.bike, car.siren, car.wheels]);
+  }, [source, LENGTH, choice.colour, choice.paintHex, respray, car.plate, car.bike, car.siren, car.wheels]);
   // what you're riding sets the handling (lib/game setVehicle); a fresh body has no dents
   useMemo(() => { setVehicle(!!car.bike, car.heavy ? { halfL: LENGTH / 2, halfW: car.heavy.width / 20 } : undefined, car.handling); game.damage = 0; own.siren = !!car.siren; game.supercar = car.sound === "super"; }, [car.bike, car.heavy, car.siren, car.handling, car.sound, LENGTH, rig]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { own.siren = false; }, []);
@@ -353,6 +358,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   });
 
   const footWas = useRef(false);
+  const washSeen = useRef(town.washed), paintSeen = useRef(town.repaint);
   const cam = useRef({ yaw: 0, y: 0, lift: 0, boom: 1, ready: false, view: game.view as View | "back", blend: 1, from: new Vector3(), fromQ: new Quaternion() });
   const spun = useRef(game.wheel); // (the game's wheel angle last frame)
   const lastScrape = useRef(0), contact = useRef({ loss: 0, peak: 0 }), touching = useRef({ peak: 0, clear: 0 }), spring = useRef({ pitch: 0, roll: 0, vp: 0, vr: 0 }), lastReset = useRef(game.reset), lastLeg = useRef(game.leg);
@@ -362,6 +368,9 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
   useFrame((_, dt) => frameTimed("player", () => {
     const road = roads[Math.min(game.leg, roads.length - 1)];
     if (dentRun.current !== score.run) { if (dentRun.current >= 0) repair(); dentRun.current = score.run; } // a new climb: a fresh car
+    // the car wash takes the dents out; the paint garage resprays it for this drive (lib/townLife)
+    if (washSeen.current !== town.washed) { washSeen.current = town.washed; repair(); }
+    if (paintSeen.current !== town.repaint) { paintSeen.current = town.repaint; if (town.paint !== respray) setRespray(town.paint); } // (the car is made again in it)
     if (game.reset !== lastReset.current || game.leg !== lastLeg.current) { lastReset.current = game.reset; lastLeg.current = game.leg; settle(); cam.current.ready = false; }
     let alpha = 1;
     const speedBefore = game.speed;
@@ -373,10 +382,15 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       // otherwise the road stays open past it, on through Vythiri to Kalpetta (DriveHud cheers the finish as you pass)
       const gateStop = scrollState.arch * road.length + GATE.after, ending = game.leg === 0 && !!net.party && game.s > gateStop - GATE.brake;
       if (ending) { game.input.throttle = 0; game.input.brake = game.speed > 0.02 ? 0.45 : 0; }
-      alpha = simulate(road, dt);
+      // on a side street (lib/streets): the physics runs in the street's own coordinates, then back to the main road's
+      const SR = game.leg === 0 && game.street >= 0 ? streetRoads[game.street] : null;
+      if (SR) { Object.assign(game, { s: street.s, lat: street.lat, psi: street.psi }); game.prev = { ...street.prev }; }
+      alpha = simulate(SR ?? road, dt);
+      if (SR) { Object.assign(street, { s: game.s, lat: game.lat, psi: game.psi }); street.prev = { ...game.prev }; }
+      if (game.leg === 0 && switchRoads(curve)) settle();
       if (game.leg === 0) { scoreDrive(dt, game.s, game.speed); tickBadges(dt, weather.rain, nightness(), game.speed); } // points for new road, the clean-driving streak, time in rain / dark
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
-      if (game.leg === 0 && trafficControl.curve === curve) {
+      if (game.leg === 0 && game.street < 0 && trafficControl.curve === curve) {
         const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
         const knock = Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
         // someone knocked over on the shoulder: a jolt, the streak lost and points off, and a word
@@ -414,14 +428,16 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (strength > C2.peak + 0.12) {
         hit(strength); if (scoring && strength > 0.4 && C2.peak < 0.4) crash(false); C2.peak = strength;
         // the barrier or the bank: along the side that hit it (+lat is the road's left, the car's −x), toward the front
-        dent(new Vector3(-Math.sign(game.lat) * rig.dims.x * 0.5, rig.dims.y * (0.3 + Math.random() * 0.25), rig.dims.z * (0.1 + Math.random() * 0.3)), strength);
+        dent(new Vector3(-Math.sign(game.street >= 0 ? street.lat : game.lat) * rig.dims.x * 0.5, rig.dims.y * (0.3 + Math.random() * 0.25), rig.dims.z * (0.1 + Math.random() * 0.3)), strength);
       }
     } else if (game.scrape < 0.02) { C2.loss = 0; C2.peak = 0; }
     lastScrape.current = game.scrape;
 
     // drawn between the last two physics steps
-    const s = game.prev.s + (game.s - game.prev.s) * alpha, lat = game.prev.lat + (game.lat - game.prev.lat) * alpha, psi = game.prev.psi + (game.psi - game.prev.psi) * alpha;
-    const L = road.length, t = Math.min(1, s / L);
+    // (on a street the car is drawn on it, in its coordinates; the act, the places and the km stay the main road's)
+    const onSt = game.leg === 0 && game.street >= 0 && !!streetRoads[game.street], R = onSt ? streetRoads[game.street] : road, at = onSt ? street : game;
+    const s = at.prev.s + (at.s - at.prev.s) * alpha, lat = at.prev.lat + (at.lat - at.prev.lat) * alpha, psi = at.prev.psi + (at.psi - at.prev.psi) * alpha;
+    const ms = onSt ? game.s : s, L = road.length, t = Math.min(1, ms / L), RL = R.length, rt = Math.min(1, s / RL);
     game.roadLength = L;
     if (game.leg === 0) game.finishS = scrollState.arch * L + GATE.after - GATE.brake; // lib/race: past here, the climb's done
 
@@ -437,11 +453,11 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       // past the gate: the next town on the plateau, and the road's end at Kalpetta
       const ahead = scrollState.places.find((pl) => pl.t > t + 0.002), roadEnd = END_T * L;
       [game.next, game.nextM] = t < scrollState.arch ? ["Lakkidi gate", (scrollState.arch - t) * L * 10]
-        : net.party ? ["End of the drive", Math.max(0, scrollState.arch * L + GATE.after - s) * 10]
-        : ahead ? [ahead.name, (ahead.t - t) * L * 10] : ["Kalpetta", Math.max(0, roadEnd - s) * 10];
+        : net.party ? ["End of the drive", Math.max(0, scrollState.arch * L + GATE.after - ms) * 10]
+        : ahead ? [ahead.name, (ahead.t - t) * L * 10] : ["Kalpetta", Math.max(0, roadEnd - ms) * 10];
       // the km readout: road distance from Adivaram (units of 10 m → km), out of the climb's length — and once over the
       // top (the road open beyond), out of the whole road to Kalpetta
-      game.km = s / 100; game.kmTotal = (!net.party && t >= scrollState.arch ? roadEnd : scrollState.arch * L + GATE.after) / 100;
+      game.km = ms / 100; game.kmTotal = (!net.party && t >= scrollState.arch ? roadEnd : scrollState.arch * L + GATE.after) / 100;
     } else {
       const places = (forestRoad()?.places ?? []).filter((pl) => pl.t <= t);
       game.place = places.length ? places[places.length - 1].name : "Sulthan Bathery";
@@ -450,16 +466,16 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
 
     // pose: on the road at s, `lat` across it, turned `psi` from its direction, pitched with the slope
     const { p, tan, left, fwd, n, m, q: rot } = tmp, { root, body, wheels, steering, lamps, spot, brakeGlow, reverseGlow } = rig;
-    road.curve.getPointAt(t, p); road.curve.getTangentAt(t, tan);
+    R.curve.getPointAt(rt, p); R.curve.getTangentAt(rt, tan);
     left.set(tan.z, 0, -tan.x).normalize();
     p.addScaledVector(left, lat); p.y -= 0.588; // the asphalt (as Traffic's lanePoint)
-    const rise = road.curve.getPointAt(Math.min(1, (s + 0.2) / L)).y - road.curve.getPointAt(Math.max(0, (s - 0.2) / L)).y;
+    const rise = R.curve.getPointAt(Math.min(1, (s + 0.2) / RL)).y - R.curve.getPointAt(Math.max(0, (s - 0.2) / RL)).y;
     fwd.copy(tan).setY(0).normalize().multiplyScalar(Math.cos(psi)).addScaledVector(left, Math.sin(psi)).setY(rise / 0.4).normalize();
     const right = tmp.r.copy(up).cross(fwd).normalize(); n.copy(fwd).cross(right).normalize();
     rot.setFromRotationMatrix(m.makeBasis(right, n, fwd));
     root.position.copy(p).addScaledVector(n, 0.002); root.quaternion.copy(rot);
     // on the shoulder: down on the gravel, a few cm below the asphalt, leaning out as the outer wheels drop off it
-    const track = CAR.halfW * 0.8, d = Math.abs(lat) - road.widen(t), inner = shoulderDrop(d - track), outer = shoulderDrop(d + track);
+    const track = CAR.halfW * 0.8, d = Math.abs(lat) - R.widen(rt) - (R.room?.(s, Math.sign(lat)) ?? 0), inner = shoulderDrop(d - track), outer = shoulderDrop(d + track);
     // (a bike runs on one line: it just drops onto the gravel, no tilting as if outer wheels had gone over the edge)
     if (car.bike) { const drop = shoulderDrop(d); if (drop > 0) root.position.y -= drop; }
     else if (outer > 0) { root.position.y -= (inner + outer) / 2; root.rotateZ(Math.sign(lat) * Math.atan((outer - inner) / (2 * track))); }
@@ -528,7 +544,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
     if (Math.abs(camera3.fov - fov) > 0.01) { camera3.fov += (fov - camera3.fov) * Math.min(1, dt * 8); camera3.updateProjectionMatrix(); }
     // the chase camera looks a little toward where the road goes (its direction ~12 m ahead), not only where the car
     // points, so on a hairpin the way out comes into view as you turn instead of the bank
-    const ahead = road.curve.getTangentAt(Math.min(1, (s + 1.2) / L), tmp.a), carYaw = Math.atan2(fwd.x, fwd.z);
+    const ahead = R.curve.getTangentAt(Math.min(1, (s + 1.2) / RL), tmp.a), carYaw = Math.atan2(fwd.x, fwd.z);
     const roadYaw = Math.atan2(ahead.x, ahead.z), toRoad = Math.atan2(Math.sin(roadYaw - carYaw), Math.cos(roadYaw - carYaw));
     const heading = carYaw + toRoad * 0.3 * Math.min(1, Math.abs(game.speed) / 0.3);
     if (!C.ready) { C.yaw = heading; C.y = root.position.y; C.ready = true; }

@@ -143,6 +143,8 @@ export function tickChase(fleet: Vehicle[], length: number, bendAt: (d: number) 
     }
     nearest = Math.min(nearest, Math.abs(v.distance - s) - half(v) - CAR.halfL);
   });
+  // down a side street (lib/streets) they can't follow you: you're getting away
+  if (game.street >= 0) nearest = Math.max(nearest, C.lose + 0.5);
   chase.nearest = nearest;
   // caught: stopped with one on you
   if (nearest < C.near && Math.abs(game.speed) < C.still) chase.held += dt; else chase.held = Math.max(0, chase.held - dt * 2);

@@ -25,6 +25,7 @@ import { freeze } from '@/lib/freeze';
 import { stage, stageBlock } from '@/lib/stage';
 import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
 import { chase, tickChase } from '@/lib/chase';
+import { busStops, signalStops } from '@/lib/townLife';
 import { paintCar } from '@/lib/carModel';
 import { loadVehicle as loadParts, mergeByMaterial, mergeInto } from '@/lib/vehicleAssets';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -282,11 +283,13 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     if (typeof window !== 'undefined') (window as unknown as { __wayanadTraffic?: unknown }).__wayanadTraffic = trafficControl; // for testing
     if (game.active) {
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
-      const onRoad = game.leg === 0 && game.phase === 'drive';
+      const onRoad = game.leg === 0 && game.phase === 'drive' && game.street < 0; // (on a side street, lib/streets: not on this road)
       const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
       // in the way too: you on foot (standing in a lane stops it — wave one down), and your own car parked where you
       // left it when you took another (lib/game `parked`)
       const blocks: Obstacle[] = onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : [];
+      // Kalpetta: the crossing's signal on red, and the buses pulling in at the stand (lib/townLife)
+      if (game.leg === 0) { blocks.push(...signalStops()); busStops(live); }
       const rubble = stageBlock(); if (rubble) blocks.push({ ...rubble, lanes: [1, -1], keep: 0.12 }); // (a staged rockfall, filming only)
       // you, in the police jeep or the ambulance, siren going: the traffic ahead of you pulls over, as for theirs
       if (own.siren && onRoad && Math.abs(game.speed) > .15) for (const v of live) {

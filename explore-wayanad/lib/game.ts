@@ -22,6 +22,7 @@ const fresh = () => ({
   paused: false,                              // Space: everything that moves holds still
   hold: false,                                // a race's countdown (Play with friends): your car waits on the line
   leg: 0 as Leg,
+  street: -1,                                // on a side street (lib/streets: which; its own road coordinates there), −1 on the main road
   s: 3, lat: 0.2, psi: 0, speed: 0,          // units, units, radians, units/s
   prev: { s: 3, lat: 0.2, psi: 0 },           // the previous physics step, for drawing between steps
   accel: 0, sideways: 0,                      // units/s² along and across: the body pitches and rolls with them
@@ -100,7 +101,7 @@ export function togglePause(on = !game.paused) {
 
 /** Can you get out now: on the road, stopped (walking pace or less), not paused, not lined up for a race. */
 export function canLeave() {
-  return game.started && game.phase === "drive" && !game.paused && !game.hold && Math.abs(game.speed) < 0.05;
+  return game.started && game.phase === "drive" && !game.paused && !game.hold && game.street < 0 && Math.abs(game.speed) < 0.05;
 }
 /** Enter: out of the vehicle when you can, back in when you're by it (OnFoot carries it out next frame). */
 export function toggleFoot() {

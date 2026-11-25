@@ -50,7 +50,7 @@ export function spend(n: number) {
 
 /** Jobs run here: driving the main road (leg 0), past the gate, not in a private room. */
 export function jobsOn() {
-  return game.started && game.phase === "drive" && game.leg === 0 && !net.party && !game.foot.on;
+  return game.started && game.phase === "drive" && game.leg === 0 && game.street < 0 && !net.party && !game.foot.on;
 }
 
 /** Seconds the clock gives a job: the road between at its pace, and half a minute to get going. */

@@ -10,7 +10,9 @@ import { SECTION } from "./terrain";
 export const STEP = 1 / 120;
 const G = 0.981; // gravity, units/s²
 
-export type RoadInfo = { curve: CatmullRomCurve3; length: number; widen: (t: number) => number };
+/** `room`: extra width past the edge on one side (+1 the road's left) at s, where the road opens onto something you
+ * can drive into (lib/streets: a side street's mouth; lib/townLife: a petrol pump's forecourt). */
+export type RoadInfo = { curve: CatmullRomCurve3; length: number; widen: (t: number) => number; room?: (s: number, side: number) => number };
 
 const ta = new Vector3(), tb = new Vector3(), pa = new Vector3(), pb = new Vector3();
 /** Signed curvature (1/units, + = bending left) and grade (rise/run) of the road at s. */
@@ -32,7 +34,7 @@ export function laneLimit(road: RoadInfo, s: number) {
 }
 /** 0 with all four wheels on the asphalt, 1 with the outer ones a full OFF_ROAD onto the shoulder. */
 export function offRoad(road: RoadInfo, s: number, lat: number) {
-  const edge = SECTION.half + road.widen(Math.min(1, Math.max(0, s / road.length)));
+  const edge = SECTION.half + road.widen(Math.min(1, Math.max(0, s / road.length))) + (road.room?.(s, Math.sign(lat)) ?? 0);
   return Math.min(1, Math.max(0, (Math.abs(lat) + CAR.halfW - edge) / OFF_ROAD));
 }
 
@@ -97,7 +99,7 @@ export function stepCar(road: RoadInfo, dt: number) {
   g.wheel += (v * dt) / 0.033; // 33 cm tyre radius
   g.odometer += Math.abs(ds); if (Math.abs(v) > 0.01) g.clock += dt;
   // the edge: barrier posts and the bank. Scrape along it: pushed back in, heading straightened, speed scrubbed
-  const lim = laneLimit(road, g.s);
+  const lim = laneLimit(road, g.s) + (road.room?.(g.s, Math.sign(g.lat)) ?? 0);
   let hit = 0;
   if (Math.abs(g.lat) > lim) {
     hit = Math.min(1, Math.abs(v) * (Math.abs(Math.sin(g.psi)) + 0.15));

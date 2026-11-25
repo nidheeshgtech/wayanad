@@ -5,6 +5,8 @@ import { game, togglePause } from "@/lib/game";
 import { JOBS } from "@/data/jobs";
 import { jobs, wallet } from "@/lib/jobs";
 import { CHECKPOSTS } from "@/lib/checkposts";
+import { KALPETTA, STATIONS, STATION_ICON } from "@/lib/townLife";
+import { STREETS, offsetAt } from "@/lib/streets";
 import styles from "./BigMap.module.scss";
 
 /* The big map (M, or Map in the menu): the whole drive on the real road (OSM, as the radar has it), north up. The towns,
@@ -43,7 +45,13 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
       return [pts[i][0] + (pts[j][0] - pts[i][0]) * t, pts[i][1] + (pts[j][1] - pts[i][1]) * t];
     };
     const places = [{ name: "Adivaram", along: 0 }, { name: "Lakkidi gate", along: road.arch?.along ?? 12150 }, ...(road.places ?? [])];
-    return { d, at, n, step: road.step, places, bends: (road.bends ?? []).map((b) => at(b.along / 10)), total: ((n - 1) * road.step) / 10 };
+    // the side streets (lib/streets): off the road by their offset, on their side (right of the way up: −1)
+    const side = (s: number, o: number, k: number): [number, number] => {
+      const [x, y] = at(s), [x1, y1] = at(s + 1), [x0, y0] = at(s - 1), dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+      return [x + (dy / len) * k * o * 10 * sc, y + (-dx / len) * k * o * 10 * sc];
+    };
+    const streets = STREETS.map((st) => { const pts: string[] = []; for (let s = st.from; s <= st.to; s += 0.5) { const [x, y] = side(s, offsetAt(st, s), st.side); pts.push(`${x.toFixed(1)} ${y.toFixed(1)}`); } return { id: st.id, d: "M" + pts.join("L"), label: side((st.from + st.to) / 2, st.offset + 1.6, st.side), name: st.name }; });
+    return { d, at, n, step: road.step, places, streets, bends: (road.bends ?? []).map((b) => at(b.along / 10)), total: ((n - 1) * road.step) / 10 };
   }, [road, W, H]);
 
   // you, live (the drive is paused, but you might have opened it while rolling to a stop)
@@ -79,11 +87,15 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
           </defs>
           <rect width={W} height={H} fill="url(#bigmap-grid)" />
           {map && (<>
+            {map.streets.map((st) => <path key={st.id + "c"} d={st.d} className={styles.casing} style={{ strokeWidth: 6 }} />)}
+            {map.streets.map((st) => <path key={st.id} d={st.d} className={styles.road} style={{ strokeWidth: 3 }} />)}
             <path d={map.d} className={styles.casing} />
             <path d={map.d} className={styles.road} />
             <path ref={done} d={map.d} pathLength={1} className={styles.done} strokeDasharray="0 2" />
             {map.bends.map(([x, y], i) => <g key={"b" + i} transform={`translate(${x} ${y})`} className={styles.bend}><circle r={7} /><text y={0.5}>{i + 1}</text></g>)}
             {stops.map((st, i) => { const [x, y] = map.at(st.s); return <g key={"s" + i} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>{st.kind === "viewpoint" ? "👁" : "☕"}</text></g>; })}
+            {STATIONS.map((st) => { const [x, y] = map.at(st.s); return <g key={st.id} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>{STATION_ICON[st.kind]}</text></g>; })}
+            {(() => { const [x, y] = map.at(KALPETTA.busStand.s); return <g transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>🚌</text></g>; })()}
             {CHECKPOSTS.map((c) => { const [x, y] = map.at(c.s); return <g key={c.name} transform={`translate(${x} ${y})`} className={styles.police}><circle r={10} /><text y={1}>🚔</text></g>; })}
             {open.map((j) => { const [x, y] = map.at(j.pick); return <g key={j.id} transform={`translate(${x} ${y})`} className={styles.job} style={{ ["--t" as string]: j.tint }}><circle r={12} /><text y={0.5}>{j.initials}</text></g>; })}
             {active && (() => { const [x, y] = map.at(active.job.drop); return <g transform={`translate(${x} ${y})`} className={styles.drop}><circle r={13} /><text y={0.5}>{active.job.initials}</text></g>; })()}
@@ -97,6 +109,7 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
           <span><i className={styles.kJob} /> Churam Jobs{active ? " · drop pulsing" : ""}</span>
           <span>🚔 Speed check · 60</span>
           <span>☕ Chaya</span>
+          <span>⛽ Fuel · 🚿 Wash · 🎨 Paint</span>
           <span className={styles.keyHint}><kbd>M</kbd> close</span>
         </footer>
       </div>

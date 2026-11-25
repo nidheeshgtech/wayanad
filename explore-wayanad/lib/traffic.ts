@@ -38,7 +38,9 @@ export type Vehicle = { id: number; kind: number; direction: 1 | -1; distance: n
    * (0–1) and which way its tail was knocked (Traffic draws the jolt: a wobble that settles, a hop) */
   jolt?: number; joltT?: number; joltKick?: number; joltSide?: 1 | -1;
   /** an ambulance is coming: seconds left pulled over to its edge and slowed (advanceTraffic) */
-  aside?: number };
+  aside?: number;
+  /** a bus at a stop (lib/townLife busStops): seconds left standing at its edge, doors open */
+  dwell?: number };
 /** Hit harder than this (closing speed, units/s ≈ 11 km/h) a car, bus or lorry jolts and stops this long. */
 export const JOLT = { min: 0.3, stop: 3.2 };
 /** Two-wheelers fall over when you hit them (the rest are solid and just stop you). */
@@ -154,7 +156,10 @@ export function advanceTraffic(fleet: Vehicle[], curve: CatmullRomCurve3, dt: nu
     // eases back into its lane
     if (v.kind === AMBULANCE) v.shift = (ahead.get(v) ?? []).some(o => (o.aside ?? 0) > 0 && ((o.distance - v.distance) * v.direction + span) % span < 1.6) ? Math.max(-4, (v.shift ?? 0) - dt * 4) : Math.min(0, (v.shift ?? 0) + dt * 2);
     // each vehicle its own pace (±10%), held back while it gives way or takes care (interactWithViewer)
-    const cap = aside ? .2 : v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
+    // a bus at its stop: in to its edge, stopped, then off again
+    const dwell = (v.dwell ?? 0) > 0;
+    if (v.dwell !== undefined) { v.dwell -= dt; if (dwell && edgeRoom(v.kind) > 0) v.shift = Math.min(1, (v.shift ?? 0) + dt * 1.2); if (v.dwell <= 0) v.dwell = undefined; }
+    const cap = dwell ? 0 : aside ? .2 : v.mode === 'yield' ? DRIVE.yieldPace : v.mode === 'caution' ? DRIVE.cautionPace : 1;
     let desired = Math.min(spec.speed * pace(v.id) * cap, .23 / Math.max(.3, bend)) * (1 - .22 * rain);
     const safe = .65 + Math.max(0, v.speed) * (2 + rain * 2);
     let room = stops.get(v.id) ?? Infinity;
@@ -270,7 +275,7 @@ export function interactWithViewer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
   }
   // ease toward the edge (or back into the lane) gently
   const k = 1 - Math.exp(-dt / DRIVE.ease);
-  for (const v of fleet) if (v.kind !== AMBULANCE && !((v.aside ?? 0) > 0)) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k; // (an ambulance, and those pulled over for one: advanceTraffic)
+  for (const v of fleet) if (v.kind !== AMBULANCE && !((v.aside ?? 0) > 0) && !((v.dwell ?? 0) > 0)) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k; // (an ambulance, and those pulled over for one: advanceTraffic)
   return { overtaking, following: !!lead && lead.mode === 'follow', held };
 }
 
@@ -329,7 +334,7 @@ export function interactWithPlayer(fleet: Vehicle[], curve: CatmullRomCurve3, wi
     if ((out && g > -p.halfL && g < 8) || (alongside && g > -1 && g < 6)) v.mode = 'caution'; else if (v.mode === 'caution') v.mode = 'cruise';
   }
   const k = 1 - Math.exp(-dt / DRIVE.ease);
-  for (const v of fleet) if (v.kind !== AMBULANCE && !((v.aside ?? 0) > 0)) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k; // (an ambulance, and those pulled over for one: advanceTraffic)
+  for (const v of fleet) if (v.kind !== AMBULANCE && !((v.aside ?? 0) > 0) && !((v.dwell ?? 0) > 0)) v.shift = (v.shift ?? 0) + ((passing(v) || v.mode === 'caution' ? 1 : 0) - (v.shift ?? 0)) * k; // (an ambulance, and those pulled over for one: advanceTraffic)
   return { overtaking: out || alongside, following: !!lead && lead.mode === 'follow', held };
 }
 

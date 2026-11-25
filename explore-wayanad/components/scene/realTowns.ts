@@ -8,8 +8,10 @@
  * or service. Pure and deterministic; cached per road curve. Scene units (1 = 10 m).
  */
 import { CatmullRomCurve3, Vector3 } from "three";
-import { SECTION, height, latLonToWorld, roadDistance, roadShapeAt } from "@/lib/terrain";
+import { SECTION, height, latLonToWorld, placesT, roadDistance, roadShapeAt } from "@/lib/terrain";
 import { townData } from "@/lib/towns";
+import { STREET, streetDistance, streets } from "@/lib/streets";
+import { townClear } from "@/lib/townLife";
 
 export type Lot = {
   ring: { x: number; z: number }[]; // counter-clockwise seen from above (+y), no repeated last point
@@ -21,6 +23,7 @@ export type Lot = {
   toRoad: { x: number; z: number }; // unit direction to the road from the lot's centre
   centre: Vector3; radius: number;
   town: string;
+  street?: boolean; // on a side street (lib/streets): its footpath is the forecourt
 };
 
 /* How each town fills its road where the map has no buildings: metres along the road before and after its place, how
@@ -55,7 +58,10 @@ export function townLots(curve: CatmullRomCurve3, road: "churam" | "forest", pla
       if (mapped.has(o) && Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.75) return true;
     return false;
   };
-  const add = (lot: Lot) => { lots.push(lot); const k = key(lot.centre.x, lot.centre.z); (grid.get(k) ?? grid.set(k, []).get(k)!).push(lot); };
+  // kept clear: the side streets (lib/streets) and the town's places (lib/townLife: the pumps, the bus stand…)
+  const keep = road === "churam" ? townClear(curve) : [];
+  const blocked = (c: Vector3, rad: number) => road === "churam" && (streetDistance(curve, c.x, c.z) < STREET.path + rad * 0.85 + 0.05 || keep.some((k) => Math.hypot(k.at.x - c.x, k.at.z - c.z) < k.radius + rad * 0.7));
+  const add = (lot: Lot) => { if (blocked(lot.centre, lot.radius)) return; lots.push(lot); const k = key(lot.centre.x, lot.centre.z); (grid.get(k) ?? grid.set(k, []).get(k)!).push(lot); };
   const pois: { x: number; z: number; use: string }[] = [];
   const finish = (ring: { x: number; z: number }[], floors: number, kind: Lot["kind"], use: string, colour: number, town: string) => {
     if (area(ring) < 0) ring.reverse();
@@ -82,7 +88,7 @@ export function townLots(curve: CatmullRomCurve3, road: "churam" | "forest", pla
       const civic = ["school", "hospital", "college", "church", "mosque", "temple", "public", "government", "civic", "bus_station"].includes(b.kind);
       const floors = b.levels ?? (civic ? 2 + Math.floor(r() * 2) : b.kind === "house" ? 1 + (r() < 0.4 ? 1 : 0) : f ? f.floors[Math.floor(r() * f.floors.length)] : 1 + Math.floor(r() * 2));
       const lot = finish(ring, Math.min(floors, 8), civic ? "civic" : shopish ? "shop" : "house", b.use ?? "", f ? f.walls[Math.floor(r() * f.walls.length)] : Math.floor(r() * 8), town.name);
-      if (!clash(lot.centre, lot.radius)) { add(lot); mapped.add(lot); }
+      if (!clash(lot.centre, lot.radius) && !blocked(lot.centre, lot.radius)) { add(lot); mapped.add(lot); }
     }
   }
   // 2 the frontage where the map has none: plots along both sides, in the town's build
@@ -118,3 +124,38 @@ export function townLots(curve: CatmullRomCurve3, road: "churam" | "forest", pla
   cache.set(curve, lots);
   return lots;
 }
+
+/** The buildings along the side streets (lib/streets): shop rows both sides, two to four storeys, in Kalpetta's whites
+ * and creams, their fronts to the street. Clear of the main road's own lots and of the places. Cached per road. */
+const streetCache = new WeakMap<CatmullRomCurve3, Lot[]>();
+export function streetLots(main: CatmullRomCurve3): Lot[] {
+  const hit = streetCache.get(main); if (hit) return hit;
+  const out: Lot[] = [], r = rng(2024), f = FILL.Kalpetta, others = townLots(main, "churam", placesOf(main)), keep = townClear(main);
+  const free = (c: Vector3, rad: number) => roadDistance(c.x, c.z) > SECTION.shoulder + rad * 0.9 + 0.1
+    && !others.some((o) => Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.8)
+    && !out.some((o) => Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.75)
+    && !keep.some((k) => Math.hypot(k.at.x - c.x, k.at.z - c.z) < k.radius + rad * 0.7);
+  for (const st of streets(main)) {
+    const L = st.length;
+    for (const side of [1, -1] as const) {
+      for (let s = 1.2; s < L - 1.2;) {
+        const w = 0.5 + r() * 0.5, depth = 0.8 + r() * 0.5, t = Math.min(0.999, (s + w / 2) / L);
+        s += w + 0.01 + r() * 0.05;
+        if (r() > 0.93) continue; // now and then a gap: a lane, a gate
+        const p = st.curve.getPointAt(t), tan = st.curve.getTangentAt(t).setY(0).normalize(), left = new Vector3().crossVectors(new Vector3(0, 1, 0), tan).normalize();
+        const fwd = left.clone().multiplyScalar(side), front = p.clone().addScaledVector(fwd, STREET.path + 0.02);
+        const a = front.clone().addScaledVector(tan, -w / 2), b = front.clone().addScaledVector(tan, w / 2);
+        const ring = [a, b, b.clone().addScaledVector(fwd, depth), a.clone().addScaledVector(fwd, depth)].map((v) => ({ x: v.x, z: v.z }));
+        const c = new Vector3((a.x + b.x) / 2 + fwd.x * depth / 2, 0, (a.z + b.z) / 2 + fwd.z * depth / 2), radius = Math.hypot(w, depth) / 2;
+        if (!free(c, radius)) continue;
+        if (area(ring) < 0) ring.reverse();
+        const floors = [2, 2, 3, 3, 3, 4][Math.floor(r() * 6)];
+        c.y = Math.min(height(front.x, front.z), p.y - 0.588);
+        out.push({ ring, y: c.y, floors, kind: floors === 2 && r() < 0.2 ? "house" : "shop", use: "", colour: f.walls[Math.floor(r() * f.walls.length)], toRoad: { x: -fwd.x, z: -fwd.z }, centre: c, radius, town: "Kalpetta", street: true });
+      }
+    }
+  }
+  streetCache.set(main, out);
+  return out;
+}
+const placesOf = (main: CatmullRomCurve3) => { void main; return placesT(); };
