@@ -15,9 +15,13 @@ import { game } from "@/lib/game";
 import { SECTION, buildRoadCurve, height, placesT, setGroundHook } from "@/lib/terrain";
 import type { RoadInfo } from "@/lib/carPhysics";
 
-export type StreetDef = { id: string; name: string; side: 1 | -1; from: number; to: number; offset: number; R: number };
+export type StreetDef = { id: string; name: string; ml: string; side: 1 | -1; from: number; to: number; offset: number; R: number };
+/* (Vythiri's and Chundale's on straight runs of the road through the town, s from public/terrain/churam-road.json's
+ * places: Vythiri 1822, Chundale 2196) */
 export const STREETS: StreetDef[] = [
-  { id: "bazaar", name: "Kalpetta Bazaar Road", side: -1, from: 2740, to: 2782, offset: 5.5, R: 9 },
+  { id: "vythiri", name: "Vythiri Market Road", ml: "മാർക്കറ്റ് റോഡ്", side: -1, from: 1798, to: 1828, offset: 4.5, R: 7 },
+  { id: "chundale", name: "Chundale Junction Road", ml: "ജംഗ്ഷൻ റോഡ്", side: -1, from: 2170, to: 2198, offset: 4.5, R: 7 },
+  { id: "bazaar", name: "Kalpetta Bazaar Road", ml: "ബസാർ റോഡ്", side: -1, from: 2740, to: 2782, offset: 5.5, R: 9 },
 ];
 /** The street's asphalt half-width (6.4 m: narrower than the highway), and its footpaths' outer edge. */
 export const STREET = { half: 0.32, path: 0.5, lift: 0.035 };

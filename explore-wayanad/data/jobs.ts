@@ -4,7 +4,7 @@
  * 14.83 km, Vythiri 18.22, Chundale 21.96, Kalpetta 28.09; the drive ends just short of Kalpetta's point, at ≈ 27.97).
  * Lines are Manglish, as the owner asked. Times come from the distance (lib/jobs) unless `pace` says otherwise.
  *
- *   deliver    get there before the clock runs out
+ *   deliver    get there before the clock runs out (with `crashes`: and with no more hits than that, e.g. a cake)
  *   passenger  get them there with no more than `crashes` hits (and before the clock, a generous one)
  */
 export type JobKind = "deliver" | "passenger";
@@ -50,5 +50,36 @@ export const JOBS: Job[] = [
     done: "Muhurtham miss aayilla! Ninte photo-yum album-il idaam. ₹400 ithaa.",
     fail: "Kettu kazhinju, njan ethiyilla… ini enikku joli kittilla.",
     crashed: "Ente camera! Ithu ini aaru nannakkum? Irangikko, njan nadannu pokaam.",
+  },
+  {
+    id: "tourists", who: "Tourist family", role: "From Bengaluru · Lakkidi viewpoint", initials: "TF", tint: "#b7607a",
+    kind: "passenger", pick: 1300, drop: 1478, dropName: "Pookode Lake gate", cargo: "Tourist family", pay: 200, pace: 12, crashes: 2,
+    offer: "Chetta, Pookode Lake vare onnu kondu pokamo? Taxi vannilla. Pillerokke urangunnu, pathukke ketto!",
+    done: "Super view! Thank you chetta. Ithaa ₹200, kuttikalkku ice cream vangikko ennu parayanda!",
+    fail: "Late aayi… boating time kazhinju. Next time nokkaam.",
+    crashed: "Pillerellaam unarnnu karayunnu! Njangal ivide irangikkolaam.",
+  },
+  {
+    id: "babu", who: "Babu chettan", role: "Chaya kada · Vythiri", initials: "BC", tint: "#a0522d",
+    kind: "deliver", pick: 1790, drop: 2180, dropName: "Chundale bus stop", cargo: "Chaya flask", pay: 200, pace: 20,
+    offer: "Chundale bus stop-il driver-mar chaya kaathu nikkunnu. Choodu pokunnathinu munne ethikkanam, mone!",
+    done: "Nalla choodu chaya, kruthya samayathu! Ithaa ₹200.",
+    fail: "Chaya thanuthu poyi… ini aarum kudikkilla.",
+  },
+  {
+    id: "suhara", who: "Suhara itha", role: "Bakery · Vythiri", initials: "SI", tint: "#d77fa1",
+    kind: "deliver", pick: 1868, drop: 2725, dropName: "Kalpetta birthday veedu", cargo: "Birthday cake", pay: 450, pace: 16, crashes: 0,
+    offer: "Mole-de birthday cake aanu, Kalpetta-yil ethikkanam. Oru idi polum paadilla, cake veenaal theernnu!",
+    done: "Cake perfect! Kuttikal ellaam happy. Ithaa ₹450 eduthho.",
+    fail: "Party kazhinju… ini cake aarkku venam?",
+    crashed: "Ayyo, cake mosham aayi! Ini enthu cheyyum…",
+  },
+  {
+    id: "rafeeq", who: "Rafeeq", role: "Auto driver · Chundale", initials: "RF", tint: "#e0b43a",
+    kind: "passenger", pick: 2160, drop: 2766, dropName: "Kalpetta bus stand", cargo: "Rafeeq-inte passenger", pay: 350, pace: 17, crashes: 1,
+    offer: "Ente auto-de axle poyi! Ee saar-inu Kalpetta stand-il ninnu Bangalore bus pidikkanam. Onnu ethikkamo?",
+    done: "Bus kitti! Saar happy, njanum happy. Ithaa ₹350.",
+    fail: "Bangalore bus poyi… saar ini naale pokum.",
+    crashed: "Saar pedichu irangi! Ithu auto alla, rocket aano?",
   },
 ];

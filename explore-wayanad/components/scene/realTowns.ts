@@ -130,18 +130,20 @@ export function townLots(curve: CatmullRomCurve3, road: "churam" | "forest", pla
 const streetCache = new WeakMap<CatmullRomCurve3, Lot[]>();
 export function streetLots(main: CatmullRomCurve3): Lot[] {
   const hit = streetCache.get(main); if (hit) return hit;
-  const out: Lot[] = [], r = rng(2024), f = FILL.Kalpetta, others = townLots(main, "churam", placesOf(main)), keep = townClear(main);
+  const out: Lot[] = [], r = rng(2024), others = townLots(main, "churam", placesOf(main)), keep = townClear(main);
   const free = (c: Vector3, rad: number) => roadDistance(c.x, c.z) > SECTION.shoulder + rad * 0.9 + 0.1
     && !others.some((o) => Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.8)
     && !out.some((o) => Math.hypot(o.centre.x - c.x, o.centre.z - c.z) < (o.radius + rad) * 0.75)
     && !keep.some((k) => Math.hypot(k.at.x - c.x, k.at.z - c.z) < k.radius + rad * 0.7);
   for (const st of streets(main)) {
+    // each in its own town's build: Kalpetta's packed concrete blocks, Vythiri's and Chundale's lower and more spaced
+    const town = st.id === "vythiri" ? "Vythiri" : st.id === "chundale" ? "Chundale" : "Kalpetta", f = FILL[town], small = town !== "Kalpetta";
     const L = st.length;
     for (const side of [1, -1] as const) {
       for (let s = 1.2; s < L - 1.2;) {
         const w = 0.5 + r() * 0.5, depth = 0.8 + r() * 0.5, t = Math.min(0.999, (s + w / 2) / L);
         s += w + 0.01 + r() * 0.05;
-        if (r() > 0.93) continue; // now and then a gap: a lane, a gate
+        if (r() > (small ? 0.78 : 0.93)) continue; // now and then a gap: a lane, a gate
         const p = st.curve.getPointAt(t), tan = st.curve.getTangentAt(t).setY(0).normalize(), left = new Vector3().crossVectors(new Vector3(0, 1, 0), tan).normalize();
         const fwd = left.clone().multiplyScalar(side), front = p.clone().addScaledVector(fwd, STREET.path + 0.02);
         const a = front.clone().addScaledVector(tan, -w / 2), b = front.clone().addScaledVector(tan, w / 2);
@@ -149,9 +151,9 @@ export function streetLots(main: CatmullRomCurve3): Lot[] {
         const c = new Vector3((a.x + b.x) / 2 + fwd.x * depth / 2, 0, (a.z + b.z) / 2 + fwd.z * depth / 2), radius = Math.hypot(w, depth) / 2;
         if (!free(c, radius)) continue;
         if (area(ring) < 0) ring.reverse();
-        const floors = [2, 2, 3, 3, 3, 4][Math.floor(r() * 6)];
+        const floors = small ? [1, 2, 2, 2, 3][Math.floor(r() * 5)] : [2, 2, 3, 3, 3, 4][Math.floor(r() * 6)];
         c.y = Math.min(height(front.x, front.z), p.y - 0.588);
-        out.push({ ring, y: c.y, floors, kind: floors === 2 && r() < 0.2 ? "house" : "shop", use: "", colour: f.walls[Math.floor(r() * f.walls.length)], toRoad: { x: -fwd.x, z: -fwd.z }, centre: c, radius, town: "Kalpetta", street: true });
+        out.push({ ring, y: c.y, floors, kind: floors === 2 && r() < 0.2 ? "house" : "shop", use: "", colour: f.walls[Math.floor(r() * f.walls.length)], toRoad: { x: -fwd.x, z: -fwd.z }, centre: c, radius, town, street: true });
       }
     }
   }

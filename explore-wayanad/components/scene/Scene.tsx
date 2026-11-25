@@ -65,6 +65,7 @@ import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
 import Streets from "./Streets";
 import TownLife from "./TownLife";
+import StreetTraffic from "./StreetTraffic";
 import Vista from "../drive/Vista";
 import TyreSmoke from "@/components/drive/TyreSmoke";
 // filming only (?film=<car>): a new garage car in place of yours, for reels
@@ -186,6 +187,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       <Town curve={curve} />
       <Streets curve={curve} />
       <TownLife curve={curve} small={small} />
+      <StreetTraffic curve={curve} small={small} />
       <TeaHedges curve={curve} density={small ? (weak ? 0.3 : 0.5) : 1} />
       <BendSigns curve={curve} />
       <Billboards curve={curve} />

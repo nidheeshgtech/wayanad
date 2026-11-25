@@ -122,7 +122,7 @@ export function stepJobs(dt: number) {
   if (a) {
     jobs.near = null;
     a.left -= Math.min(dt, 0.1);
-    if (a.job.kind === "passenger" && score.crashes - a.crashes > (a.job.crashes ?? 0)) { end(false, a.job.crashed ?? a.job.fail); return; }
+    if (a.job.crashes !== undefined && score.crashes - a.crashes > a.job.crashes) { end(false, a.job.crashed ?? a.job.fail); return; }
     if (a.left <= 0) { end(false, a.job.fail); return; }
     const inCircle = Math.abs(game.s - a.job.drop) < STOP.reach;
     jobs.wait = inCircle && still ? jobs.wait + Math.min(dt, 0.1) : 0;

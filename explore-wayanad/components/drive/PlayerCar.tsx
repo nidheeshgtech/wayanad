@@ -8,7 +8,8 @@ import {
 import { CAR, game, setVehicle, type View } from "@/lib/game";
 import { collideRemotes, net } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
-import { mainRoom, street, streets, switchRoads } from "@/lib/streets";
+import { mainRoom, projectMain, street, streets, switchRoads } from "@/lib/streets";
+import { streetTraffic } from "@/lib/streetTraffic";
 import { stationRoom, town } from "@/lib/townLife";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
 import { collidePeople } from "@/components/scene/Pedestrians";
@@ -390,13 +391,18 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
       if (game.leg === 0 && switchRoads(curve)) settle();
       if (game.leg === 0) { scoreDrive(dt, game.s, game.speed); tickBadges(dt, weather.rain, nightness(), game.speed); } // points for new road, the clean-driving streak, time in rain / dark
       if (ending && (game.speed <= 0.02 || game.s >= gateStop)) { game.speed = 0; game.input.brake = 0; game.phase = "gate"; }
-      if (game.leg === 0 && game.street < 0 && trafficControl.curve === curve) {
-        const p = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: game.psi };
-        const knock = Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
+      // on a side street its own traffic (lib/streetTraffic), in the street's coordinates; else the highway's
+      const onSt = game.leg === 0 && game.street >= 0 && !!streetTraffic.fleets[game.street];
+      if (game.leg === 0 && (onSt || (game.street < 0 && trafficControl.curve === curve))) {
+        const at = onSt ? street : game;
+        const p = { s: at.s, lat: at.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: at.psi };
+        const knock = onSt ? collidePlayer(streetTraffic.fleets[game.street], streets(curve)[game.street].curve, streetRoads[game.street].widen, p)
+          : Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
         // someone knocked over on the shoulder: a jolt, the streak lost and points off, and a word
-        if (collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }
-        if (p.s !== game.s) { game.s = p.s; game.prev.s = p.s; }
-        if (p.lat !== game.lat) { game.lat = p.lat; game.prev.lat = p.lat; game.psi = p.psi; }
+        if (!onSt && collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }
+        if (p.s !== at.s) { at.s = p.s; at.prev.s = p.s; }
+        if (p.lat !== at.lat) { at.lat = p.lat; at.prev.lat = p.lat; at.psi = p.psi; }
+        if (onSt) projectMain(curve);
         game.speed = p.speed; game.bump = Math.max(game.bump, knock);
         // collision feedback (lib/impact): a knock is the closing speed, 1 ≈ 36 km/h. One contact shows once (creeping
         // round a vehicle you're touching stays quiet), again only if it gets clearly harder

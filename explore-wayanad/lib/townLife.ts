@@ -167,10 +167,10 @@ export function townClear(curve: CatmullRomCurve3): { at: Vector3; radius: numbe
   return out;
 }
 
-/** The HUD's word (DriveHud's note line): a place coming up, the signal on red, the bazaar street's mouth, or on it. */
+/** The HUD's word (DriveHud's note line): a place coming up, the signal on red, a side street's mouth, or on one. */
 export function townNote(): string {
   if (!game.started || game.phase !== "drive" || game.leg !== 0) return "";
-  if (onStreet()) return chase.stars > 0 ? "🚓 They can't follow you down here · keep going!" : "Kalpetta Bazaar Road · one way";
+  if (onStreet()) return chase.stars > 0 ? "🚓 They can't follow you down here · keep going!" : `${STREETS[game.street]?.name ?? "Side street"} · one way`;
   const s = game.s, n = town.near;
   if (n && n.s - s < 12 && townOn()) return `${STATION_ICON[n.kind]} ${n.name} · stop in the bay for ${n.kind === "pump" ? "a full nitro" : n.kind === "wash" ? "a wash, dents out" : "a new colour"} · ₹${n.price}`;
   const toSignal = KALPETTA.signal - 0.4 - s;

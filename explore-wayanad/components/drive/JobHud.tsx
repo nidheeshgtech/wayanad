@@ -47,7 +47,7 @@ export default function JobHud() {
           face(intro.current, j);
           set(intro.current, "b", j.who); set(intro.current, "small", j.role); set(intro.current, "q", j.offer);
           set(intro.current, "[data-what]", `${j.cargo} → ${j.dropName}`);
-          set(intro.current, "[data-terms]", `${km(j.drop - j.pick)} · ${mmss(allowed(j))}${j.kind === "passenger" ? ` · idi ${j.crashes ?? 0} vare maathram` : ""} · ${rupees(j.pay)}`);
+          set(intro.current, "[data-terms]", `${km(j.drop - j.pick)} · ${mmss(allowed(j))}${j.crashes !== undefined ? (j.crashes ? ` · idi ${j.crashes} vare maathram` : " · oru idi polum paadilla") : ""} · ${rupees(j.pay)}`);
         }
       }
       // the strip while on the job
@@ -59,7 +59,7 @@ export default function JobHud() {
           set(strip.current, "[data-left]", km(j.drop - game.s));
           set(strip.current, "[data-clock]", mmss(a.left));
           strip.current.toggleAttribute("data-late", a.left < 30);
-          const hits = j.kind === "passenger" ? `· idi ${Math.max(0, score.crashes - a.crashes)}/${j.crashes ?? 0}` : "";
+          const hits = j.crashes !== undefined ? `· idi ${Math.max(0, score.crashes - a.crashes)}/${j.crashes}` : "";
           set(strip.current, "[data-hits]", hits);
           const here = Math.abs(game.s - j.drop) < STOP.reach;
           set(strip.current, "[data-hint]", here ? (Math.abs(game.speed) < 0.04 ? "Ethi…" : "Ivide nirthu") : "");
