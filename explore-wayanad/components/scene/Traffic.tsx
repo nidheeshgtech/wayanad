@@ -26,6 +26,7 @@ import { stage, stageBlock } from '@/lib/stage';
 import { label, lightBar, own, policeSiren, redCross, siren } from '@/lib/emergency';
 import { chase, tickChase } from '@/lib/chase';
 import { busStops, signalStops } from '@/lib/townLife';
+import { streetBlocks } from '@/lib/streetTraffic';
 import { paintCar } from '@/lib/carModel';
 import { loadVehicle as loadParts, mergeByMaterial, mergeInto } from '@/lib/vehicleAssets';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -289,7 +290,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       // left it when you took another (lib/game `parked`)
       const blocks: Obstacle[] = onRoad ? [{ distance: game.s, length: CAR.halfL * 2, lanes: playerLanes(player), speed: game.speed * Math.cos(game.psi) }] : [];
       // Kalpetta: the crossing's signal on red, and the buses pulling in at the stand (lib/townLife)
-      if (game.leg === 0) { blocks.push(...signalStops()); busStops(live); }
+      if (game.leg === 0) { blocks.push(...signalStops(), ...streetBlocks()); busStops(live); }
       const rubble = stageBlock(); if (rubble) blocks.push({ ...rubble, lanes: [1, -1], keep: 0.12 }); // (a staged rockfall, filming only)
       // you, in the police jeep or the ambulance, siren going: the traffic ahead of you pulls over, as for theirs
       if (own.siren && onRoad && Math.abs(game.speed) > .15) for (const v of live) {

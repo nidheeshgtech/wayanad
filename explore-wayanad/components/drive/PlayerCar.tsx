@@ -9,7 +9,7 @@ import { CAR, game, setVehicle, type View } from "@/lib/game";
 import { collideRemotes, net } from "@/lib/net";
 import { settle, simulate, type RoadInfo } from "@/lib/carPhysics";
 import { mainRoom, projectMain, street, streets, switchRoads } from "@/lib/streets";
-import { streetTraffic } from "@/lib/streetTraffic";
+import { collideOnMain, streetTraffic } from "@/lib/streetTraffic";
 import { stationRoom, town } from "@/lib/townLife";
 import { collidePlayer, trafficControl } from "@/lib/traffic";
 import { collidePeople } from "@/components/scene/Pedestrians";
@@ -397,7 +397,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
         const at = onSt ? street : game;
         const p = { s: at.s, lat: at.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: at.psi };
         const knock = onSt ? collidePlayer(streetTraffic.fleets[game.street], streets(curve)[game.street].curve, streetRoads[game.street].widen, p)
-          : Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p));
+          : Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p), collideOnMain(curve, road.widen, p));
         // someone knocked over on the shoulder: a jolt, the streak lost and points off, and a word
         if (!onSt && collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }
         if (p.s !== at.s) { at.s = p.s; at.prev.s = p.s; }

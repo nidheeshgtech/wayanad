@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
   AdditiveBlending, Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Color, ConeGeometry, CylinderGeometry, DoubleSide, Group, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, SphereGeometry, Vector3, type Material,
+  BufferGeometry, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, SphereGeometry, Vector3, type Material,
 } from "three";
 import { SECTION, height } from "@/lib/terrain";
-import { BAY, KALPETTA, STATIONS, STATION_ICON, frameAt, stepTown, town, type Station } from "@/lib/townLife";
-import { STREET, streets } from "@/lib/streets";
+import { BAY, KALPETTA, MARKET, STATIONS, STATION_ICON, frameAt, stepTown, town, type Station } from "@/lib/townLife";
+import { STREET, street as onSt, streets } from "@/lib/streets";
+import { game } from "@/lib/game";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { NEON, setLights } from "@/lib/neon";
 import { duskness, nightness } from "@/lib/theme";
 import { loadVehicle } from "@/lib/vehicleAssets";
@@ -217,6 +219,39 @@ function bayMark(st: Station) {
   return { g, m };
 }
 
+/* ---- Kalpetta's night market (lib/townLife MARKET) ---- */
+const FOODS = [["ദോശ", "DOSA", 0xd9a441], ["പൊറോട്ട", "PAROTTA · BEEF", 0xc84a2e], ["കപ്പ", "KAPPA · MEEN", 0x2e8a57], ["ഓംലെറ്റ്", "OMELETTE", 0xe0b43a], ["ജ്യൂസ്", "FRESH JUICE", 0xff2d95], ["ബിരിയാണി", "BIRIYANI", 0x9a4dff], ["കുലുക്കി", "KULUKKI SARBATH", 0x2af0ff]] as const;
+/** A food stall: a counter with its food, a striped awning on two poles, a lamp, its name on a board (front: −z). */
+function stall(i: number) {
+  const g = new Group(), [ml, en, c] = FOODS[i % FOODS.length], wood = M(0x6e4a2c);
+  box(g, 0.22, 0.085, 0.1, wood, 0, 0.0425, 0);
+  box(g, 0.2, 0.014, 0.08, M(c, { rough: 0.6 }), 0, 0.092, 0.005);
+  for (const x of [-0.06, 0, 0.06]) cyl(g, 0.012, 0.02, M(0xb8b8b8, { metal: 0.6, rough: 0.35 }), x, 0.109, 0.02, 8); // pots
+  for (const x of [-0.11, 0.11]) cyl(g, 0.004, 0.24, M(0x3c3c3c), x, 0.12, 0.045, 5);
+  const awn = box(g, 0.27, 0.008, 0.17, M(i % 2 ? 0xc2185b : 0x1f6fd1, { rough: 0.7 }), 0, 0.235, -0.01); awn.rotation.x = -0.18;
+  const b = board(`stall-${i % FOODS.length}`, 256, 72, (x, W, H) => { x.fillStyle = "#111"; x.fillRect(0, 0, W, H); x.fillStyle = `#${c.toString(16).padStart(6, "0")}`; x.textAlign = "center"; x.font = `700 26px ${ML}`; x.fillText(ml, W / 2, 30); x.font = "800 20px Arial,sans-serif"; x.fillText(en, W / 2, 60, W - 12); });
+  sign(g, 0.2, 0.056, b, 0, 0.2, -0.065);
+  const lamp = new Mesh(new SphereGeometry(0.009, 8, 6), M(0xffffff, { glow: 0xffc86a })); lamp.position.set(0, 0.215, -0.06); g.add(lamp);
+  return { g, lights: [{ x: 0, y: 0.21, z: -0.06, color: new Color(0xffc86a), power: 0.3 }] };
+}
+/** The thattukada: a tea shop on a cart, its big kettle on the boil, jars of snacks, a bench for you. */
+function thattukada() {
+  const g = new Group(), wood = M(0x5b3a22);
+  box(g, 0.32, 0.09, 0.11, wood, 0, 0.045, 0);
+  box(g, 0.3, 0.008, 0.1, M(0x2b2b2b), 0, 0.094, 0);
+  const kettle = cyl(g, 0.026, 0.05, M(0xc9c9c9, { metal: 0.8, rough: 0.25 }), -0.09, 0.123, 0.01, 14); kettle.castShadow = true;
+  cyl(g, 0.006, 0.02, M(0xc9c9c9, { metal: 0.8, rough: 0.25 }), -0.09, 0.158, 0.01, 8);
+  for (const [x, col] of [[0.0, 0xd9a441], [0.05, 0xc84a2e], [0.1, 0xe8d6a0]] as const) cyl(g, 0.016, 0.04, M(col, { rough: 0.2 }), x, 0.118, 0.02, 10); // pazham pori, vada, biscuits
+  for (const x of [-0.15, 0.15]) cyl(g, 0.004, 0.26, M(0x3c3c3c), x, 0.13, 0.05, 5);
+  const tarp = box(g, 0.36, 0.008, 0.2, M(0x1f8a4c, { rough: 0.75 }), 0, 0.255, -0.02); tarp.rotation.x = -0.15;
+  const b = board("thattukada", 512, 110, (x, W, H) => { x.fillStyle = "#1f8a4c"; x.fillRect(0, 0, W, H); x.fillStyle = "#fff"; x.textAlign = "center"; x.font = `700 40px ${ML}`; x.fillText("ചായക്കട", W / 2, 46); x.font = "800 30px Arial,sans-serif"; x.fillText(`☕ THATTUKADA · CHAYA + PORI ₹${MARKET.chaya.price}`, W / 2, 92, W - 20); });
+  sign(g, 0.3, 0.064, b, 0, 0.215, -0.08);
+  box(g, 0.2, 0.012, 0.035, wood, 0, 0.045, -0.13); // the bench
+  for (const x of [-0.08, 0.08]) box(g, 0.012, 0.04, 0.03, wood, x, 0.02, -0.13);
+  const lamp = new Mesh(new SphereGeometry(0.01, 8, 6), M(0xffffff, { glow: 0xffd27a })); lamp.position.set(0.06, 0.23, -0.07); g.add(lamp);
+  return { g, lights: [{ x: 0.06, y: 0.23, z: -0.07, color: new Color(0xffd27a), power: 0.45 }] };
+}
+
 /* ---- the signal and the crossing ---- */
 const LIGHT = { red: new Color(0xff2a2a), amber: new Color(0xffb020), green: new Color(0x2aff7a) };
 function signalHead() {
@@ -234,7 +269,7 @@ function signalHead() {
   return { g, lamps, walk };
 }
 
-type Spot = { id: PersonId; pos: Vector3; yaw: number; move: Move; cross?: { a: Vector3; b: Vector3; delay: number }; small?: boolean };
+type Spot = { id: PersonId; pos: Vector3; yaw: number; move: Move; cross?: { a: Vector3; b: Vector3; delay: number }; small?: boolean; night?: boolean };
 const NEAR = { load: 70, show: 32, move: 24 };
 
 export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; small: boolean }) {
@@ -242,7 +277,7 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
     const root = new Group(); root.name = "town-life";
     const lights: { x: number; y: number; z: number; color: Color; power: number }[] = [];
     const L = curve.getLength(), spots: Spot[] = [];
-    if (KALPETTA.busStand.s > L - 2) return { root, lights, heads: [], bays: [], spots, parked: [] as { kind: string; pos: Vector3; yaw: number }[] };
+    if (KALPETTA.busStand.s > L - 2) return { root, lights, heads: [], bays: [], spots, parked: [] as { kind: string; pos: Vector3; yaw: number }[], market: null as Group | null, stallBay: null as MeshBasicMaterial | null };
     /** Put `g` at s on `side`, `off` from the centre line (its +z away from the road); returns the frame. */
     const put = (g: Group, s: number, side: 1 | -1, off = EDGE) => {
       const f = frameAt(curve, s), out = f.left.clone().multiplyScalar(side);
@@ -323,6 +358,7 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
     for (const st of streets(curve)) {
       let k = 0;
       for (let s = 6; s < st.length - 6; s += 4.2, k++) {
+        if (st.id === MARKET.street && s > MARKET.from - 1.5 && s < MARKET.to + 1.5) continue; // (the market's own, below)
         const t = s / st.length, p = st.curve.getPointAt(t), tan = st.curve.getTangentAt(t).setY(0).normalize(), side = k % 2 ? 1 : -1;
         const left = new Vector3(tan.z, 0, -tan.x), at = p.clone().addScaledVector(left, side * (STREET.path - 0.02)); at.y = p.y - 0.588 + 0.016;
         const [id, move] = ppl[k % ppl.length];
@@ -334,7 +370,53 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
         }
       }
     }
-    return { root, lights, heads, bays, spots, parked };
+    // the night market: stalls on both footpaths and lights strung across, after dark; the thattukada day and night
+    const market = new Group(); market.name = "night-market"; root.add(market);
+    let stallBay: MeshBasicMaterial | null = null;
+    const mst = streets(curve).find((st) => st.id === MARKET.street);
+    if (mst) {
+      const frame = (s: number) => { const t = Math.min(1, s / mst.length), p = mst.curve.getPointAt(t), tan = mst.curve.getTangentAt(t).setY(0).normalize(); return { p, tan, left: new Vector3(tan.z, 0, -tan.x), y: p.y - 0.588 + 0.016 }; };
+      const place = (g: Group, s: number, side: 1 | -1, off: number, parent: Group) => {
+        const f = frame(s), out = f.left.clone().multiplyScalar(side), at = f.p.clone().addScaledVector(out, off);
+        g.position.set(at.x, f.y, at.z); g.rotation.y = Math.atan2(out.x, out.z); parent.add(g); g.updateMatrixWorld(true); return f;
+      };
+      const C = MARKET.chaya, sellers: PersonId[] = ["uncle", "lungi", "mechanic", "granny", "mum"];
+      const buyers: [PersonId, Move][] = [["collegeboy", "chat"], ["kurti", "phone"], ["student", "talk"], ["saree", "gaze"], ["rider", "drink"]];
+      let n = 0;
+      for (const side of [1, -1] as const) for (let s = MARKET.from; s <= MARKET.to; s += 2.6, n++) {
+        if (side === C.side && Math.abs(s - C.s) < 2) continue; // (the thattukada's place)
+        const made = stall(n), h = new Group(); place(h, s, side, STREET.half + 0.1, market); h.add(bake(made.g)); h.updateMatrixWorld(true);
+        for (const l of made.lights) { const w = local(h, l.x, l.y, l.z); lights.push({ x: w.x, y: w.y, z: w.z, color: l.color, power: 0 }); }
+        spots.push({ id: sellers[n % sellers.length], pos: local(h, 0, 0, 0.09), yaw: h.rotation.y + Math.PI, move: "idle", small: n % 3 === 0, night: true });
+        if (n % 2 === 0) { const [id, move] = buyers[n % buyers.length]; spots.push({ id, pos: local(h, 0.04, 0, -0.1), yaw: h.rotation.y, move, small: false, night: true }); }
+      }
+      // lights strung across the street, sagging between poles
+      const bulbs = new Map<number, BufferGeometry[]>(), cols = [0xffd27a, 0xff2d95, 0x2af0ff, 0xa8ff3e];
+      for (let s = MARKET.from - 0.5, r = 0; s <= MARKET.to + 0.5; s += 3, r++) {
+        const f = frame(s), a = f.p.clone().addScaledVector(f.left, STREET.path - 0.03), b = f.p.clone().addScaledVector(f.left, -(STREET.path - 0.03));
+        for (const e of [a, b]) { const pole = new Mesh(new CylinderGeometry(0.004, 0.004, 0.46, 5), M(0x3c3c3c)); pole.position.set(e.x, f.y + 0.23, e.z); market.add(pole); }
+        for (let j = 0; j <= 12; j++) {
+          const u = j / 12, x = a.x + (b.x - a.x) * u, z = a.z + (b.z - a.z) * u, y = f.y + 0.45 - 0.07 * Math.sin(Math.PI * u), c = cols[(j + r) % cols.length];
+          (bulbs.get(c) ?? bulbs.set(c, []).get(c)!).push(new SphereGeometry(0.0065, 6, 4).translate(x, y, z));
+        }
+      }
+      for (const [c, gs] of bulbs) market.add(new Mesh(mergeGeometries(gs), M(0x222222, { glow: c })));
+      // the thattukada (open day and night), its people, and the place to pull up beside it
+      const tk = thattukada(), th = new Group(); place(th, C.s, C.side, STREET.half + 0.1, root); th.add(bake(tk.g)); th.updateMatrixWorld(true);
+      for (const l of tk.lights) { const w = local(th, l.x, l.y, l.z); lights.push({ x: w.x, y: w.y, z: w.z, color: l.color, power: l.power }); }
+      spots.push({ id: "uncle", pos: local(th, 0.03, 0, 0.1), yaw: th.rotation.y + Math.PI, move: "idle", small: true });
+      spots.push({ id: "lungi", pos: local(th, -0.05, 0, -0.13), yaw: th.rotation.y, move: "sitdrink", small: true });
+      spots.push({ id: "collegeboy", pos: local(th, 0.1, 0, -0.16), yaw: th.rotation.y - 0.4, move: "drink", small: false });
+      const mk = new Group(), m = new MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.6, blending: AdditiveBlending, depthWrite: false, side: DoubleSide });
+      const w = 0.6, d = 0.26;
+      for (const [x, z, ww, dd] of [[0, -d / 2, w, 0.012], [0, d / 2, w, 0.012], [-w / 2, 0, 0.012, d], [w / 2, 0, 0.012, d]] as const) { const o = new Mesh(new PlaneGeometry(ww, dd), m); o.rotation.x = -Math.PI / 2; o.position.set(x, 0, z); mk.add(o); }
+      const icon = new Mesh(new PlaneGeometry(0.14, 0.14), new MeshBasicMaterial({ map: tex(128, 128, (x) => { x.font = "96px sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("☕", 64, 70); }), transparent: true, depthWrite: false }));
+      icon.rotation.x = -Math.PI / 2; icon.position.y = 0.001; mk.add(icon);
+      const f = frame(C.s), at = f.p.clone().addScaledVector(f.left, C.side * 0.12);
+      mk.position.set(at.x, f.y - 0.016 + 0.005, at.z); mk.rotation.y = Math.atan2(f.left.x, f.left.z) + Math.PI / 2; root.add(mk);
+      stallBay = m;
+    }
+    return { root, lights, heads, bays, spots, parked, market, stallBay };
   }, [curve]);
 
   useEffect(() => { setLights("town-life", built.lights); return () => setLights("town-life", []); }, [built]);
@@ -378,6 +460,9 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
     for (const m of mats.values()) { if (m.userData.glow) m.emissiveIntensity = glow; else if (m.userData.sign) m.emissiveIntensity = 0.05 + (duskness() * 0.35 + nightness() * 0.7); }
     const beat = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 5);
     for (const b of built.bays) b.m.opacity = town.near === b.st ? 0.45 + 0.5 * beat : 0.3;
+    const open = nightness() + duskness() * 0.6 > 0.3; // (the market's out after dark)
+    if (built.market) built.market.visible = open;
+    if (built.stallBay) built.stallBay.opacity = game.street >= 0 && Math.abs(onSt.s - MARKET.chaya.s) < 8 && !town.stallUsed ? 0.45 + 0.5 * beat : 0.3;
     // the people
     const S = crowd.current; if (!S.go) return;
     let made = false;
@@ -388,7 +473,7 @@ export default function TownLife({ curve, small }: { curve: CatmullRomCurve3; sm
       const d = sp.pos.distanceTo(camera.position);
       const key = `${sp.id}:lo`;
       if (d < NEAR.load && !S.asked.has(key)) { S.asked.add(key); loadCast(sp.id, true).then((v) => S.ready.set(key, v), () => {}); }
-      const wanted = d < NEAR.show && (!small || !!sp.small || quality.people >= 0.6); // (phones: the few marked `small`)
+      const wanted = d < NEAR.show && (!small || !!sp.small || quality.people >= 0.6) && (!sp.night || open); // (phones: the few marked `small`; the market's people after dark)
       let a = S.actors.get(sp);
       if (wanted && !a && !made) {
         const src = S.ready.get(key);

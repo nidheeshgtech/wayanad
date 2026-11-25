@@ -15,7 +15,7 @@ import { announce } from "@/lib/score";
 import { chime } from "@/lib/horn";
 import { haptic } from "@/lib/native";
 import { chaseOn, chase, wanted } from "@/lib/chase";
-import { STREETS, onStreet } from "@/lib/streets";
+import { STREETS, onStreet, street } from "@/lib/streets";
 
 export type StationKind = "pump" | "wash" | "paint";
 export type Station = { id: string; kind: StationKind; s: number; side: 1 | -1; town: string; name: string; price: number };
@@ -42,7 +42,14 @@ export const KALPETTA = {
 /** The signal's cycle (s): green for the road, amber, then red while the people cross. */
 export const CYCLE = { green: 16, amber: 3, red: 9 };
 
+/** Kalpetta's night market on the bazaar street (TownLife draws it): stalls along both footpaths after dark, between
+ * `from` and `to` along the street, and the thattukada, open day and night, where you pull up for a chaya and pazham
+ * pori and your nitro's topped up. s along the street (its own coordinates); `side` +1 is the street's left. */
+export const MARKET = { street: "bazaar", from: 12, to: 33, chaya: { s: 22, side: 1 as const, price: 30, nitro: 0.4, reach: 0.7 } };
+const marketStreet = () => STREETS.findIndex((d) => d.id === MARKET.street);
+
 const fresh = () => ({
+  stall: 0, stallUsed: false,             // seconds stopped at the thattukada; served this stop
   t: 0,                                   // seconds into the signal's cycle (stops while paused)
   light: "green" as "green" | "amber" | "red",
   near: null as Station | null,           // the place you're in or coming up to (HUD prompt)
@@ -83,6 +90,7 @@ export function stepTown(dt: number) {
       else announce("🚦 Red light!", "loss");
     }
   }
+  stepStall(dt);
   if (!townOn()) { town.near = null; town.wait = 0; return; }
   let near: Station | null = null;
   for (const st of STATIONS) { const d = st.s - s; if (d > -BAY.reach && d < 25 && (!near || st.s < near.s)) near = st; }
@@ -94,6 +102,18 @@ export function stepTown(dt: number) {
   if (town.wait < BAY.hold || town.used.has(near!.id)) return;
   town.used.add(near!.id); town.wait = 0;
   serve(near!);
+}
+
+/** The thattukada on the bazaar street: stopped beside it a moment, a chaya and pazham pori, and nitro. */
+function stepStall(dt: number) {
+  const C = MARKET.chaya, here = game.started && game.phase === "drive" && !net.party && game.street >= 0 && game.street === marketStreet() && Math.abs(street.s - C.s) < C.reach;
+  if (!here) { town.stall = 0; town.stallUsed = false; return; }
+  town.stall = Math.abs(game.speed) < BAY.still ? town.stall + dt : 0;
+  if (town.stall < BAY.hold || town.stallUsed) return;
+  town.stallUsed = true;
+  if (!spend(C.price)) { announce(`₹${C.price} venam… Churam Jobs cheyyu!`, "loss"); chime(false); return; }
+  game.nitro = Math.min(1, game.nitro + C.nitro);
+  announce(`☕ Chaya + pazham pori · nitro +${Math.round(C.nitro * 100)}% · −₹${C.price}`, "big"); chime(true); haptic("success");
 }
 
 function serve(st: Station) {
@@ -170,7 +190,12 @@ export function townClear(curve: CatmullRomCurve3): { at: Vector3; radius: numbe
 /** The HUD's word (DriveHud's note line): a place coming up, the signal on red, a side street's mouth, or on one. */
 export function townNote(): string {
   if (!game.started || game.phase !== "drive" || game.leg !== 0) return "";
-  if (onStreet()) return chase.stars > 0 ? "🚓 They can't follow you down here · keep going!" : `${STREETS[game.street]?.name ?? "Side street"} · one way`;
+  if (onStreet()) {
+    if (chase.stars > 0) return "🚓 They can't follow you down here · keep going!";
+    const toStall = MARKET.chaya.s - street.s;
+    if (game.street === marketStreet() && toStall > -MARKET.chaya.reach && toStall < 8) return town.stallUsed ? "☕ Chaya kudichu! Nitro topped up" : `☕ Thattukada on the left · stop for a chaya + pazham pori · nitro +${Math.round(MARKET.chaya.nitro * 100)}% · ₹${MARKET.chaya.price}`;
+    return `${STREETS[game.street]?.name ?? "Side street"} · one way`;
+  }
   const s = game.s, n = town.near;
   if (n && n.s - s < 12 && townOn()) return `${STATION_ICON[n.kind]} ${n.name} · stop in the bay for ${n.kind === "pump" ? "a full nitro" : n.kind === "wash" ? "a wash, dents out" : "a new colour"} · ₹${n.price}`;
   const toSignal = KALPETTA.signal - 0.4 - s;
