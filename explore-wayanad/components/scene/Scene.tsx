@@ -7,6 +7,7 @@ import { loading } from "@/lib/loading";
 import { loadHeightmap, loadRoad } from "@/lib/heightmap";
 import { scrollState } from "@/lib/scrollState";
 import { DRIVER_LINE, ROUTE, forestAsk, forestStart, setForestPace, setPace } from "@/lib/drive";
+import { game } from "@/lib/game";
 import { estateUniforms, setEstateFrame } from "@/lib/estates";
 import { patchAtmosphere } from "@/lib/atmosphere";
 import Terrain from "./Terrain";
@@ -60,6 +61,7 @@ import Snapshot from "../drive/Snapshot";
 import TeaStall from "../drive/TeaStall";
 import Jobs from "../drive/Jobs";
 import Checkposts from "../drive/Checkposts";
+import ForestPosts from "../drive/ForestPosts";
 import Underglow from "../drive/Underglow";
 import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
@@ -140,6 +142,9 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
   // the forest road arrives after the first screen is ready (story only, or drive mode started on it with ?at=bathery
   // etc.: lib/drive forestStart): then it mounts like everything else
   const [forestIn, setForestIn] = useState(false);
+  // drive mode: which road you're on (the traffic runs on that one)
+  const [leg, setLeg] = useState(0);
+  useEffect(() => { if (mode !== "drive") return; const id = window.setInterval(() => setLeg(game.leg), 400); return () => clearInterval(id); }, [mode]);
   useEffect(() => {
     // (drive mode otherwise once you ask to drive on from Kalpetta: lib/drive forestAsk)
     let raf = 0, live = true, poll = 0;
@@ -174,7 +179,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       {grids.length ? grids.filter((g) => g.region !== "forest").map((g) => <Terrain key={g.index} tile={g.index} segments={small ? Math.round((g.size - 1) / 2) : g.size - 1} />) : <Terrain segments={small ? 96 : 160} />}
       <RoadBand curve={curve} spacing={small ? 0.8 : 0.4} />
       <Road curve={curve} detail={detail} small={small} />
-      <Suspense fallback={null}><Traffic curve={curve} small={small} /></Suspense>
+      {!(mode === "drive" && leg === 1 && forest) && <Suspense fallback={null}><Traffic key="churam" curve={curve} small={small} /></Suspense>}{/* (on the forest road, its own: below) */}
       {stage.scene === "rockfall" && <Suspense fallback={null}><Rockfall curve={curve} /></Suspense>}
       <RetainingWalls curve={curve} />
       <Creepers curve={curve} density={small ? (weak ? 0.3 : 0.5) : 1} />
@@ -205,6 +210,9 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
           <Streets curve={forest.curve} />
           <TownLife curve={forest.curve} small={small} />
           <StreetTraffic curve={forest.curve} small={small} />
+          {mode === "drive" && leg === 1 && <Suspense fallback={null}><Traffic key="forest" curve={forest.curve} small={small} leg={1} /></Suspense>}
+          {mode === "drive" && <Jobs curve={forest.curve} />}
+          {mode === "drive" && <ForestPosts curve={forest.curve} small={small} />}
           <Shafts curve={forest.curve} count={small ? 40 : 90} />
           <Elephant curve={forest.curve} />
           <Checkpost curve={forest.curve} />

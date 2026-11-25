@@ -399,7 +399,7 @@ export default function PlayerCar({ curve, forest, choice }: { curve: CatmullRom
         const at = onSt ? street : game;
         const p = { s: at.s, lat: at.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW, steer: game.steer, psi: at.psi };
         const knock = onSt ? collidePlayer(fleets[game.street], SR!.curve, SR!.widen, p)
-          : game.leg === 1 ? collideOnMain(legCurve, road.widen, p, "forest")
+          : game.leg === 1 ? Math.max(collideOnMain(legCurve, road.widen, p, "forest"), trafficControl.curve === legCurve ? collidePlayer(trafficControl.fleet, legCurve, road.widen, p) : 0)
           : Math.max(collidePlayer(trafficControl.fleet, curve, road.widen, p), collideRemotes(p), collideOnMain(curve, road.widen, p, "churam"));
         // someone knocked over on the shoulder: a jolt, the streak lost and points off, and a word
         if (!onSt && game.leg === 0 && collidePeople(p, road.length) > 0) { hit(0.45); if (game.leg === 0) { crash(); announce("Watch out for people!", "loss"); } }

@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import { legRoad, roadOf } from "@/lib/streets";
 import { useFrame } from "@react-three/fiber";
 import {
   AdditiveBlending, CanvasTexture, CatmullRomCurve3, CircleGeometry, Color, CylinderGeometry, Group, Mesh,
@@ -22,7 +23,7 @@ function fade() {
 }
 
 export default function Jobs({ curve }: { curve: CatmullRomCurve3 }) {
-  const { root, spots } = useMemo(() => {
+  const { root, spots, road } = useMemo(() => {
     const root = new Group(); root.name = "jobs";
     const L = curve.getLength(), tex = fade();
     const ringGeo = new RingGeometry(0.42, 0.5, 64).rotateX(-Math.PI / 2);
@@ -43,13 +44,15 @@ export default function Jobs({ curve }: { curve: CatmullRomCurve3 }) {
       return { g, ring, disc, col };
     };
     const spots = new Map<number, ReturnType<typeof make>>();
-    for (const j of JOBS) for (const s of [j.pick, j.drop]) if (!spots.has(s)) spots.set(s, make(s));
-    return { root, spots };
+    const road = roadOf(curve);
+    for (const j of JOBS) if ((j.road ?? "churam") === road) for (const s of [j.pick, j.drop]) if (!spots.has(s)) spots.set(s, make(s));
+    return { root, spots, road };
   }, [curve]);
 
   useFrame((state, dt) => {
-    stepJobs(dt);
-    const on = jobsOn(), list = on ? markers() : [], t = state.clock.elapsedTime;
+    const here = road === legRoad(); // (one of these per road: the one you're on runs the jobs and shows its circles)
+    if (here) stepJobs(dt);
+    const on = here && jobsOn(), list = on ? markers() : [], t = state.clock.elapsedTime;
     for (const sp of spots.values()) sp.g.visible = false;
     for (const m of list) {
       const sp = spots.get(m.s);

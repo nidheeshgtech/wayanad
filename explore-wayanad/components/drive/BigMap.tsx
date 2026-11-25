@@ -5,22 +5,25 @@ import { game, togglePause } from "@/lib/game";
 import { JOBS } from "@/data/jobs";
 import { jobs, wallet } from "@/lib/jobs";
 import { CHECKPOSTS } from "@/lib/checkposts";
-import { KALPETTA, STATION_ICON, stationsOn } from "@/lib/townLife";
-import { offsetAt, streetDefs } from "@/lib/streets";
+import { STATION_ICON, centreOf, stationsOn } from "@/lib/townLife";
+import { FOREST_POSTS, SANCTUARY } from "@/lib/forestPosts";
+import { legRoad, offsetAt, streetDefs } from "@/lib/streets";
 import styles from "./BigMap.module.scss";
 
-/* The big map (M, or Map in the menu): the whole drive on the real road (OSM, as the radar has it), north up. The towns,
- * the nine hairpins, the chaya kadas and the viewpoint, the police speed checks, the Churam Jobs still open (and the
- * drop of the one you're on), and you. The drive holds still while it's open. */
+/* The big map (M, or Map in the menu): the road you're on (OSM, as the radar has it), north up. The drive up: the towns,
+ * the nine hairpins, the chaya kadas and the viewpoint, the police speed checks. The forest road: Sulthan Bathery, the
+ * sanctuary and its forest checks, Muthanga, the border. On either: the places to pull in, the side streets, the jobs
+ * still open (and the drop of the one you're on), and you. The drive holds still while it's open. */
 type Road = { points: [number, number][]; step: number; bends?: { along: number }[]; arch?: { along: number }; places?: { name: string; along: number }[] };
 const PAD = 54;
 
 export default function BigMap({ onClose }: { onClose: () => void }) {
   const [road, setRoad] = useState<Road | null>(null);
+  const [which] = useState(legRoad), forest = which === "forest";
   // a phone held sideways gets a wide map, a tall screen a tall one
   const [[W, H]] = useState<[number, number]>(() => (typeof window !== "undefined" && innerWidth > innerHeight * 1.15 ? [960, 520] : [600, 820]));
   const you = useRef<SVGGElement>(null), done = useRef<SVGPathElement>(null);
-  useEffect(() => { loadRoad().then((r) => setRoad(r as Road)).catch(() => {}); }, []);
+  useEffect(() => { loadRoad(forest ? "/terrain/forest-road.json" : undefined).then((r) => setRoad(r as Road)).catch(() => {}); }, [forest]);
   useEffect(() => {
     const was = game.paused; if (!was) togglePause(true);
     const key = (e: KeyboardEvent) => { if (e.key === "Escape" || e.code === "KeyM") { e.stopPropagation(); onClose(); } };
@@ -44,15 +47,17 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
       const f = Math.min(n - 1, Math.max(0, (s * 10) / road.step)), i = Math.floor(f), j = Math.min(n - 1, i + 1), t = f - i;
       return [pts[i][0] + (pts[j][0] - pts[i][0]) * t, pts[i][1] + (pts[j][1] - pts[i][1]) * t];
     };
-    const places = [{ name: "Adivaram", along: 0 }, { name: "Lakkidi gate", along: road.arch?.along ?? 12150 }, ...(road.places ?? [])];
+    const places = forest ? (road.places ?? []) : [{ name: "Adivaram", along: 0 }, { name: "Lakkidi gate", along: road.arch?.along ?? 12150 }, ...(road.places ?? [])];
     // the side streets (lib/streets): off the road by their offset, on their side (right of the way up: −1)
     const side = (s: number, o: number, k: number): [number, number] => {
       const [x, y] = at(s), [x1, y1] = at(s + 1), [x0, y0] = at(s - 1), dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
       return [x + (dy / len) * k * o * 10 * sc, y + (-dx / len) * k * o * 10 * sc];
     };
-    const streets = streetDefs("churam").map((st) => { const pts: string[] = []; for (let s = st.from; s <= st.to; s += 0.5) { const [x, y] = side(s, offsetAt(st, s), st.side); pts.push(`${x.toFixed(1)} ${y.toFixed(1)}`); } return { id: st.id, d: "M" + pts.join("L"), label: side((st.from + st.to) / 2, st.offset + 1.6, st.side), name: st.name }; });
-    return { d, at, n, step: road.step, places, streets, bends: (road.bends ?? []).map((b) => at(b.along / 10)), total: ((n - 1) * road.step) / 10 };
-  }, [road, W, H]);
+    const streets = streetDefs(which).map((st) => { const pts: string[] = []; for (let s = st.from; s <= st.to; s += 0.5) { const [x, y] = side(s, offsetAt(st, s), st.side); pts.push(`${x.toFixed(1)} ${y.toFixed(1)}`); } return { id: st.id, d: "M" + pts.join("L"), label: side((st.from + st.to) / 2, st.offset + 1.6, st.side), name: st.name }; });
+    // the sanctuary, as a wider green band under the road
+    const sanct: string[] = []; if (forest) for (let s = SANCTUARY.from; s <= Math.min(SANCTUARY.to, ((n - 1) * road.step) / 10); s += 2) { const [x, y] = at(s); sanct.push(`${x.toFixed(1)} ${y.toFixed(1)}`); }
+    return { d, at, n, step: road.step, places, streets, bends: (road.bends ?? []).map((b) => at(b.along / 10)), total: ((n - 1) * road.step) / 10, sanct: sanct.length ? "M" + sanct.join("L") : "" };
+  }, [road, W, H, forest, which]);
 
   // you, live (the drive is paused, but you might have opened it while rolling to a stop)
   useEffect(() => {
@@ -70,14 +75,15 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
   }, [map]);
 
   const stops = (typeof window !== "undefined" ? (window as unknown as { __wayanadStops?: { kind: string; s: number }[] }).__wayanadStops : null) ?? [];
-  const open = JOBS.filter((j) => !jobs.done.has(j.id) && jobs.active?.job.id !== j.id);
+  const open = JOBS.filter((j) => (j.road ?? "churam") === which && !jobs.done.has(j.id) && jobs.active?.job.id !== j.id);
+  const C = centreOf(which);
   const active = jobs.active;
 
   return (
     <div className={styles.veil} role="dialog" aria-modal aria-label="Map of the drive" onClick={onClose}>
       <div className={styles.card} onClick={(e) => e.stopPropagation()}>
         <header>
-          <div><p>Wayanad</p><h2>Adivaram → Kalpetta</h2></div>
+          <div><p>Wayanad</p><h2>{forest ? "Sulthan Bathery → the border" : "Adivaram → Kalpetta"}</h2></div>
           <b className={styles.wallet}><i>₹</i>{wallet().toLocaleString("en-IN")}</b>
           <button type="button" onClick={onClose} aria-label="Close the map">✕</button>
         </header>
@@ -87,28 +93,29 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
           </defs>
           <rect width={W} height={H} fill="url(#bigmap-grid)" />
           {map && (<>
+            {map.sanct && <path d={map.sanct} stroke="#6fc27a" strokeOpacity={0.32} strokeWidth={30} strokeLinecap="round" strokeLinejoin="round" fill="none" />}
             {map.streets.map((st) => <path key={st.id + "c"} d={st.d} className={styles.casing} style={{ strokeWidth: 6 }} />)}
             {map.streets.map((st) => <path key={st.id} d={st.d} className={styles.road} style={{ strokeWidth: 3 }} />)}
             <path d={map.d} className={styles.casing} />
             <path d={map.d} className={styles.road} />
             <path ref={done} d={map.d} pathLength={1} className={styles.done} strokeDasharray="0 2" />
             {map.bends.map(([x, y], i) => <g key={"b" + i} transform={`translate(${x} ${y})`} className={styles.bend}><circle r={7} /><text y={0.5}>{i + 1}</text></g>)}
-            {stops.map((st, i) => { const [x, y] = map.at(st.s); return <g key={"s" + i} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>{st.kind === "viewpoint" ? "👁" : "☕"}</text></g>; })}
-            {stationsOn("churam").map((st) => { const [x, y] = map.at(st.s); return <g key={st.id} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>{STATION_ICON[st.kind]}</text></g>; })}
-            {(() => { const [x, y] = map.at(KALPETTA.busStand.s); return <g transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>🚌</text></g>; })()}
-            {CHECKPOSTS.map((c) => { const [x, y] = map.at(c.s); return <g key={c.name} transform={`translate(${x} ${y})`} className={styles.police}><circle r={10} /><text y={1}>🚔</text></g>; })}
+            {!forest && stops.map((st, i) => { const [x, y] = map.at(st.s); return <g key={"s" + i} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>{st.kind === "viewpoint" ? "👁" : "☕"}</text></g>; })}
+            {stationsOn(which).map((st) => { const [x, y] = map.at(st.s); return <g key={st.id} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>{STATION_ICON[st.kind]}</text></g>; })}
+            {(() => { const [x, y] = map.at(C.busStand.s); return <g transform={`translate(${x} ${y})`} className={styles.poi}><circle r={9} /><text y={1}>🚌</text></g>; })()}
+            {forest && FOREST_POSTS.map((c) => { const [x, y] = map.at(c.s); return <g key={c.name} transform={`translate(${x} ${y})`} className={styles.poi}><circle r={10} /><text y={1}>🌳</text></g>; })}
+            {!forest && CHECKPOSTS.map((c) => { const [x, y] = map.at(c.s); return <g key={c.name} transform={`translate(${x} ${y})`} className={styles.police}><circle r={10} /><text y={1}>🚔</text></g>; })}
             {open.map((j) => { const [x, y] = map.at(j.pick); return <g key={j.id} transform={`translate(${x} ${y})`} className={styles.job} style={{ ["--t" as string]: j.tint }}><circle r={12} /><text y={0.5}>{j.initials}</text></g>; })}
             {active && (() => { const [x, y] = map.at(active.job.drop); return <g transform={`translate(${x} ${y})`} className={styles.drop}><circle r={13} /><text y={0.5}>{active.job.initials}</text></g>; })()}
-            {map.places.map((p) => { const [x, y] = map.at(p.along / 10); return <g key={p.name} transform={`translate(${x} ${y})`} className={styles.place}><circle r={4.5} /><text x={12} y={4}>{p.name}</text></g>; })}
+            {map.places.map((p) => { const [x, y] = map.at(p.along / 10), edge = x > W - 190; return <g key={p.name} transform={`translate(${x} ${y})`} className={styles.place}><circle r={4.5} /><text x={edge ? -12 : 12} y={4} textAnchor={edge ? "end" : "start"}>{p.name.replace("Kerala-Karnataka Border Gate", "Border gate")}</text></g>; })}
             <g ref={you} className={styles.you}><circle r={16} /><path d="M0 -11 L8 9 L0 4.5 L-8 9 Z" /></g>
           </>)}
           {!map && <text x={W / 2} y={H / 2} className={styles.loading}>Loading the map…</text>}
         </svg>
         <footer>
           <span><i className={styles.kYou} /> You</span>
-          <span><i className={styles.kJob} /> Churam Jobs{active ? " · drop pulsing" : ""}</span>
-          <span>🚔 Speed check · 60</span>
-          <span>☕ Chaya</span>
+          <span><i className={styles.kJob} /> {forest ? "Jobs" : "Churam Jobs"}{active ? " · drop pulsing" : ""}</span>
+          {forest ? <><span>🌳 Forest check · {SANCTUARY.limit} in the sanctuary</span><span style={{ color: "#8fd39a" }}>▬ Muthanga Wildlife Sanctuary</span></> : <><span>🚔 Speed check · 60</span><span>☕ Chaya</span></>}
           <span>⛽ Fuel · 🚿 Wash · 🎨 Paint</span>
           <span className={styles.keyHint}><kbd>M</kbd> close</span>
         </footer>

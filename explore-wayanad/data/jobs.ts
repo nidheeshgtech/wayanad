@@ -7,6 +7,7 @@
  *   deliver    get there before the clock runs out (with `crashes`: and with no more hits than that, e.g. a cake)
  *   passenger  get them there with no more than `crashes` hits (and before the clock, a generous one)
  */
+import type { Road } from "@/lib/streets";
 export type JobKind = "deliver" | "passenger";
 export type Job = {
   id: string;
@@ -18,6 +19,8 @@ export type Job = {
   pace: number;           // metres a second the clock allows for
   crashes?: number;       // passenger: hits allowed
   offer: string; done: string; fail: string; crashed?: string;
+  /** the forest road (Sulthan Bathery → the border; its own s from Bathery's west end) rather than the drive up */
+  road?: Road;
 };
 
 export const JOBS: Job[] = [
@@ -81,5 +84,37 @@ export const JOBS: Job[] = [
     done: "Bus kitti! Saar happy, njanum happy. Ithaa ₹350.",
     fail: "Bangalore bus poyi… saar ini naale pokum.",
     crashed: "Saar pedichu irangi! Ithu auto alla, rocket aano?",
+  },
+  // the forest road, Sulthan Bathery → Muthanga → the border (places on public/terrain/forest-road.json: Muthanga 12.93 km,
+  // the sanctuary entrance 13.91, Ponkuzhi 16.96, the border gate 20.33; the drive stops just short of the gate)
+  {
+    id: "safari", road: "forest", who: "Safari family", role: "Tourists · Sulthan Bathery", initials: "SF", tint: "#4f7a3a",
+    kind: "passenger", pick: 30, drop: 1388, dropName: "Muthanga safari counter", cargo: "Safari family", pay: 400, pace: 15, crashes: 1,
+    offer: "Chetta, Muthanga safari-kku pokanam! Jeep 3 mani-kku aanu, pettannu ethikkamo? Pillerkku aana-ye kaananam!",
+    done: "Ethi! Ini aana-ye kaanaam. Ithaa ₹400, nanni chetta!",
+    fail: "Safari jeep poyi… pillerellaam karachil aayi.",
+    crashed: "Ayyo, pillerellaam pedichu! Njangal ivide irangikkolaam.",
+  },
+  {
+    id: "honey", road: "forest", who: "Kunjikannan", role: "Kaattu then · Muthanga", initials: "KK", tint: "#c9922e",
+    kind: "deliver", pick: 1300, drop: 1960, dropName: "Border checkpost kada", cargo: "Kaattu then (wild honey)", pay: 300, pace: 13, crashes: 1,
+    offer: "Ee kaattu then border-ile kada-yil ethikkanam. Kuppi pottaruthu, ketto! Sanctuary-il pathukke, 40 vare maathram.",
+    done: "Then ethi, onnum pottiyilla! Ithaa ₹300.",
+    fail: "Samayam kazhinju, kada adachu poyi.",
+    crashed: "Kuppi pottippoyi! Then ellaam road-il…",
+  },
+  {
+    id: "spices", road: "forest", who: "Abdulla ikka", role: "Spice trader · Sulthan Bathery", initials: "AI", tint: "#8a4b2a",
+    kind: "deliver", pick: 55, drop: 2015, dropName: "Kerala checkpost, the border", cargo: "Kurumulaku + elakka", pay: 550, pace: 15,
+    offer: "Mysuru lorry border-il kaathu nikkunnu. Ee kurumulakum elakkayum avide ethikkamo? Forest-il speed venda, guard-mar pidikkum!",
+    done: "Lorry-kku samayathu kitti! Ithaa ₹550, Bathery-il varumbol chaya en vaka.",
+    fail: "Lorry poyi… ini adutha aazhcha.",
+  },
+  {
+    id: "radio", road: "forest", who: "Forest guard Sasi", role: "Kerala Forest Dept · Muthanga", initials: "FG", tint: "#2f6b3a",
+    kind: "deliver", pick: 1405, drop: 1700, dropName: "Ponkuzhi forest camp", cargo: "Walkie-talkie set", pay: 250, pace: 11,
+    offer: "Ponkuzhi camp-ile radio kedayi. Ee set avide ethikkanam, aanakoottam irangiyittundu, sookshichu!",
+    done: "Kitti! Ippo camp-umaayi samsaarikkaam. Ithaa ₹250.",
+    fail: "Late aayi… aanakoottam ippo road-il aanu, pinne nokkaam.",
   },
 ];

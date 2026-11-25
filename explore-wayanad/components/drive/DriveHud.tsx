@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } from "@/lib/game";
 import { primeImpact } from "@/lib/impact";
 import { FOREST_ROUTE, FOREST_STARTS, forestAsk, forestStart } from "@/lib/drive";
+import { forestNote } from "@/lib/forestPosts";
 import { beep, chime, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
@@ -349,7 +350,7 @@ export default function DriveHud() {
       // the tea stall below Lakkidi: a word as you come up to it, until you've had your tea this climb
       const toStall = game.stall - game.s, teaDue = game.stall > 0 && game.teaRun !== score.run && game.phase === "drive";
       const teaNote = !teaDue ? "" : Math.abs(toStall) < 0.45 ? (Math.abs(game.speed) < 0.03 ? "☕ Ordering a chaya…" : "☕ Stop here for a chai break") : toStall > 0 && toStall < 10 ? `☕ Tea stall in ${Math.round(toStall * 10)} m — stop for a chai break` : "";
-      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote() || townNote();
+      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote() || forestNote() || townNote();
       // the tea itself, for a few seconds after it's served
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);

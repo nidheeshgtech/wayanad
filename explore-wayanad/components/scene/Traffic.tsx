@@ -3,7 +3,7 @@ import { use, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box3, BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, Raycaster, SRGBColorSpace, Texture, TextureLoader, Vector3, type Object3D } from 'three';
 import { destinationBoard, hasBoard, loadVehicle, type BoardText } from '@/lib/vehicleAssets';
-import { height, roadDistance, roadShapeAt } from '@/lib/terrain';
+import { forestRoad, height, roadDistance, roadShapeAt } from '@/lib/terrain';
 import { AMBULANCE, POLICE, fileOf, advanceTraffic, bendAtDistance, createFleet, edgeRoom, interactWithPlayer, interactWithViewer, passingZones, playerLanes, trafficControl, TRAFFIC_PAINTS, VEHICLES, vehicleLat, vehiclePose, type Obstacle, type Player, type Vehicle } from '@/lib/traffic';
 import { CAR, game } from '@/lib/game';
 import { honk, honking } from '@/lib/horn';
@@ -103,7 +103,7 @@ const TYRE: Record<string, number> = {
 };
 let assets: Promise<(Group | null)[]> | null = null;
 const loadAssets = () => assets ??= Promise.all(VEHICLES.map((_, k) => k === POLICE ? loadPolice() : load(fileOf(k))));
-const widen = (t: number) => roadShapeAt(t).widen;
+const churamWiden = (t: number) => roadShapeAt(t).widen, flat = () => 0; // (the forest road: no widening)
 /** Where a vehicle drawn at `pose` would poke off the asphalt (giving way at its edge, a wide bus round a bend) or
  * into the bank (small mismatches between the baked terrain and the road cut): the nudge that puts it back — inward
  * toward the road's centre line and up over the ground — written into `out`. Vehicles used to be hidden in those
@@ -123,7 +123,7 @@ function nudgeFor(curve: CatmullRomCurve3, v: Vehicle, pose: { position: Vector3
   return out.copy(inward).multiplyScalar(off).setY(Math.min(lift, .12));
 }
 /** On the road, wheels out of the bank: whether a vehicle can stand at its edge here (giving way needs room). */
-function footprintOk(curve: CatmullRomCurve3, v: Vehicle) {
+function footprintOk(curve: CatmullRomCurve3, v: Vehicle, widen: (t: number) => number) {
   const spec = VEHICLES[v.kind], pose = vehiclePose(curve, v, widen);
   for (const z of [-spec.length / 2, spec.length / 2]) for (const x of [-spec.width / 2, spec.width / 2]) {
     const p = new Vector3(x, .025, z).applyQuaternion(pose.rotation).add(pose.position);
@@ -131,18 +131,24 @@ function footprintOk(curve: CatmullRomCurve3, v: Vehicle) {
   }
   return true;
 }
-export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; small: boolean }) {
+/** `leg`: which road this is in drive mode (0 the drive from Adivaram, 1 the forest road from Sulthan Bathery: Scene
+ * mounts the one you're on). */
+export default function Traffic({ curve, small, leg = 0 }: { curve: CatmullRomCurve3; small: boolean; leg?: 0 | 1 }) {
+  const widen = leg === 1 ? flat : churamWiden;
   const models = use(loadAssets()), last = useRef<number | null>(null);
   // a race in a private room (lib/net party): only one vehicle in RACE_KEEP stays on the road, so it's a race, not a jam
   const thin = useRef<{ on: boolean; live: Vehicle[]; keep: Set<Vehicle> | null }>({ on: false, live: [], keep: null });
   // a vehicle may give way only where it can stand at its edge, here and a little further on
-  const fitsAtEdge = useMemo(() => (v: Vehicle) => edgeRoom(v.kind) > 0 && [0, .8, 1.6].every(d => footprintOk(curve, { ...v, distance: v.distance + d, shift: 1 })), [curve]);
-  const zones = useMemo(() => passingZones(curve,widen),[curve]);
+  const fitsAtEdge = useMemo(() => (v: Vehicle) => edgeRoom(v.kind) > 0 && [0, .8, 1.6].every(d => footprintOk(curve, { ...v, distance: v.distance + d, shift: 1 }, widen)), [curve, widen]);
+  const zones = useMemo(() => passingZones(curve,widen),[curve, widen]);
   const fleet = useMemo(() => {
-    // busier by the towns (Lakkidi, Vythiri, Kalpetta…), thinner on the hairpins
-    const L = curve.getLength(), bends = scrollState.bends.map(t => t * L), towns = [scrollState.arch, ...scrollState.places.map(p => p.t)].map(t => t * L);
+    // busier by the towns (Lakkidi, Vythiri, Kalpetta…), thinner on the hairpins; on the forest road busier at Bathery
+    // and Muthanga, quieter through the sanctuary between
+    const L = curve.getLength(), forest = leg === 1;
+    const bends = forest ? [] : scrollState.bends.map(t => t * L);
+    const towns = (forest ? (forestRoad()?.places ?? []).map(p => p.t) : [scrollState.arch, ...scrollState.places.map(p => p.t)]).map(t => t * L);
     const result=createFleet(L, d => {
-      let k = 1;
+      let k = forest ? 0.7 : 1;
       for (const b of bends) k *= 1 - .55 * Math.exp(-(((d - b) / 2.5) ** 2));
       for (const t of towns) k += 1.2 * Math.exp(-(((d - t) / 12) ** 2));
       return k;
@@ -150,7 +156,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     // Start outside reservation zones, so no initial opposing occupant can be trapped.
     for(const v of result)for(const z of zones)if(v.distance>z.from && v.distance<z.to)v.distance=v.direction===1?z.from-1:z.to+1;
     return result;
-  }, [curve,zones]);
+  }, [curve,zones,leg]);
   const objects = useMemo(() => fleet.map(v => {
     const root = new Group(), source = models[v.kind];
     if (!source) return { root, lights: [] as MeshStandardMaterial[], owned: [] as MeshStandardMaterial[], people: null as Mesh | null, flash: null as ((t: number, on?: boolean) => void) | null, offset: new Vector3(), fresh: true, skip: 0, crew: null as Crew | null, seats: null as OccupiedSeat[] | null, bike: 0, wheels: [] as { spinner: Group; r: number }[], rolled: 0, blurOn: false };
@@ -284,7 +290,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
     if (typeof window !== 'undefined') (window as unknown as { __wayanadTraffic?: unknown }).__wayanadTraffic = trafficControl; // for testing
     if (game.active) {
       // drive mode: the player's bus is a vehicle on this road (leg 0) — traffic brakes for it and gives way to it
-      const onRoad = game.leg === 0 && game.phase === 'drive' && game.street < 0; // (on a side street, lib/streets: not on this road)
+      const onRoad = game.leg === leg && game.phase === 'drive' && game.street < 0; // (on a side street, lib/streets: not on this road)
       const player: Player = { s: game.s, lat: game.lat, speed: game.speed, halfL: CAR.halfL, halfW: CAR.halfW };
       // in the way too: you on foot (standing in a lane stops it — wave one down), and your own car parked where you
       // left it when you took another (lib/game `parked`)
@@ -304,7 +310,7 @@ export default function Traffic({ curve, small }: { curve: CatmullRomCurve3; sma
       if (!trafficControl.paused && !game.paused) frameTimed('traffic-sim', () => advanceTraffic(live, curve, dt * trafficControl.rate, weather.rain, zones, onRoad ? game.s : undefined, blocks, driven, widen));
       if (onRoad && !game.paused) frameTimed('traffic-player', () => { const horn = honking(); Object.assign(trafficControl, { horn }, interactWithPlayer(driven.size ? live.filter(v => !driven.has(v.id)) : live, curve, widen, zones, player, Math.min(dt, .1), horn, fitsAtEdge)); });
     }
-    const viewer = game.active ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
+    const viewer = game.active || leg === 1 ? undefined : act === 'churam' ? driveT(progress) * length : act === 'kalpetta' ? driveT2(progress) * length : undefined;
     if (!game.active && !trafficControl.paused) advanceTraffic(fleet, curve, dt * trafficControl.rate, weather.rain, zones, viewer);
     if (viewer !== undefined && trafficControl.stageAhead > 0) {
       // dev review: put the nearest uphill vehicle this far ahead of the seat, to stage a catch-up
