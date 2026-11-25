@@ -72,9 +72,9 @@ export default function JobHud() {
         S.result = rKey; result.current.toggleAttribute("data-on", rOn);
         if (r) {
           face(result.current, r.job); result.current.toggleAttribute("data-fail", !r.ok);
-          set(result.current, "p", r.ok ? "Pani kazhinju" : "Pani poyi");
+          set(result.current, "p", r.title ?? (r.ok ? "Pani kazhinju" : "Pani poyi"));
           set(result.current, "b", r.job.who); set(result.current, "q", r.line);
-          set(result.current, "em", r.ok ? `+${rupees(r.job.pay)}` : "₹0");
+          set(result.current, "em", r.amount ?? (r.ok ? `+${rupees(r.job.pay)}` : "₹0"));
         }
       }
     };

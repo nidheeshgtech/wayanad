@@ -7,10 +7,15 @@
  * works either way.
  */
 const HORN_MS = 1800;
-export type HornKind = "car" | "bus" | "lorry" | "duck" | "bell";
+export type HornKind = "car" | "bus" | "lorry" | "duck" | "bell" | "chenda" | "synth";
 export const HORNS: { id: HornKind; name: string; icon: string }[] = [
   { id: "car", name: "Car", icon: "🚗" }, { id: "bus", name: "Bus", icon: "🚌" }, { id: "lorry", name: "Lorry tune", icon: "🚚" },
   { id: "duck", name: "Duck", icon: "🦆" }, { id: "bell", name: "Bell", icon: "🔔" },
+];
+/** Horns from the ₹ shop (lib/shop): offered only once bought. */
+export const HORN_EXTRAS: { id: HornKind; name: string; icon: string }[] = [
+  { id: "chenda", name: "Chenda melam", icon: "🥁" },
+  { id: "synth", name: "Synthwave", icon: "🎹" },
 ];
 const SAVED = "wayanad-horn";
 // one object for the page, wherever this module is bundled (the HUD and the 3D scene load in different chunks)
@@ -19,7 +24,7 @@ export const horn: HornState = ((globalThis as { __wayanadHorn?: HornState }).__
 let ctx: AudioContext | null = null;
 
 function savedKind(): HornKind {
-  try { const k = localStorage.getItem(SAVED) as HornKind | null; if (k && HORNS.some((h) => h.id === k)) return k; } catch {}
+  try { const k = localStorage.getItem(SAVED) as HornKind | null; if (k && [...HORNS, ...HORN_EXTRAS].some((h) => h.id === k)) return k; } catch {}
   return "car";
 }
 /** Pick the horn's voice (remembered on this device). */
@@ -74,6 +79,26 @@ const VOICES: Record<HornKind, (c: AudioContext, t: number) => void> = {
       gain.gain.setValueAtTime(0, s); gain.gain.linearRampToValueAtTime(0.5, s + 0.015); gain.gain.exponentialRampToValueAtTime(0.001, s + 0.19);
       o.connect(gain); gain.connect(band); o.start(s); o.stop(s + 0.2);
     }
+  },
+  // (from the ₹ shop, lib/shop) a chenda roll, the temple drum: quick sharp strokes, faster, an accent to end on
+  chenda: (c, t) => {
+    const hits = [0, 0.11, 0.2, 0.27, 0.33, 0.38, 0.43, 0.56];
+    hits.forEach((at, i) => {
+      const s = t + at, accent = i === hits.length - 1 ? 1.6 : i % 2 ? 0.7 : 1;
+      const n = c.createBufferSource(), len = Math.floor(c.sampleRate * 0.12), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+      for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * Math.exp(-k / (c.sampleRate * 0.018));
+      n.buffer = buf;
+      const band = c.createBiquadFilter(); band.type = "bandpass"; band.frequency.value = 1900; band.Q.value = 1.4;
+      const g = c.createGain(); g.gain.value = 0.55 * accent; n.connect(band); band.connect(g); g.connect(c.destination); n.start(s);
+      const o = c.createOscillator(), og = c.createGain(); o.type = "sine"; o.frequency.setValueAtTime(330, s); o.frequency.exponentialRampToValueAtTime(190, s + 0.09);
+      og.gain.setValueAtTime(0.25 * accent, s); og.gain.exponentialRampToValueAtTime(0.001, s + 0.12); o.connect(og); og.connect(c.destination); o.start(s); o.stop(s + 0.13);
+    });
+  },
+  // (from the ₹ shop) synthwave: a quick rising arpeggio and a held chord, detuned saws
+  synth: (c, t) => {
+    const out = lowpass(c, 3200);
+    [440, 523.25, 659.25, 880].forEach((f, i) => note(c, out, t + i * 0.07, 0.09, [f, f * 1.008], { level: 0.06, attack: 0.005, release: 0.03 }));
+    note(c, out, t + 0.3, 0.45, [220, 329.63, 440, 440 * 1.006], { level: 0.05, attack: 0.02, release: 0.2 });
   },
   // a bicycle bell: two bright metallic rings
   bell: (c, t) => {

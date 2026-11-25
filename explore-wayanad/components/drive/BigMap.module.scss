@@ -1,0 +1,39 @@
+// The big map (BigMap.tsx): the game's dark green glass, the road in pale ink, done in amber, the jobs in their colours.
+.veil { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 12px; background: rgba(4, 10, 8, .6); backdrop-filter: blur(3px); }
+.card { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; width: min(620px, 100%); height: min(940px, calc(100dvh - 24px)); padding: 14px 14px 10px;
+  border-radius: 18px; background: rgba(10, 24, 20, .97); border: 1px solid rgba(217, 164, 65, .6); box-shadow: 0 14px 40px rgba(0, 0, 0, .5); color: var(--ink);
+  header { display: flex; align-items: center; gap: 12px; padding: 0 4px;
+    > div { flex: 1; }
+    p { margin: 0 0 3px; font: 600 11px/1 var(--font-sans), sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); }
+    h2 { margin: 0; font: 300 24px/1.1 var(--font-serif), Georgia, serif; }
+    button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(94, 122, 112, .7); background: transparent; color: var(--mute); cursor: pointer; } }
+  footer { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 4px 2px; border-top: 1px solid rgba(94, 122, 112, .4);
+    span { display: flex; align-items: center; gap: 6px; font: 500 12px/1 var(--font-sans), sans-serif; color: var(--mute); }
+    kbd { font: 600 10px/1 var(--font-sans), sans-serif; padding: 3px 5px; border-radius: 4px; border: 1px solid rgba(94, 122, 112, .7); } } }
+.wallet { display: flex; align-items: center; gap: 6px; font: 300 22px/1 var(--font-serif), Georgia, serif;
+  i { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font: 600 11px/1 var(--font-sans), sans-serif; font-style: normal; color: #0e1f1a;
+    background: radial-gradient(circle at 35% 30%, #e6f2d8, #9fc98a 45%, #4f7d43); } }
+.svg { width: 100%; height: 100%; min-height: 0; border-radius: 12px; background: radial-gradient(ellipse at 50% 40%, #173a30, #0a1814);
+  text { font-family: var(--font-sans), sans-serif; text-anchor: middle; dominant-baseline: middle; } }
+.grid { fill: none; stroke: rgba(143, 168, 158, .08); stroke-width: 1; }
+.casing { fill: none; stroke: #06110d; stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
+.road { fill: none; stroke: #8fa89e; stroke-width: 4.5; stroke-linejoin: round; stroke-linecap: round; }
+.done { fill: none; stroke: #d9a441; stroke-width: 4.5; stroke-linejoin: round; stroke-linecap: round; }
+.bend { circle { fill: #0e1f1a; stroke: #d9a441; stroke-width: 1.4; } text { fill: #eef2ee; font-size: 8px; font-weight: 700; } }
+.poi { circle { fill: #fbf6e6; stroke: #8a6a3a; stroke-width: 1.4; } text { font-size: 11px; } }
+.police { circle { fill: #1c3f9c; stroke: #eef2ee; stroke-width: 1.4; } text { font-size: 11px; } }
+.job { circle { fill: var(--t); stroke: #0e1f1a; stroke-width: 2; } text { fill: #0e1f1a; font-size: 9px; font-weight: 700; } }
+.drop { circle { fill: #d9a441; stroke: #fff3cf; stroke-width: 2.5; animation: beat 1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  text { fill: #0e1f1a; font-size: 9px; font-weight: 700; } }
+@keyframes beat { 50% { transform: scale(1.25); } }
+.place { circle { fill: #eef2ee; stroke: #0e1f1a; stroke-width: 1.5; }
+  text { text-anchor: start; fill: #eef2ee; font-size: 14px; font-weight: 500; paint-order: stroke; stroke: #0a1814; stroke-width: 4px; } }
+.you { circle { fill: rgba(217, 164, 65, .2); stroke: rgba(217, 164, 65, .6); stroke-width: 1; } path { fill: #d9a441; stroke: #0e1f1a; stroke-width: 1.8; stroke-linejoin: round; } }
+.loading { fill: var(--mute); font-size: 16px; }
+.kYou, .kJob { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: #d9a441; }
+.kJob { background: #c8502e; }
+@media (prefers-reduced-motion: reduce) { .drop circle { animation: none; } }
+@media (pointer: coarse) {
+  .keyHint { display: none !important; }
+  .card { padding: 10px 10px 6px; gap: 6px; header h2 { font-size: 19px; } footer span { font-size: 11px; } }
+}

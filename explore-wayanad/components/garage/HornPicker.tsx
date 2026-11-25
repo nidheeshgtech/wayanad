@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { HORNS, honk, horn, setHornKind, type HornKind } from "@/lib/horn";
+import { HORNS, HORN_EXTRAS, honk, horn, setHornKind, type HornKind } from "@/lib/horn";
+import { owns, useShop } from "@/lib/shop";
 import styles from "./HornPicker.module.scss";
 
 /**
@@ -11,15 +12,18 @@ import styles from "./HornPicker.module.scss";
 export default function HornPicker({ value, onChange }: { value?: HornKind; onChange?: (k: HornKind) => void } = {}) {
   // (the saved horn is only known in the browser: start from the default so the server's markup matches)
   const [own, setOwn] = useState<HornKind>("car");
-  useEffect(() => setOwn(horn.kind), []);
+  const [mounted, setMounted] = useState(false); // (bought horns are only known in the browser)
+  useEffect(() => { setOwn(horn.kind); setMounted(true); }, []);
+  useShop();
   const kind = value ?? own;
+  const list = [...HORNS, ...(mounted ? HORN_EXTRAS.filter((h) => owns("horn-" + h.id)) : [])]; // (the shop's, once bought: lib/shop)
   const choose = (k: HornKind) => {
     if (onChange) onChange(k); else { setHornKind(k); setOwn(k); }
     honk({ audible: true, preview: true, kind: k });
   };
   return (
     <div className={styles.horns} role="radiogroup" aria-label="Horn">
-      {HORNS.map((h) => (
+      {list.map((h) => (
         <button key={h.id} type="button" role="radio" aria-checked={h.id === kind} title={h.name} aria-label={h.name}
           onClick={() => choose(h.id)} onKeyDown={(e) => e.stopPropagation()}>
           <span aria-hidden>{h.icon}</span><small>{h.name}</small>

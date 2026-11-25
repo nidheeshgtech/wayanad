@@ -40,6 +40,9 @@ import { chase } from "@/lib/chase";
 import { PedalArt, SteerArt } from "./TouchKeys";
 import Gauge from "./Gauge";
 import JobHud, { Wallet } from "./JobHud";
+import Shop from "./Shop";
+import BigMap from "./BigMap";
+import { checkNote } from "@/lib/checkposts";
 import styles from "./Drive.module.scss";
 import { vista, vistaTime } from "@/lib/vista";
 import { shareView } from "@/lib/shareCard";
@@ -185,6 +188,15 @@ export default function DriveHud() {
   }, []);
   // phones: the settings menu (the top row's other keys live in it)
   const [menu, setMenu] = useState(false);
+  const [kada, setKada] = useState(false); // the ₹ shop (components/drive/Shop)
+  const [bigMap, setBigMap] = useState(false); // the big map (components/drive/BigMap): M
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.code !== "KeyM" || e.repeat || (e.target as HTMLElement)?.closest?.("input, textarea")) return;
+      if (game.started && game.phase === "drive") setBigMap(true);
+    };
+    addEventListener("keydown", key); return () => removeEventListener("keydown", key);
+  }, []);
 
   // keyboard
   useEffect(() => {
@@ -333,7 +345,7 @@ export default function DriveHud() {
       // the tea stall below Lakkidi: a word as you come up to it, until you've had your tea this climb
       const toStall = game.stall - game.s, teaDue = game.stall > 0 && game.teaRun !== score.run && game.phase === "drive";
       const teaNote = !teaDue ? "" : Math.abs(toStall) < 0.45 ? (Math.abs(game.speed) < 0.03 ? "☕ Ordering a chaya…" : "☕ Stop here for a chai break") : toStall > 0 && toStall < 10 ? `☕ Tea stall in ${Math.round(toStall * 10)} m — stop for a chai break` : "";
-      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote;
+      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote();
       // the tea itself, for a few seconds after it's served
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);
@@ -510,6 +522,8 @@ export default function DriveHud() {
         <Sound icon className={styles.deskKey} />
         <ThemeToggle className={styles.themeKey} />
       </div>
+      {kada && <Shop onClose={() => setKada(false)} />}
+      {bigMap && <BigMap onClose={() => setBigMap(false)} />}
       {menu && (<>
         <div className={styles.menuVeil} onClick={() => setMenu(false)} aria-hidden />
         <div className={styles.menu} role="menu" aria-label="Settings">
@@ -518,6 +532,8 @@ export default function DriveHud() {
           <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); togglePause(true); }} aria-label="Pause"><Icon name="pause" /></button><small>Pause</small><kbd>Space</kbd></div>
           <div className={styles.tile} data-desk><button type="button" onClick={() => honk({ audible: true })} aria-label="Horn"><Icon name="horn" /></button><small>Horn</small><kbd>H</kbd></div>
           <div className={styles.tile}><Sound icon /><small>Sound</small></div>
+          <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); setBigMap(true); }} aria-label="Map"><b aria-hidden style={{ font: "600 15px/1 var(--font-sans)" }}>⌖</b></button><small>Map</small><kbd>M</kbd></div>
+          <div className={styles.tile}><button type="button" onClick={() => { setMenu(false); setKada(true); }} aria-label="Kada: the rupee shop"><b aria-hidden style={{ font: "600 17px/1 var(--font-sans)" }}>₹</b></button><small>Kada</small></div>
           {fsOk && <div className={styles.tile}><button type="button" aria-pressed={isFull} onClick={() => goFull(!isFull)} aria-label="Full screen"><Icon name={isFull ? "shrink" : "expand"} /></button><small>Full screen</small></div>}
           <div className={styles.tile} data-quit><button type="button" onClick={quit} aria-label="Quit game"><Icon name="quit" /></button><small>Quit game</small></div>
         </div>

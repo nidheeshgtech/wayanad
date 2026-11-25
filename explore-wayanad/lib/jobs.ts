@@ -15,7 +15,7 @@ import { haptic } from "@/lib/native";
 const WALLET = "wayanad-rupees";
 export const STOP = { reach: 0.8, still: 0.04, hold: 1.0 }; // within 8 m along the road, stopped for a second
 
-type Result = { job: Job; ok: boolean; line: string; at: number };
+type Result = { job: Job; ok: boolean; line: string; at: number; title?: string; amount?: string };
 const fresh = () => ({
   run: -1,                         // the climb (score.run) the job list belongs to: each job once a climb
   done: new Set<string>(),         // finished or failed this climb
@@ -38,6 +38,14 @@ export function wallet() { load(); return jobs.rupees; }
 function pay(n: number) {
   load(); jobs.rupees += n; jobs.paid++;
   try { localStorage.setItem(WALLET, String(jobs.rupees)); } catch {}
+}
+
+/** Spend from the wallet (lib/shop): false, and nothing taken, if there isn't enough. */
+export function spend(n: number) {
+  load(); if (jobs.rupees < n) return false;
+  jobs.rupees -= n; jobs.paid++;
+  try { localStorage.setItem(WALLET, String(jobs.rupees)); } catch {}
+  return true;
 }
 
 /** Jobs run here: driving the main road (leg 0), past the gate, not in a private room. */
@@ -67,6 +75,34 @@ function end(ok: boolean, line: string) {
   jobs.result = { job: a.job, ok, line, at: performance.now() };
   if (ok) { pay(a.job.pay); announce(`+₹${a.job.pay}`, "big"); chime(true); haptic("success"); }
   else { chime(false); haptic("warning"); }
+}
+
+/* The police (lib/chase): caught, a fine out of the wallet; got away, the reward for it. SI Rajan has the last word. */
+const POLICE: Job = { id: "police", who: "SI Rajan", role: "Kerala Police · Wayanad", initials: "SI", tint: "#2f6bff", kind: "deliver",
+  pick: 0, drop: 0, dropName: "", cargo: "", pay: 0, pace: 1, offer: "", done: "", fail: "" };
+const BUSTED = [
+  "Saare, license onnu kaanikku. Ithra speed-il aano Wayanad-il? Fine adachittu pokko.",
+  "Churam kayari vannathinte aavesham aano? Pathukke po, mone. Ithaa receipt.",
+  "Formula One aano ningal? Ivide 60 aanu limit. Fine adakku, ennittu po.",
+];
+const ESCAPED = [
+  "Avan evide poyi?! Adutha thavana njan pidikkum, nokkikko!",
+  "Jeep-inu ithra speed illa saare… avan rakshappettu.",
+  "Ee payyan aara? Number plate polum kandilla!",
+];
+export function policeEnd(caught: boolean, stars: number) {
+  load();
+  const line = (caught ? BUSTED : ESCAPED)[Math.floor(Math.random() * 3)];
+  if (caught) {
+    const n = Math.min(jobs.rupees, 250 * Math.max(1, stars));
+    jobs.rupees -= n; jobs.paid++;
+    try { localStorage.setItem(WALLET, String(jobs.rupees)); } catch {}
+    jobs.result = { job: POLICE, ok: false, line, at: performance.now(), title: "Pidichu! Fine", amount: n ? `−₹${n}` : "₹0 (pocket kaali!)" };
+  } else {
+    const n = 150 * Math.max(1, stars);
+    pay(n);
+    jobs.result = { job: POLICE, ok: true, line, at: performance.now(), title: "Rakshappettu!", amount: `+₹${n}` };
+  }
 }
 
 /** Give up on the job you're on (the HUD's ✕). */

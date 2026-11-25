@@ -59,6 +59,8 @@ import Coins from "../drive/Coins";
 import Snapshot from "../drive/Snapshot";
 import TeaStall from "../drive/TeaStall";
 import Jobs from "../drive/Jobs";
+import Checkposts from "../drive/Checkposts";
+import Underglow from "../drive/Underglow";
 import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
 import Vista from "../drive/Vista";
@@ -210,6 +212,8 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       {mode === "drive" && <Snapshot />}
       {mode === "drive" && <TeaStall curve={curve} />}
       {mode === "drive" && <Jobs curve={curve} />}
+      {mode === "drive" && <Checkposts curve={curve} />}
+      {mode === "drive" && <Underglow />}
       {mode === "drive" && <Stops curve={curve} />}
       {mode === "drive" && <StopCrowds curve={curve} small={small} />}
       {mode === "drive" && <Vista curve={curve} />}

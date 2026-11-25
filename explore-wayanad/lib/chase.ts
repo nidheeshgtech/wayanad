@@ -17,6 +17,8 @@ import { announce, bonus, fine } from "@/lib/score";
 import { POLICE, VEHICLES, type Vehicle } from "@/lib/traffic";
 import { setBorrow, getBorrow } from "@/lib/choice";
 import { haptic, platform } from "@/lib/native";
+import { scrollState } from "@/lib/scrollState";
+import { policeEnd } from "@/lib/jobs";
 
 export type ChaseState = {
   stars: number; peak: number; chasers: number[]; blocker: number; lost: number; held: number; busted: number;
@@ -27,13 +29,15 @@ export const chase: ChaseState = ((globalThis as { __wayanadChase?: ChaseState }
 
 /** Tuning (units of 10 m, seconds). Your car tops out at 2.8 (100 km/h); a patrol at 2.45 on the straight, slower in
  * the bends than you can take them, so a good line gets away and a bad one gets caught. */
-const C = { max: 2.55, bend: 0.7, accel: 0.9, brake: 1.6, behind: 4.5, lose: 4, drop: 6, bust: 2.5, near: 0.5, still: 0.08, gapBehind: 0.35, spacing: 0.6, ahead: 0.7,
+const C = { max: 2.55, bend: 0.7, accel: 0.9, brake: 1.6, behind: 4.5, lose: 4, drop: 8, bust: 2.5, near: 0.5, still: 0.08, gapBehind: 0.35, spacing: 0.6, ahead: 0.7,
   beside: 0.22 }; // the first one rides alongside, just behind your door, 3 m across from you
 
 /** Is the chase on here: the apps, or the site with ?chase (testing); never in a friends' room. */
 export function chaseOn() {
   if (typeof window === "undefined" || net.party) return false;
-  return platform() !== "web" || /[?&]chase\b/.test(location.search);
+  if (platform() !== "web" || /[?&]chase\b/.test(location.search)) return true;
+  // the site: past the Lakkidi gate (the climb itself stays calm), where the speed checks are (lib/checkposts)
+  return game.leg === 0 && game.roadLength > 0 && game.s > scrollState.arch * game.roadLength + 3;
 }
 
 const want = (stars: number) => (stars <= 0 ? 0 : stars === 1 ? 1 : stars === 2 ? 2 : 3);
@@ -148,7 +152,7 @@ export function tickChase(fleet: Vehicle[], length: number, bendAt: (d: number) 
     chase.lost += dt;
     if (chase.lost > C.drop) {
       chase.lost = 0; chase.stars--; chase.version++;
-      if (chase.stars <= 0) { const peak = chase.peak; end(fleet); bonus(100 * peak, "Escaped! 😎"); haptic("success"); }
+      if (chase.stars <= 0) { const peak = chase.peak; end(fleet); bonus(100 * peak, "Escaped! 😎"); policeEnd(false, peak); haptic("success"); }
       else announce(`Losing them… ${"⭐".repeat(chase.stars)}`, "badge");
     }
   } else chase.lost = Math.max(0, chase.lost - dt);
@@ -160,6 +164,7 @@ function busted(fleet: Vehicle[]) {
   end(fleet);
   chase.busted++;
   fine(100 * stars, "Busted! 🚓 Ninne pidichu!");
+  policeEnd(true, stars);
   haptic("heavy");
   // back in your own, where you left it (if you'd taken one); else stopped where you are
   const P = game.parked;
