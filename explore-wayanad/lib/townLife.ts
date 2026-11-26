@@ -11,6 +11,7 @@ import { CatmullRomCurve3, Vector3 } from "three";
 import { game } from "@/lib/game";
 import { net } from "@/lib/net";
 import { spend } from "@/lib/jobs";
+import { liveCount } from "@/lib/live";
 import { announce } from "@/lib/score";
 import { chime } from "@/lib/horn";
 import { haptic } from "@/lib/native";
@@ -134,7 +135,7 @@ function stepStall(dt: number) {
   if (town.stall < BAY.hold || town.stallUsed) return;
   town.stallUsed = true;
   if (!spend(C.price)) { announce(`₹${C.price} venam… Churam Jobs cheyyu!`, "loss"); chime(false); return; }
-  game.nitro = Math.min(1, game.nitro + C.nitro);
+  game.nitro = Math.min(1, game.nitro + C.nitro); liveCount("chaya");
   announce(`☕ Chaya + pazham pori · nitro +${Math.round(C.nitro * 100)}% · −₹${C.price}`, "big"); chime(true); haptic("success");
 }
 

@@ -1,0 +1,8 @@
+.strip { border: 1px solid rgba(94, 122, 112, .45); border-radius: 14px; padding: 12px 14px 10px; background: rgba(14, 31, 26, .55); margin: 0 0 12px; }
+.head { margin: 0 0 8px; font: 600 11px/1 'Instrument Sans', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #d9a441; display: flex; align-items: center; gap: 8px;
+  i { width: 7px; height: 7px; border-radius: 50%; background: #e0533d; box-shadow: 0 0 0 0 rgba(224, 83, 61, .6); animation: pulse 1.8s infinite; } }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .list li { display: flex; gap: 8px; align-items: baseline; font: 400 13px/1.3 'Instrument Sans', sans-serif; color: #b8c7c0;
+  b { color: #eef2ee; font-weight: 600; white-space: nowrap; } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(224, 83, 61, .6); } 70% { box-shadow: 0 0 0 7px rgba(224, 83, 61, 0); } 100% { box-shadow: 0 0 0 0 rgba(224, 83, 61, 0); } }
+@media (prefers-reduced-motion: reduce) { .head i { animation: none; } }

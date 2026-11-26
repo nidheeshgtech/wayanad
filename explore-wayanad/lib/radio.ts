@@ -11,6 +11,7 @@ import { weather } from "@/lib/weather";
 import { nightness } from "@/lib/theme";
 import { chase } from "@/lib/chase";
 import { jobs } from "@/lib/jobs";
+import { live, weatherWords } from "@/lib/live";
 
 export type StationId = "off" | "kalpetta" | "night" | "ulsavam";
 export const STATIONS: { id: Exclude<StationId, "off">; name: string; freq: string; tag: string; rj: string }[] = [
@@ -122,6 +123,12 @@ function rjLine(id: Exclude<StationId, "off">) {
   if (jobs.active) lines.push(`${jobs.active.job.who}-nte pani aano? Samayathu ethikko, ketto!`);
   if (weather.rain > 0.6) lines.push("Churam-il nalla mazha aanu. Pathukke po, headlight on aakkikko.");
   if (nightness() > 0.5) lines.push("Raathri aayi, Wayanad urangiyilla. Adutha paattu ningalkku vendi.");
+  // live, from Wayanad now (lib/live): the real weather, who's driving, today's totals, the fastest climb
+  const w = weatherWords();
+  if (w) lines.push(`Live from Kalpetta: ippo ${w.ml}. ${live.weather!.code >= 51 ? "Wiper on aakkikko!" : "Nalla drive-inu pattiya samayam."}`);
+  if (live.online > 1) lines.push(`Ippo ${live.online} per Wayanad-il drive cheyyunnundu. Hi parayoo, horn adikkoo!`);
+  if (live.today.chaya > 5) lines.push(`Innu ellarum koodi ${live.today.chaya.toLocaleString("en-IN")} chaya kudichu, ${live.today.km.toLocaleString("en-IN")} km odichu. Adipoli!`);
+  if (live.top) lines.push(`Innathe fastest churam climb: ${live.top.name}, ${Math.floor(live.top.sec / 60)} minute ${Math.round(live.top.sec % 60)} second. Beat cheyyaamo?`);
   lines.push(
     id === "kalpetta" ? "Kalpetta FM, ningalude koode. Oru chaya kudichittu drive cheyyoo." :
     id === "night" ? "Churam Night, 98.4. Neon-um mazhayum, pinne ee paattum." :

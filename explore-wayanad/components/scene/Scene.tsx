@@ -62,6 +62,7 @@ import TeaStall from "../drive/TeaStall";
 import Jobs from "../drive/Jobs";
 import Checkposts from "../drive/Checkposts";
 import ForestPosts from "../drive/ForestPosts";
+import LiveSky from "./LiveSky";
 import Underglow from "../drive/Underglow";
 import Stops from "./Stops";
 import StopCrowds from "./StopCrowds";
@@ -221,6 +222,7 @@ function World({ small, weak, mode }: { small: boolean; weak: boolean; mode: "st
       <Particles mistRef={mistRef} fliesRef={fliesRef} small={small} />
       <ValleyClouds count={small ? (weak ? 40 : 80) : 160} />
       <Rain count={small ? (weak ? 2500 : 5000) : 9000} />
+      {mode === "drive" && <LiveSky />}
       {mode === "drive" && <Animals curve={curve} forest={forest?.curve ?? null} />}
       {mode === "drive" && <Suspense fallback={null}><PlayerCar key={`${choice.car}:${choice.colour}:${choice.paintHex ?? ""}:${choice.passenger ?? ""}`} curve={curve} forest={forest?.curve ?? null} choice={choice} /></Suspense>}
       {mode === "drive" && <OnFoot curve={curve} driver={choice.driver} />}

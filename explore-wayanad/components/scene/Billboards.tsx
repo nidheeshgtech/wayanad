@@ -6,12 +6,31 @@ import { BoxGeometry, CanvasTexture, CatmullRomCurve3, Group, Mesh, MeshStandard
 import { archT, bendTs, height } from "@/lib/terrain";
 import { duskness } from "@/lib/theme";
 import { ADVERTISE, BOARDS } from "@/data/sponsors";
+import { live } from "@/lib/live";
+import { clock } from "@/lib/share";
 
 /* Roadside hoardings, as the real churam has: a 6 × 3 m board on two steel legs, behind the barrier on the valley
  * side just past each hairpin, on the longer stretches between them, and before the Lakkidi gate; turned toward the road
  * you arrive on, artwork both sides.
- * The artwork comes from data/sponsors.ts; an unsold board says "Advertise here". Lit after dusk. Units of 10 m. */
+ * The artwork comes from data/sponsors.ts; an unsold board says "Advertise here". Lit after dusk. Units of 10 m.
+ * The board before the Lakkidi gate, while unsold, is the live one in drive mode (lib/live): today's fastest climb,
+ * redrawn as it changes; until anyone has finished today, "Be today's fastest". */
 const SIZE = { w: 0.8, h: 0.4, clear: 0.24 }; // board width, height, and how far its foot stands above the road
+
+/** The live board at Lakkidi: today's fastest climb (or the challenge, before anyone has finished). */
+function drawLive(c: HTMLCanvasElement) {
+  const g = c.getContext("2d")!, top = live.top;
+  g.fillStyle = "#0e1f1a"; g.fillRect(0, 0, 1024, 512);
+  g.strokeStyle = "#d9a441"; g.lineWidth = 10; g.strokeRect(24, 24, 976, 464);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "600 42px 'Instrument Sans', Arial, sans-serif"; const head = "LIVE · TODAY'S FASTEST CLIMB", hw = g.measureText(head).width;
+  g.fillStyle = "#e0533d"; g.beginPath(); g.arc(512 - hw / 2 - 8, 92, 11, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#d9a441"; g.fillText(head, 512 + 14, 94);
+  g.fillStyle = "#eef2ee"; g.font = "300 120px Fraunces, Georgia, serif";
+  g.fillText(top ? top.name : "Be today's fastest", 512, 236, 900);
+  g.fillStyle = "#d9a441"; g.font = "300 96px Fraunces, Georgia, serif"; if (top) g.fillText(clock(top.sec), 512, 352);
+  g.fillStyle = "#b8c7c0"; g.font = "500 36px 'Instrument Sans', Arial, sans-serif"; g.fillText(top ? "Adivaram → Lakkidi · can you beat it?" : "Adivaram → Lakkidi · finish the climb", 512, top ? 438 : 380);
+}
 
 /** The "Advertise here" artwork, in the site's colours. */
 function advertise() {
@@ -33,7 +52,7 @@ export default function Billboards({ curve }: { curve: CatmullRomCurve3 }) {
     const leg = new BoxGeometry(0.012, 1, 0.012), legMat = new MeshStandardMaterial({ color: 0x4a4d4f, roughness: 0.5, metalness: 0.6 });
     const back = new MeshStandardMaterial({ color: 0x2b2e30, roughness: 0.8 }), frame = new BoxGeometry(SIZE.w + 0.02, SIZE.h + 0.02, 0.012);
     const panel = new PlaneGeometry(SIZE.w, SIZE.h), faces: MeshStandardMaterial[] = [], textures: Texture[] = [];
-    let unsold: Texture | null = null;
+    let unsold: Texture | null = null, liveTex: CanvasTexture | null = null, liveMat: MeshStandardMaterial | null = null, liveCanvas: HTMLCanvasElement | null = null;
     for (const b of BOARDS) {
       const s = b.gate ? archT() * L + b.after : b.bend ? bends[b.bend - 1] * L + b.after
         : b.between ? ((bends[b.between[0] - 1] + bends[b.between[1] - 1]) / 2) * L + b.after : null;
@@ -51,8 +70,10 @@ export default function Billboards({ curve }: { curve: CatmullRomCurve3 }) {
       const board = new Group(); board.position.set(at.x, centre, at.z); board.lookAt(at.x + face.x, centre, at.z + face.z);
       let map: Texture;
       if (b.sponsor?.image) { map = loader.load(b.sponsor.image); map.colorSpace = SRGBColorSpace; map.anisotropy = 4; textures.push(map); }
+      else if (b.gate) { liveCanvas = document.createElement("canvas"); liveCanvas.width = 1024; liveCanvas.height = 512; map = liveTex = new CanvasTexture(liveCanvas); liveTex.colorSpace = SRGBColorSpace; liveTex.anisotropy = 4; textures.push(liveTex); }
       else map = unsold ??= advertise();
       const mat = new MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.55 });
+      if (map === liveTex) liveMat = mat;
       faces.push(mat);
       // the artwork on both faces: on the ghat a board is seen from the road above and below it too
       const art = new Mesh(panel, mat); art.position.z = 0.0065; board.add(art);
@@ -65,10 +86,17 @@ export default function Billboards({ curve }: { curve: CatmullRomCurve3 }) {
     }
     if (unsold) textures.push(unsold);
     freeze(group, true); // (they never move; only their lighting changes)
-    return { group, faces, textures };
+    // (the live board starts as the plain advert: the story page, and drive mode until the first answer)
+    if (liveCanvas && liveTex && liveMat) { const ad = advertise(); liveMat.map = liveMat.emissiveMap = ad; textures.push(ad); }
+    return { group, faces, textures, live: liveCanvas && liveTex && liveMat ? { canvas: liveCanvas, tex: liveTex, mat: liveMat, key: "" } : null };
   }, [curve]);
   useEffect(() => () => { for (const t of built.textures) t.dispose(); }, [built]);
   // lit after dusk, like the real ones on the ghat
-  useFrame(() => { const k = duskness() * 0.55; for (const m of built.faces) m.emissiveIntensity = k; });
+  useFrame(() => {
+    const k = duskness() * 0.55; for (const m of built.faces) m.emissiveIntensity = k;
+    const L = built.live;
+    const key = live.ok ? `${live.top?.name}:${live.top?.sec}` : "";
+    if (L && key && L.key !== key) { L.key = key; drawLive(L.canvas); L.tex.needsUpdate = true; if (L.mat.map !== L.tex) { L.mat.map = L.mat.emissiveMap = L.tex; L.mat.needsUpdate = true; } }
+  });
   return <primitive object={built.group} />;
 }

@@ -8,6 +8,7 @@ import { CHECKPOSTS } from "@/lib/checkposts";
 import { STATION_ICON, centreOf, stationsOn } from "@/lib/townLife";
 import { FOREST_POSTS, SANCTUARY } from "@/lib/forestPosts";
 import { legRoad, offsetAt, streetDefs } from "@/lib/streets";
+import { live } from "@/lib/live";
 import styles from "./BigMap.module.scss";
 
 /* The big map (M, or Map in the menu): the road you're on (OSM, as the radar has it), north up. The drive up: the towns,
@@ -108,12 +109,14 @@ export default function BigMap({ onClose }: { onClose: () => void }) {
             {open.map((j) => { const [x, y] = map.at(j.pick); return <g key={j.id} transform={`translate(${x} ${y})`} className={styles.job} style={{ ["--t" as string]: j.tint }}><circle r={12} /><text y={0.5}>{j.initials}</text></g>; })}
             {active && (() => { const [x, y] = map.at(active.job.drop); return <g transform={`translate(${x} ${y})`} className={styles.drop}><circle r={13} /><text y={0.5}>{active.job.initials}</text></g>; })()}
             {map.places.map((p) => { const [x, y] = map.at(p.along / 10), edge = x > W - 190; return <g key={p.name} transform={`translate(${x} ${y})`} className={styles.place}><circle r={4.5} /><text x={edge ? -12 : 12} y={4} textAnchor={edge ? "end" : "start"}>{p.name.replace("Kerala-Karnataka Border Gate", "Border gate")}</text></g>; })}
+            {live.drivers.filter(([leg]) => leg === (forest ? 1 : 0)).map(([, s], i) => { const [x, y] = map.at(s); return <circle key={"d" + i} cx={x} cy={y} r={5} className={styles.other} />; })}
             <g ref={you} className={styles.you}><circle r={16} /><path d="M0 -11 L8 9 L0 4.5 L-8 9 Z" /></g>
           </>)}
           {!map && <text x={W / 2} y={H / 2} className={styles.loading}>Loading the map…</text>}
         </svg>
         <footer>
           <span><i className={styles.kYou} /> You</span>
+          {live.online > 1 && <span><i className={styles.kOther} /> {live.online - 1} more driving now, live</span>}
           <span><i className={styles.kJob} /> {forest ? "Jobs" : "Churam Jobs"}{active ? " · drop pulsing" : ""}</span>
           {forest ? <><span>🌳 Forest check · {SANCTUARY.limit} in the sanctuary</span><span style={{ color: "#8fd39a" }}>▬ Muthanga Wildlife Sanctuary</span></> : <><span>🚔 Speed check · 60</span><span>☕ Chaya</span></>}
           <span>⛽ Fuel · 🚿 Wash · 🎨 Paint</span>

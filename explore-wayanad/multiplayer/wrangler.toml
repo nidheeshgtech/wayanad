@@ -8,8 +8,13 @@ compatibility_date = "2026-10-01"
 bindings = [
   { name = "ROOM", class_name = "Room" },
   { name = "LOBBY", class_name = "Lobby" },
+  { name = "LIVE", class_name = "Live" },
 ]
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room", "Lobby"] # SQLite-backed: the kind the Workers free plan allows
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Live"] # Wayanad live (src/live.ts)

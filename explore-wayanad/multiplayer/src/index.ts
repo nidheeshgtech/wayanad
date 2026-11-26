@@ -44,8 +44,9 @@
  * name } tells them). Blocking is the client's own business (lib/net setBlocked); the server isn't told.
  */
 import { cleanName } from "./names";
+export { Live } from "./live";
 
-export interface Env { ROOM: DurableObjectNamespace; LOBBY: DurableObjectNamespace; ADMIN_KEY?: string }
+export interface Env { ROOM: DurableObjectNamespace; LOBBY: DurableObjectNamespace; LIVE: DurableObjectNamespace; ADMIN_KEY?: string }
 
 const CAPACITY = 25, HARD_CAP = 30, PRIVATE_CAP = 8;
 const VOICE_CAP = 4;         // talkers in a private room's voice chat (each phone connects to each other one)
@@ -85,6 +86,8 @@ const carOf = (v: unknown): { m: string; c: string; d: string } => {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+    // Wayanad live: weather, the sky, who's driving, today's totals (src/live.ts)
+    if (url.pathname === "/live") return env.LIVE.get(env.LIVE.idFromName("live")).fetch(req);
     if (url.pathname === "/join" || url.pathname === "/create") {
       return env.LOBBY.get(env.LOBBY.idFromName("lobby")).fetch(req);
     }

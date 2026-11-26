@@ -4,6 +4,9 @@ import { canLeave, game, resetCar, toggleFoot, togglePause, VIEWS, type View } f
 import { primeImpact } from "@/lib/impact";
 import { FOREST_ROUTE, FOREST_STARTS, forestAsk, forestStart } from "@/lib/drive";
 import { forestNote } from "@/lib/forestPosts";
+import { liveClimb, skyNote, startLive } from "@/lib/live";
+import { followRealSky } from "@/lib/theme";
+import LiveStrip from "./LiveStrip";
 import { beep, chime, honk, horn } from "@/lib/horn";
 import { engine } from "@/lib/engine";
 import { ambience } from "@/lib/ambience";
@@ -120,6 +123,7 @@ type Summary = { km: number; min: number; sec: number; best: number; isNew: bool
  *  leaderboards and badges. Once per climb: stopped at the gate (a room's race) or driving on past it. */
 function recordFinish(S: Summary, P: typeof net.party, racer: boolean) {
   Object.assign(S, recordClimb(game.clock, !game.jumped), { recorded: true, race: "" });
+  if (!game.jumped) liveClimb(game.driver, game.clock); // (today's fastest, on the Lakkidi board: lib/live)
   if (racing()) { const r = standings(); S.race = `${ordinal(r.me + 1)} of ${r.total}`; }
   finish(game.clock, !game.jumped); S.points = score.points;
   if (P && P.mode === "race" && P.phase === "race" && racer) partyFinish(game.clock, score.points);
@@ -138,6 +142,8 @@ export default function DriveHud() {
   // full screen (Android and others: browsers allow it only from a tap, so Start asks, and the ⛶ key); iPhone can't —
   // there the first drive shows how: ≡ → Hide Toolbar, or Add to Home Screen (app/manifest.ts)
   const [canFull, setCanFull] = useState(false), [fsOk, setFsOk] = useState(false), [isFull, setIsFull] = useState(false), [iosTip, setIosTip] = useState(false);
+  // Wayanad live (lib/live): the real weather, sky and clock, who's driving; the sky on Wayanad's clock at once
+  useEffect(() => { followRealSky(null, true); startLive(); }, []);
   useEffect(() => {
     setCanFull(!!document.fullscreenEnabled && matchMedia("(pointer: coarse)").matches); // (Start goes full screen on phones only)
     setFsOk(!!document.fullscreenEnabled);
@@ -350,7 +356,7 @@ export default function DriveHud() {
       // the tea stall below Lakkidi: a word as you come up to it, until you've had your tea this climb
       const toStall = game.stall - game.s, teaDue = game.stall > 0 && game.teaRun !== score.run && game.phase === "drive";
       const teaNote = !teaDue ? "" : Math.abs(toStall) < 0.45 ? (Math.abs(game.speed) < 0.03 ? "☕ Ordering a chaya…" : "☕ Stop here for a chai break") : toStall > 0 && toStall < 10 ? `☕ Tea stall in ${Math.round(toStall * 10)} m — stop for a chai break` : "";
-      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote() || forestNote() || townNote();
+      if (note.current) note.current.textContent = game.scrape > 0.05 ? "Scraping the barrier" : game.bump > 0.25 ? "Bump" : teaNote || checkNote() || forestNote() || townNote() || skyNote();
       // the tea itself, for a few seconds after it's served
       const served = game.tea > 0 && performance.now() - game.tea < 4500;
       if (tea.current) tea.current.toggleAttribute("data-on", served);
@@ -544,7 +550,7 @@ export default function DriveHud() {
         {canFull && <button type="button" className={styles.deskKey} onClick={() => goFull(!isFull)} title={isFull ? "Exit full screen" : "Full screen"} aria-label={isFull ? "Exit full screen" : "Full screen"}><Icon name={isFull ? "shrink" : "expand"} /></button>}
         <button type="button" className={styles.deskKey} onClick={() => nextStation()} title="Radio: next station (Q)" aria-label="Radio: next station"><b aria-hidden style={{ font: "600 14px/1 var(--font-sans)" }}>📻</b></button>
         <Sound icon className={styles.deskKey} />
-        <ThemeToggle className={styles.themeKey} />
+        <ThemeToggle className={styles.themeKey} live />
       </div>
       {kada && <Shop onClose={() => setKada(false)} />}
       <PaintCard />
@@ -620,6 +626,7 @@ export default function DriveHud() {
             )}
           </>}
           panel={<>
+            <LiveStrip />
             {/* the keys folded away until asked for: one small Controls key */}
             <div className={panelStyles.keyOnly}>
               <button type="button" className={panelStyles.keysToggle} aria-expanded={keysOpen} onClick={() => setKeysOpen((o) => !o)} onKeyDown={(e) => e.stopPropagation()}>

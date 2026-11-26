@@ -8,6 +8,7 @@ import { award } from "@/lib/badges";
 import { stops } from "@/lib/stops";
 import { cafeS } from "@/components/scene/Stops";
 import { startVista } from "@/lib/vista";
+import { liveCount } from "@/lib/live";
 
 /* The chai break at the Lakkidi View Point's café (built with the terrace in components/scene/Stops): stop beside it
  * and you're served — once per climb, a bonus and a badge (lib/score, lib/badges); the HUD shows the tea (DriveHud), and
@@ -31,7 +32,7 @@ export default function TeaStall({ curve }: { curve: CatmullRomCurve3 }) {
     game.teaWait = near ? game.teaWait + Math.min(dt, 0.1) : 0;
     if (game.teaWait >= STOP.hold) {
       game.teaRun = score.run; game.tea = performance.now(); game.teaWait = 0;
-      bonus(STOP.points, "☕ Chai break!"); award("chaya");
+      bonus(STOP.points, "☕ Chai break!"); award("chaya"); liveCount("chaya");
       startVista(score.run); // the view from the railing while the tea comes (components/drive/Vista)
     }
   });

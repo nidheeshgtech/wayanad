@@ -30,6 +30,8 @@
   text { text-anchor: start; fill: #eef2ee; font-size: 14px; font-weight: 500; paint-order: stroke; stroke: #0a1814; stroke-width: 4px; } }
 .you { circle { fill: rgba(217, 164, 65, .2); stroke: rgba(217, 164, 65, .6); stroke-width: 1; } path { fill: #d9a441; stroke: #0e1f1a; stroke-width: 1.8; stroke-linejoin: round; } }
 .loading { fill: var(--mute); font-size: 16px; }
+.other { fill: #7fb8e8; stroke: #0e1f1a; stroke-width: 1.5; opacity: .9; }
+.kOther { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: #7fb8e8; }
 .kYou, .kJob { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: #d9a441; }
 .kJob { background: #c8502e; }
 @media (prefers-reduced-motion: reduce) { .drop circle { animation: none; } }

@@ -42,15 +42,31 @@ type Shower = { from: number; to: number; kind: WeatherName };
 let showers: Shower[] = [], km = 0, lastKm = 0;
 const RAINY: WeatherName[] = ["drizzle", "rain", "downpour"];
 /** A new set of showers: the first always early (0.6–1.6 km in, so every drive gets one), then one every 1.5–5 km,
- * each 1–3 km long, drizzle, rain or a downpour; about one in five of the later ones doesn't come (dry stretches). */
+ * each 1–3 km long, drizzle, rain or a downpour; about one in five of the later ones doesn't come (dry stretches).
+ * With the real Kalpetta weather known (lib/live, applyRealWeather): raining there, showers come closer together,
+ * longer, mostly as hard as the real rain; dry there, only one in four comes, and lighter, and none is forced early. */
 function planShowers(): Shower[] {
-  const out: Shower[] = [];
+  const out: Shower[] = [], wet = real === "drizzle" || real === "rain" || real === "downpour", dry = real !== null && !wet && real !== "overcast";
   for (let at = 0.6 + random(), first = true; at < 80; first = false) {
-    const len = 1 + random() * 2, r = random();
-    if (first || random() > 0.2) out.push({ from: at, to: at + len, kind: r < 0.3 ? "drizzle" : r < 0.72 ? "rain" : "downpour" });
-    at += len + 1.5 + random() * 3.5;
+    const len = (wet ? 1.5 : 1) + random() * 2, r = random();
+    const kind: WeatherName = wet ? (r < 0.65 ? (real as WeatherName) : r < 0.85 ? "rain" : "drizzle") : dry ? (r < 0.7 ? "drizzle" : "rain") : r < 0.3 ? "drizzle" : r < 0.72 ? "rain" : "downpour";
+    if ((first && !dry) || random() > (dry ? 0.75 : 0.2)) out.push({ from: at, to: at + len, kind });
+    at += len + (wet ? 0.5 + random() * 1.5 : 1.5 + random() * 3.5);
   }
   return out;
+}
+/** The real weather in Kalpetta now (lib/live), or null when unknown. */
+let real: WeatherName | null = null;
+/** The real weather has come in (or changed): showers re-planned to match it (drive mode only), and a dry sky set
+ * toward it now: real mist or cloud on the churam starts the drive that way and comes back more often. */
+export function applyRealWeather(kind: WeatherName | null) {
+  if (!showery || forced || kind === real) return;
+  real = kind;
+  if (!kind) return;
+  showers = planShowers();
+  const dryKind = kind === "drizzle" || kind === "rain" || kind === "downpour" ? "overcast" : kind;
+  for (const st of Object.values(STATES)) st.next[dryKind] = Math.min(6, (st.next[dryKind] ?? 0) + 3);
+  if (!RAINY.includes(weather.state)) { weather.state = dryKind; until = clock + 60; }
 }
 export function setDriveWeather() {
   showery = true; RAIN_AFTER = 40; DRY_VISITS = 0;

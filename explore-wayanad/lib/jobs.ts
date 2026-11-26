@@ -12,6 +12,7 @@ import { net } from "@/lib/net";
 import { chime } from "@/lib/horn";
 import { haptic } from "@/lib/native";
 import { legRoad } from "@/lib/streets";
+import { liveCount } from "@/lib/live";
 
 const WALLET = "wayanad-rupees";
 export const STOP = { reach: 0.8, still: 0.04, hold: 1.0 }; // within 8 m along the road, stopped for a second
@@ -76,7 +77,7 @@ function end(ok: boolean, line: string) {
   const a = jobs.active!;
   jobs.done.add(a.job.id); jobs.active = null;
   jobs.result = { job: a.job, ok, line, at: performance.now() };
-  if (ok) { pay(a.job.pay); announce(`+₹${a.job.pay}`, "big"); chime(true); haptic("success"); }
+  if (ok) { pay(a.job.pay); liveCount("jobs"); announce(`+₹${a.job.pay}`, "big"); chime(true); haptic("success"); }
   else { chime(false); haptic("warning"); }
 }
 
